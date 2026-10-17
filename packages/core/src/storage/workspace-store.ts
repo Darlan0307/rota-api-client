@@ -663,7 +663,6 @@ export class WorkspaceStore {
     });
   }
 
-  /** Reordena as coleções na sidebar. */
   reorderCollections(order: string[]): Promise<void> {
     return this.mutate(() => this.writeManifest({ ...this.manifest, order }));
   }
@@ -873,14 +872,12 @@ export class WorkspaceStore {
       if (rawManifest === undefined) await writeJsonAtomic(manifestPath, this.manifest);
     }
 
-    // Globais.
     const globalsPath = join(this.root, GLOBALS_FILE);
     this.globals = (await this.readFile(globalsPath, GlobalsFileSchema, problems, true)) ?? {
       schemaVersion: SCHEMA_VERSION,
       variables: [],
     };
 
-    // Ambientes.
     const environments: EnvironmentView[] = [];
     const envDir = join(this.root, ENVIRONMENTS_DIR);
     for (const name of await listFiles(envDir, ENVIRONMENT_EXT)) {
@@ -897,7 +894,6 @@ export class WorkspaceStore {
     }
     environments.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 
-    // Coleções.
     const collections: CollectionNode[] = [];
     const colDir = join(this.root, COLLECTIONS_DIR);
     for (const dirName of await listDirs(colDir)) {

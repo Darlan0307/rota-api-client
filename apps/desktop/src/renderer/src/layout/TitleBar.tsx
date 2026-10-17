@@ -15,7 +15,7 @@ import { useActiveEnvironmentId, useSnapshot, useWorkspace } from '../state/work
 const RIGHT_INSET =
   'calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 140px)) + 8px)';
 
-/** O seletor de workspace é preenchido na Fase 6 (workspaces de projeto). */
+/** O seletor de workspace é registrado pela feature de workspaces. */
 let workspaceMenu: (() => ReactNode) | undefined;
 export function registerWorkspaceMenu(render: () => ReactNode): void {
   workspaceMenu = render;

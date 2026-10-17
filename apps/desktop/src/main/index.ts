@@ -90,7 +90,6 @@ function installMenu(): void {
 }
 
 // Uma única instância: abrir o atalho de novo foca a janela existente.
-// (Também será a base para a ponte com o servidor MCP.)
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {

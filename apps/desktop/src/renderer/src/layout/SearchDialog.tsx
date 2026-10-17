@@ -4,7 +4,7 @@ import { Dialog } from '../components/Dialog';
 import { EmptyState } from '../components/EmptyState';
 import { useUiStore } from '../state/ui';
 
-/** Conteúdo da busca global (Fase 4). */
+/** Conteúdo da busca global, registrado pela feature de busca. */
 let searchContent: ((close: () => void) => ReactNode) | undefined;
 export function registerSearchContent(render: (close: () => void) => ReactNode): void {
   searchContent = render;

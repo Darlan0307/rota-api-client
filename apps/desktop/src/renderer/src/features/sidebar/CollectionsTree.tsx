@@ -101,7 +101,6 @@ export function CollectionsTree({ filter }: { filter: string }) {
     const targetNode = findIn(snapshot.collections, target.id);
     if (!source || !targetNode) return;
 
-    // Reordenar coleções.
     if (source.kind === 'collection') {
       if (targetNode.kind !== 'collection' || target.zone === 'inside') return;
       const order = snapshot.collections.map((c) => c.id).filter((id) => id !== sourceId);

@@ -12,7 +12,7 @@ import { toast } from '../state/toasts';
 import { type SettingsSection, useUiStore } from '../state/ui';
 import { contrastPairs, PALETTES, type Palette } from '../theme/palettes';
 
-/** Seção do MCP (Fase 9) registrada por fora. */
+/** Seção do MCP, registrada pela feature do Claude. */
 let mcpSection: (() => ReactNode) | undefined;
 export function registerMcpSettings(render: () => ReactNode): void {
   mcpSection = render;

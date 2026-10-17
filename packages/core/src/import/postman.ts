@@ -494,7 +494,7 @@ function convertAuth(auth: Dict, ctx: Context, path: string): Auth {
   }
 }
 
-/** APIs pm.* que o app suporta nos scripts (Fase 5). */
+/** APIs pm.* que o app suporta nos scripts. */
 const SUPPORTED_PM = new Set([
   'environment',
   'collectionVariables',

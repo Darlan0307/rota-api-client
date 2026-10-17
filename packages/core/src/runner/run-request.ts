@@ -304,12 +304,11 @@ export async function runRequest(original: RequestData, ctx: RunContext): Promis
   const requestName = ctx.requestName ?? 'Requisição';
 
   try {
-    // 1. Pré-requisição (pode alterar variáveis e a própria requisição).
+    // O pré-script pode alterar variáveis e a própria requisição.
     const before = toScriptRequest(data);
     const after = await runPhase('pre', { request: before, requestName });
     data = applyScriptRequest(data, before, after);
 
-    // 2. Envio, com as variáveis já atualizadas pelos scripts.
     const prepareOpts = {
       scope: state.scope(),
       auth: effectiveAuth(store, data, ctx).auth,
@@ -332,7 +331,6 @@ export async function runRequest(original: RequestData, ctx: RunContext): Promis
     };
     response = await executeRequest(prepared, execOptions);
 
-    // 3. Pós-resposta (testes, extração de tokens...).
     await runPhase('post', {
       request: toScriptRequest(data),
       response: toScriptResponse(response),

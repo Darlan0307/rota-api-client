@@ -31,15 +31,14 @@ import { NewWorkspaceDialog, openFolderAsWorkspace, WorkspaceMenu } from './work
 /**
  * Registra as funcionalidades que se conectam ao layout por pontos de
  * extensão (importação, histórico, cURL, scripts, lixeira, workspaces, MCP).
- * Cada fase acrescenta o seu registro aqui.
  */
 export function registerFeatures(): void {
-  // Fase 3: importação do Postman.
+  // Importação.
   registerOverlay(ImportDialog);
   registerSidebarExtensions({ onImport: openImportDialog });
   registerWelcomeExtensions({ onImport: openImportDialog });
 
-  // Fase 4: histórico, gerar código, colar cURL, exemplos e busca global.
+  // Histórico, gerar código, colar cURL, exemplos e busca global.
   registerSidebarExtensions({
     history: (filter) => createElement(HistoryPanel, { filter }),
     historyActions: () => createElement(HistoryActions),
@@ -60,7 +59,7 @@ export function registerFeatures(): void {
   });
   registerSearchContent((close) => createElement(SearchPalette, { close }));
 
-  // Fase 5: scripts e testes no padrão pm.*.
+  // Scripts e testes no padrão pm.*.
   registerRequestEditorExtensions({
     renderScripts: (tab, onChange) =>
       createElement(ScriptsEditor, {
@@ -68,11 +67,10 @@ export function registerFeatures(): void {
         onChange: (scripts) => onChange({ ...tab.draft, scripts }),
         scopeNote: 'Scripts da coleção e das pastas rodam antes deste.',
       }),
-    // Fase 10: contrato e comparação de respostas.
     responseSections: (tab) => [...scriptResultSections(tab), ...compareSections(tab)],
   });
 
-  // Fase 6: lixeira e workspaces de projeto.
+  // Lixeira e workspaces de projeto.
   registerSidebarExtensions({
     trash: (filter) => createElement(TrashPanel, { filter }),
     trashActions: () => createElement(TrashActions),
@@ -81,18 +79,16 @@ export function registerFeatures(): void {
   registerOverlay(NewWorkspaceDialog);
   registerWelcomeExtensions({ onOpenFolder: () => void openFolderAsWorkspace() });
 
-  // Fase 8: confirmações e avisos do Claude (MCP).
+  // Claude (MCP): confirmações, avisos e configuração.
   registerOverlay(McpConfirmDialog);
   subscribeMcpEvents();
-
-  // Fase 9: configuração do Claude Desktop / Claude Code.
   registerMcpSettings(() => createElement(McpSettings));
 
-  // Fase 11: dados de teste, salvar em variável, tabela e desfazer.
+  // Dados de teste e salvar em variável.
   registerOverlay(DynamicVariablesDialog);
   registerOverlay(SaveToVariableDialog);
 
-  // Fase 12: túneis públicos (cloudflared) para receber webhooks.
+  // Túneis (cloudflared) para receber webhooks.
   registerSidebarExtensions({
     tunnels: (filter) => createElement(TunnelsPanel, { filter }),
     tunnelsActions: () => createElement(TunnelsActions),
@@ -100,7 +96,7 @@ export function registerFeatures(): void {
   registerOverlay(TunnelGuideDialog);
   subscribeTunnelEvents();
 
-  // Exportar tudo (backup no formato do Postman).
+  // Backup completo no formato do Postman.
   registerOverlay(BackupDialog);
   registerSidebarExtensions({ onBackup: openBackupDialog });
   registerWelcomeExtensions({ onBackup: openBackupDialog });

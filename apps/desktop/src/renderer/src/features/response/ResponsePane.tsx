@@ -81,7 +81,7 @@ export function ResponsePane({
   );
 }
 
-/** Seções extras do painel (testes, console) adicionadas em fases futuras. */
+/** Seções extras do painel (testes, console, contrato) registradas pelas features. */
 export interface ResponseExtraSection {
   id: ResponseSection;
   label: ReactNode;

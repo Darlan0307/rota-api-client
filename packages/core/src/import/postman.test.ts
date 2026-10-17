@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -309,25 +309,18 @@ describe('importPostmanFiles', () => {
   });
 });
 
-// Exportação real do usuário (fora do Git). Roda só quando o arquivo existe.
-const REAL = join(import.meta.dirname, '../../../../ex-export/Exemplo.postman_collection.json');
-const REAL_ENV = join(import.meta.dirname, '../../../../ex-export/Exemplo.postman_environment.json');
+// Exportações reais em ex-export/ (fora do Git). Roda só quando a pasta existe.
+const REAL_DIR = join(import.meta.dirname, '../../../../ex-export');
+const realFiles = existsSync(REAL_DIR) ? readdirSync(REAL_DIR).filter((f) => f.endsWith('.json')) : [];
 
-describe.skipIf(!existsSync(REAL))('exportação real (ex-export)', () => {
-  it('importa a coleção inteira sem erros', () => {
-    const {
-      counts,
-      collection: result,
-      warnings,
-    } = convertCollection(JSON.parse(readFileSync(REAL, 'utf8')));
-    expect(counts).toMatchObject({ folders: 3, requests: 31, examples: 17 });
-    const all = result.children.flatMap((c) => (c.kind === 'folder' ? c.children : [c]));
-    expect(all.filter((r) => r.kind === 'request' && r.data.scripts.postResponse !== '')).toHaveLength(5);
-    expect(warnings.filter((w) => /não suportad/.test(w.message))).toEqual([]);
-  });
-
-  it('sugere marcar PASSWORD e ACCESS_TOKEN como secretas', () => {
-    const preview = previewPostmanFiles([{ fileName: 'env.json', content: readFileSync(REAL_ENV, 'utf8') }]);
-    expect(preview[0]?.sensitiveKeys).toEqual(expect.arrayContaining(['PASSWORD', 'ACCESS_TOKEN']));
+describe.skipIf(realFiles.length === 0)('exportações reais (ex-export)', () => {
+  it.each(realFiles)('%s: lê sem erros nem recursos não suportados', (fileName) => {
+    const content = readFileSync(join(REAL_DIR, fileName), 'utf8');
+    const [preview] = previewPostmanFiles([{ fileName, content }]);
+    expect(preview?.kind).not.toBe('unknown');
+    if (preview?.kind === 'collection') {
+      const { warnings } = convertCollection(JSON.parse(content));
+      expect(warnings.filter((w) => /não suportad/.test(w.message))).toEqual([]);
+    }
   });
 });
