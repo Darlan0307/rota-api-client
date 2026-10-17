@@ -5,6 +5,7 @@ import { registerSearchContent } from '../layout/SearchDialog';
 import { registerMcpSettings } from '../layout/SettingsDialog';
 import { registerSidebarExtensions } from '../layout/Sidebar';
 import { registerWorkspaceMenu } from '../layout/TitleBar';
+import { BackupDialog, openBackupDialog } from './backup/BackupDialog';
 import { AskClaudeButton } from './claude/AskClaude';
 import { CodegenButton, CodegenDialog } from './codegen/CodegenDialog';
 import { compareSections } from './compare/ResponseCompare';
@@ -98,4 +99,9 @@ export function registerFeatures(): void {
   });
   registerOverlay(TunnelGuideDialog);
   subscribeTunnelEvents();
+
+  // Exportar tudo (backup no formato do Postman).
+  registerOverlay(BackupDialog);
+  registerSidebarExtensions({ onBackup: openBackupDialog });
+  registerWelcomeExtensions({ onBackup: openBackupDialog });
 }

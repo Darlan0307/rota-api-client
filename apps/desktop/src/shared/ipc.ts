@@ -156,6 +156,15 @@ export interface CloudflaredInfo {
   source: 'app' | 'path' | null;
 }
 
+export interface BackupResult {
+  folder: string;
+  files: number;
+  collections: number;
+  environments: number;
+  secretsIncluded: number;
+  secretsTotal: number;
+}
+
 export interface IpcContract {
   'app:getInfo': { args: []; result: AppInfo };
   // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno; `void` aceita handlers sem `return`
@@ -199,6 +208,11 @@ export interface IpcContract {
 
   /** Exporta uma coleção (Postman v2.1 ou documentação Markdown). Devolve o arquivo salvo (null = cancelado). */
   'export:collection': { args: [id: string, format: 'postman' | 'markdown']; result: string | null };
+  /**
+   * Backup: todas as coleções, ambientes e globais (formato Postman) numa pasta
+   * escolhida pelo usuário. Segredos só com includeSecrets (texto puro!). null = cancelado.
+   */
+  'export:all': { args: [includeSecrets: boolean]; result: BackupResult | null };
   /** Salva uma tabela da resposta em CSV (nome sugerido sem extensão). */
   'export:csv': { args: [name: string, csv: string]; result: string | null };
   /** Exporta um ambiente (ou as globais, com id null) no formato do Postman. */
@@ -303,6 +317,7 @@ export const IPC_CHANNELS = [
   'export:collection',
   'export:variables',
   'export:csv',
+  'export:all',
   'examples:save',
   'loadtest:start',
   'loadtest:cancel',

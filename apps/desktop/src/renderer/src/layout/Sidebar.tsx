@@ -1,4 +1,4 @@
-import { Download, ListFilter, PanelLeftClose, Plus, X } from 'lucide-react';
+import { Archive, Download, ListFilter, PanelLeftClose, Plus, X } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { IconButton } from '../components/IconButton';
 import { CollectionsTree } from '../features/sidebar/CollectionsTree';
@@ -16,6 +16,8 @@ export interface SidebarExtensions {
   tunnels?: (filter: string) => ReactNode;
   tunnelsActions?: () => ReactNode;
   onImport?: () => void;
+  /** Exportar tudo (backup). */
+  onBackup?: () => void;
 }
 
 let extensions: SidebarExtensions = {};
@@ -90,12 +92,22 @@ function SectionActions({ section }: { section: SidebarSection }) {
             onClick={extensions.onImport}
           />
         )}
+        {extensions.onBackup && (
+          <IconButton icon={Archive} label="Exportar tudo (backup)" size="sm" onClick={extensions.onBackup} />
+        )}
         <IconButton icon={Plus} label="Nova coleção" size="sm" onClick={() => void newCollection()} />
       </>
     );
   }
   if (section === 'environments') {
-    return <IconButton icon={Plus} label="Novo ambiente" size="sm" onClick={() => void newEnvironment()} />;
+    return (
+      <>
+        {extensions.onBackup && (
+          <IconButton icon={Archive} label="Exportar tudo (backup)" size="sm" onClick={extensions.onBackup} />
+        )}
+        <IconButton icon={Plus} label="Novo ambiente" size="sm" onClick={() => void newEnvironment()} />
+      </>
+    );
   }
   if (section === 'history') return <>{extensions.historyActions?.()}</>;
   if (section === 'trash') return <>{extensions.trashActions?.()}</>;

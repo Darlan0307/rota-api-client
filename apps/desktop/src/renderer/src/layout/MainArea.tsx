@@ -1,4 +1,4 @@
-import { Download, FolderOpen, Layers, Plus } from 'lucide-react';
+import { Archive, Download, FolderOpen, Layers, Plus } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Kbd } from '../components/Kbd';
 import { Logo } from '../components/Logo';
@@ -16,6 +16,7 @@ import { TabBar } from './TabBar';
 export interface WelcomeExtensions {
   onImport?: () => void;
   onOpenFolder?: () => void;
+  onBackup?: () => void;
 }
 let welcome: WelcomeExtensions = {};
 export function registerWelcomeExtensions(ext: WelcomeExtensions): void {
@@ -81,6 +82,13 @@ function WelcomeScreen() {
               icon={<Download className="size-4" />}
               label="Importar (Postman ou OpenAPI)"
               onClick={welcome.onImport}
+            />
+          )}
+          {welcome.onBackup && (
+            <WelcomeAction
+              icon={<Archive className="size-4" />}
+              label="Exportar tudo (backup)"
+              onClick={welcome.onBackup}
             />
           )}
           {welcome.onOpenFolder && (

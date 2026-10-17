@@ -1,5 +1,7 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import {
+  buildBackup,
   collectionToMarkdown,
   exportCollectionToPostman,
   exportEnvironmentToPostman,
@@ -225,6 +227,40 @@ export function registerIpcHandlers({
 `,
         )
       : saveAs(event, `${base}.md`, 'md', collectionToMarkdown(collection));
+  });
+  handle('export:all', async (event, includeSecrets) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const options: Electron.OpenDialogOptions = {
+      title: 'Onde salvar o backup',
+      buttonLabel: 'Salvar backup aqui',
+      properties: ['openDirectory', 'createDirectory'],
+    };
+    const picked = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+    const base = picked.filePaths[0];
+    if (picked.canceled || !base) return null;
+    const store = workspace.current;
+    const backup = buildBackup(store.snapshot(), {
+      ...(includeSecrets ? { revealSecret: (target, key) => store.revealSecret(target, key) } : {}),
+    });
+    // Horário local: Rota-backup-2026-10-17_15h40.
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}h${pad(d.getMinutes())}`;
+    const folder = join(base, `Rota-backup-${stamp}`);
+    for (const file of backup.files) {
+      const target = join(folder, file.path);
+      await mkdir(dirname(target), { recursive: true });
+      await writeFile(target, file.content, 'utf8');
+    }
+    shell.showItemInFolder(join(folder, 'LEIA-ME.txt'));
+    return {
+      folder,
+      files: backup.files.length,
+      collections: backup.collections,
+      environments: backup.environments,
+      secretsIncluded: backup.secretsIncluded,
+      secretsTotal: backup.secretsTotal,
+    };
   });
   // BOM: o Excel só reconhece os acentos de um CSV em UTF-8 com ele.
   handle('export:csv', (event, name, csv) =>

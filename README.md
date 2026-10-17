@@ -24,6 +24,7 @@ O servidor roda com o próprio `Rota.exe` (modo Node), sem precisar de Node inst
 
 - **Importar:** Postman (coleções v2.1, ambientes, globais) e OpenAPI 3 / Swagger 2.0 (JSON ou YAML).
 - **Exportar:** botão direito na coleção → Postman (v2.1) ou documentação em Markdown; ambientes → Postman. Valores secretos nunca vão para os arquivos.
+- **Exportar tudo (backup):** ícone de arquivo na barra de coleções ou de ambientes. Salva todas as coleções, ambientes e globais numa pasta, no formato do Postman, com um LEIA-ME. Os segredos só vão (em texto puro) se você marcar a opção.
 - **Contrato:** salve uma resposta boa como exemplo; nas próximas, a aba "Contrato" avisa se um campo sumiu ou mudou de tipo.
 - **Comparar:** diff da resposta atual com um exemplo ou um envio anterior.
 - **Claude:** o botão "Claude" na requisição copia pedidos prontos (gerar testes, explicar erro, documentar a coleção).

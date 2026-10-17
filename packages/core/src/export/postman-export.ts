@@ -4,15 +4,19 @@ import type { ChildNode, CollectionNode, EnvironmentView, VariableView } from '.
 
 /**
  * Exporta coleções e ambientes no formato do Postman (coleção v2.1).
- * Valores de variáveis secretas NUNCA são exportados: vão vazios, com o tipo
- * "secret", para o arquivo poder ser compartilhado sem vazar tokens.
+ * Por padrão, valores de variáveis secretas NÃO são exportados: vão vazios, com o
+ * tipo "secret", para o arquivo poder ser compartilhado sem vazar tokens. Só o
+ * backup completo, a pedido explícito do usuário, passa `secretValue`.
  */
+
+/** Valor real de uma variável secreta (só no backup com segredos). */
+export type SecretValueOf = (key: string) => string | undefined;
 
 const SCHEMA_V21 = 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json';
 
 type Json = Record<string, unknown>;
 
-export function exportCollectionToPostman(collection: CollectionNode): Json {
+export function exportCollectionToPostman(collection: CollectionNode, secretValue?: SecretValueOf): Json {
   return {
     info: {
       _postman_id: collection.id,
@@ -25,7 +29,7 @@ export function exportCollectionToPostman(collection: CollectionNode): Json {
     ...events(collection.scripts),
     variable: collection.variables.map((v) => ({
       key: v.key,
-      value: v.type === 'secret' ? '' : (v.value ?? ''),
+      value: v.type === 'secret' ? (secretValue?.(v.key) ?? '') : (v.value ?? ''),
       type: v.type === 'secret' ? 'secret' : 'string',
       ...(v.enabled ? {} : { disabled: true }),
       ...(v.description ? { description: v.description } : {}),
@@ -33,23 +37,30 @@ export function exportCollectionToPostman(collection: CollectionNode): Json {
   };
 }
 
-export function exportEnvironmentToPostman(environment: EnvironmentView): Json {
+export function exportEnvironmentToPostman(environment: EnvironmentView, secretValue?: SecretValueOf): Json {
   return {
     id: environment.id,
     name: environment.name,
-    values: environment.variables.map(envValue),
+    values: environment.variables.map((v) => envValue(v, secretValue)),
     _postman_variable_scope: 'environment',
   };
 }
 
-export function exportGlobalsToPostman(variables: readonly VariableView[]): Json {
-  return { name: 'Globals', values: variables.map(envValue), _postman_variable_scope: 'globals' };
+export function exportGlobalsToPostman(
+  variables: readonly VariableView[],
+  secretValue?: SecretValueOf,
+): Json {
+  return {
+    name: 'Globals',
+    values: variables.map((v) => envValue(v, secretValue)),
+    _postman_variable_scope: 'globals',
+  };
 }
 
-function envValue(v: VariableView): Json {
+function envValue(v: VariableView, secretValue?: SecretValueOf): Json {
   return {
     key: v.key,
-    value: v.type === 'secret' ? '' : (v.value ?? ''),
+    value: v.type === 'secret' ? (secretValue?.(v.key) ?? '') : (v.value ?? ''),
     type: v.type === 'secret' ? 'secret' : 'default',
     enabled: v.enabled,
   };
