@@ -12,8 +12,20 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { openDynamicVariables } from '../features/dynamic/DynamicVariablesDialog';
 import { cn } from '../lib/cn';
-import { useVariableNames, useVariableResolver, type VariableInfo } from '../lib/variables';
+import {
+  DYNAMIC_SUGGESTIONS,
+  useVariableNames,
+  useVariableResolver,
+  type VariableInfo,
+} from '../lib/variables';
+
+interface Suggestion {
+  name: string;
+  /** Descrição das variáveis dinâmicas (as do escopo mostram o valor). */
+  hint?: string;
+}
 
 interface VariableInputProps {
   value: string;
@@ -120,11 +132,21 @@ export const VariableInput = forwardRef<HTMLInputElement, VariableInputProps>(fu
     return parts;
   }, [value, resolve]);
 
-  const suggestions = useMemo(() => {
+  // Variáveis do escopo primeiro; com "{{$" aparecem só as dinâmicas (dados de teste).
+  const dynamicOnly = suggest?.query.startsWith('$') ?? false;
+  const suggestions = useMemo((): Suggestion[] => {
     if (!suggest) return [];
     const q = suggest.query.toLowerCase();
-    return names.filter((n) => n.toLowerCase().includes(q)).slice(0, 8);
-  }, [suggest, names]);
+    const own = dynamicOnly ? [] : names.filter((n) => n.toLowerCase().includes(q)).map((name) => ({ name }));
+    const term = dynamicOnly ? q.slice(1) : q;
+    const dynamic =
+      dynamicOnly || term !== ''
+        ? DYNAMIC_SUGGESTIONS.filter((v) => `${v.name} ${v.description}`.toLowerCase().includes(term)).map(
+            (v) => ({ name: v.name, hint: v.description }),
+          )
+        : [];
+    return [...own, ...dynamic].slice(0, 10);
+  }, [suggest, names, dynamicOnly]);
 
   function updateSuggest(text: string, caret: number) {
     const before = text.slice(0, caret);
@@ -161,7 +183,7 @@ export const VariableInput = forwardRef<HTMLInputElement, VariableInputProps>(fu
       }
       if (event.key === 'Enter' || event.key === 'Tab') {
         event.preventDefault();
-        applySuggestion(suggestions[suggest.index] ?? suggestions[0] ?? '');
+        applySuggestion(suggestions[suggest.index]?.name ?? suggestions[0]?.name ?? '');
         return;
       }
       if (event.key === 'Escape') {
@@ -244,6 +266,9 @@ export const VariableInput = forwardRef<HTMLInputElement, VariableInputProps>(fu
                   <span className="font-mono text-primary">{hover.name}</span>
                   <span className="text-2xs text-fg-subtle">{hover.info.sourceLabel}</span>
                 </div>
+                {hover.info.description && (
+                  <div className="mt-0.5 text-fg-muted">{hover.info.description}</div>
+                )}
                 <div className="mt-0.5 break-all font-mono text-fg">{hover.info.display || '(vazio)'}</div>
               </>
             ) : (
@@ -272,27 +297,40 @@ export const VariableInput = forwardRef<HTMLInputElement, VariableInputProps>(fu
               top: inputRect.bottom + 4,
             }}
           >
-            {suggestions.map((name, i) => {
-              const info = resolve(name);
-              return (
-                <li
-                  key={name}
-                  role="option"
-                  aria-selected={i === suggest.index}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    applySuggestion(name);
-                  }}
-                  className={cn(
-                    'flex items-center justify-between gap-4 rounded-md px-2 py-1 text-xs',
-                    i === suggest.index ? 'bg-surface-2 text-fg' : 'text-fg-muted',
-                  )}
-                >
-                  <span className="font-mono">{name}</span>
-                  <span className="max-w-40 truncate font-mono text-2xs text-fg-subtle">{info?.display}</span>
-                </li>
-              );
-            })}
+            {suggestions.map(({ name, hint }, i) => (
+              <li
+                key={name}
+                role="option"
+                aria-selected={i === suggest.index}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  applySuggestion(name);
+                }}
+                className={cn(
+                  'flex cursor-pointer items-center justify-between gap-4 rounded-md px-2 py-1 text-xs',
+                  i === suggest.index ? 'bg-surface-2 text-fg' : 'text-fg-muted',
+                )}
+              >
+                <span className="font-mono">{name}</span>
+                <span className={cn('max-w-48 truncate text-2xs text-fg-subtle', !hint && 'font-mono')}>
+                  {hint ?? resolve(name)?.display}
+                </span>
+              </li>
+            ))}
+            {dynamicOnly && (
+              <li
+                role="option"
+                aria-selected={false}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setSuggest(null);
+                  openDynamicVariables();
+                }}
+                className="mt-1 cursor-pointer border-t border-border px-2 pb-0.5 pt-1.5 text-2xs text-primary hover:underline"
+              >
+                Ver todos os dados de teste, com exemplos
+              </li>
+            )}
           </ul>,
           document.body,
         )}

@@ -2,9 +2,56 @@ import Editor, { type OnMount } from '@monaco-editor/react';
 import { findVariableRefs } from '@rota/core/shared';
 import { useEffect, useRef } from 'react';
 import { monaco, ROTA_THEME } from '../lib/monaco';
-import { useVariableResolver } from '../lib/variables';
+import { DYNAMIC_SUGGESTIONS, useVariableNames, useVariableResolver } from '../lib/variables';
 
 export type EditorLanguage = 'json' | 'javascript' | 'xml' | 'html' | 'plaintext' | 'css';
+
+// ---------------------------------------------------------------------------
+// Autocompletar {{variáveis}} nos editores com `variables` (body)
+
+interface CompletionEntry {
+  name: string;
+  detail: string;
+}
+
+/** Sugestões por modelo (cada editor com `variables` registra a sua fonte). */
+const completionSources = new Map<string, () => CompletionEntry[]>();
+let completionRegistered = false;
+
+function registerVariableCompletion(): void {
+  if (completionRegistered) return;
+  completionRegistered = true;
+  for (const language of ['json', 'xml', 'html', 'plaintext']) {
+    monaco.languages.registerCompletionItemProvider(language, {
+      triggerCharacters: ['{', '$'],
+      provideCompletionItems(model, position) {
+        const source = completionSources.get(model.uri.toString());
+        const before = model.getLineContent(position.lineNumber).slice(0, position.column - 1);
+        const match = /\{\{([\w.$-]*)$/.exec(before);
+        if (!source || !match) return { suggestions: [] };
+        const typed = match[1] ?? '';
+        const range = new monaco.Range(
+          position.lineNumber,
+          position.column - typed.length,
+          position.lineNumber,
+          position.column,
+        );
+        const after = model.getLineContent(position.lineNumber).slice(position.column - 1);
+        const close = after.startsWith('}}') ? '' : '}}';
+        return {
+          suggestions: source().map((entry, i) => ({
+            label: entry.name,
+            kind: monaco.languages.CompletionItemKind.Variable,
+            detail: entry.detail,
+            insertText: `${entry.name}${close}`,
+            range,
+            sortText: String(i).padStart(4, '0'),
+          })),
+        };
+      },
+    });
+  }
+}
 
 interface CodeEditorProps {
   value: string;
@@ -37,6 +84,9 @@ export function CodeEditor({
   const resolve = useVariableResolver();
   const resolveRef = useRef(resolve);
   resolveRef.current = resolve;
+  const names = useVariableNames();
+  const namesRef = useRef(names);
+  namesRef.current = names;
   const shortcutRef = useRef(onShortcut);
   shortcutRef.current = onShortcut;
 
@@ -55,7 +105,7 @@ export function CodeEditor({
           inlineClassName: info ? 'rota-var' : 'rota-var rota-var-missing',
           hoverMessage: {
             value: info
-              ? `**${ref.name}** = \`${info.display}\` _(${info.sourceLabel})_`
+              ? `**${ref.name}**${info.description ? ` — ${info.description}` : ''} = \`${info.display}\` _(${info.sourceLabel})_`
               : `**${ref.name}**: variável não definida`,
           },
         },
@@ -69,6 +119,16 @@ export function CodeEditor({
     editorRef.current = editor;
     onEditor?.(editor);
     updateDecorations();
+    const model = editor.getModel();
+    if (variables && model) {
+      registerVariableCompletion();
+      const key = model.uri.toString();
+      completionSources.set(key, () => [
+        ...namesRef.current.map((name) => ({ name, detail: resolveRef.current(name)?.sourceLabel ?? '' })),
+        ...DYNAMIC_SUGGESTIONS.map((v) => ({ name: v.name, detail: `${v.description} (novo a cada envio)` })),
+      ]);
+      editor.onDidDispose(() => completionSources.delete(key));
+    }
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => shortcutRef.current?.('send'));
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => shortcutRef.current?.('save'));
   };

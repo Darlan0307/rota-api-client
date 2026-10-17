@@ -16,6 +16,7 @@ import { useHotkeys } from './lib/hotkeys';
 import { closeTab, saveTab, sendRequest } from './state/actions';
 import { useTabs } from './state/tabs';
 import { useUiStore } from './state/ui';
+import { undoLast } from './state/undo';
 import { useWorkspace } from './state/workspace';
 
 export function App() {
@@ -132,7 +133,20 @@ function useGlobalHotkeys() {
     // No editor de código, Ctrl+D/Ctrl+E mantêm o comportamento do Monaco.
     'mod+e': () => (inCodeEditor() ? false : renameSelected()),
     'mod+d': () => (inCodeEditor() ? false : duplicateSelected()),
+    // Fora dos campos de texto, Ctrl+Z desfaz a última ação na árvore.
+    'mod+z': () => (inTextField() ? false : undoLast()),
   });
+}
+
+function inTextField(): boolean {
+  const el = document.activeElement;
+  return Boolean(
+    el &&
+      (el.tagName === 'INPUT' ||
+        el.tagName === 'TEXTAREA' ||
+        (el as HTMLElement).isContentEditable ||
+        inCodeEditor()),
+  );
 }
 
 function inCodeEditor(): boolean {

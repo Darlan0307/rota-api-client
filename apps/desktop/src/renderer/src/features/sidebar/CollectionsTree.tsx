@@ -31,10 +31,8 @@ import { ContextActions, DropdownActions, type MenuEntry } from '../../component
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { MethodBadge } from '../../components/MethodBadge';
-import { runCommand } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import { statusTone } from '../../lib/format';
-import { confirmDialog } from '../../state/dialogs';
 import { useTabs } from '../../state/tabs';
 import { useUiStore } from '../../state/ui';
 import { useSnapshot } from '../../state/workspace';
@@ -43,10 +41,14 @@ import {
   deleteItem,
   duplicateItem,
   exportCollection,
+  moveItem,
   newCollection,
   newFolder,
   newRequest,
   openContainerSettings,
+  removeItem,
+  renameItem,
+  reorderCollections,
   revealInExplorer,
   useRenaming,
 } from './item-actions';
@@ -105,7 +107,7 @@ export function CollectionsTree({ filter }: { filter: string }) {
       const order = snapshot.collections.map((c) => c.id).filter((id) => id !== sourceId);
       const index = order.indexOf(target.id) + (target.zone === 'after' ? 1 : 0);
       order.splice(index, 0, sourceId);
-      await runCommand({ type: 'reorderCollections', order });
+      await reorderCollections(order);
       return;
     }
 
@@ -126,7 +128,7 @@ export function CollectionsTree({ filter }: { filter: string }) {
       (parentId === sourceId || isAncestor(snapshot.collections, sourceId, parentId))
     )
       return;
-    await runCommand({ type: 'move', id: sourceId, parentId, ...(index !== undefined ? { index } : {}) });
+    await moveItem(sourceId, parentId, index);
   }
 
   const dnd: DndHandlers = {
@@ -463,13 +465,9 @@ function ExampleRow({
   );
 }
 
-async function deleteExample(id: string, name: string) {
-  const choice = await confirmDialog({
-    title: `Excluir o exemplo "${name}"?`,
-    confirmLabel: 'Excluir',
-    danger: true,
-  });
-  if (choice === 'confirm') await runCommand({ type: 'remove', id });
+/** Sem confirmação: o aviso oferece desfazer. */
+function deleteExample(id: string, name: string) {
+  return removeItem(id, name);
 }
 
 function RenameInput({ node, onDone }: { node: TreeNode; onDone: () => void }) {
@@ -477,7 +475,7 @@ function RenameInput({ node, onDone }: { node: TreeNode; onDone: () => void }) {
   async function commit() {
     const name = value.trim();
     onDone();
-    if (name && name !== node.name) await runCommand({ type: 'rename', id: node.id, name });
+    await renameItem(node.id, node.name, name);
   }
   return (
     <input

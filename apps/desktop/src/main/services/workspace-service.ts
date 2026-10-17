@@ -164,7 +164,8 @@ export class WorkspaceService {
         break;
       case 'remove':
         // Excluir sempre passa pela lixeira (pode ser restaurado).
-        await this.trash.moveToTrash(command.id);
+        // O id devolvido é o da entrada na lixeira (para desfazer).
+        id = (await this.trash.moveToTrash(command.id)).id;
         this.notifyTrash();
         break;
       case 'reorderCollections':

@@ -3,6 +3,8 @@
  * processo principal (envio) quanto no renderer (destaque e tooltip).
  */
 
+import { generateDynamic } from './dynamic';
+
 export const SECRET_MASK = '••••••';
 
 const VARIABLE_PATTERN = /\{\{\s*([^{}]+?)\s*\}\}/g;
@@ -136,20 +138,10 @@ export function maskSecretValues(text: string, secretValues: readonly string[]):
 }
 
 // ---------------------------------------------------------------------------
-// Variáveis dinâmicas do Postman (subconjunto mais usado)
-
-const DYNAMIC: Record<string, () => string> = {
-  $guid: () => crypto.randomUUID(),
-  $randomUUID: () => crypto.randomUUID(),
-  $timestamp: () => String(Math.floor(Date.now() / 1000)),
-  $isoTimestamp: () => new Date().toISOString(),
-  $randomInt: () => String(Math.floor(Math.random() * 1001)),
-};
-
-export const DYNAMIC_VARIABLE_NAMES = Object.keys(DYNAMIC);
+// Variáveis dinâmicas ({{$cpf}}, {{$guid}}...): catálogo em dynamic.ts
 
 function dynamicVariable(key: string): ResolvedVariable | undefined {
-  const generate = DYNAMIC[key];
-  if (!generate) return undefined;
-  return { key, value: generate(), source: 'dynamic', secret: false };
+  const value = generateDynamic(key);
+  if (value === undefined) return undefined;
+  return { key, value, source: 'dynamic', secret: false };
 }

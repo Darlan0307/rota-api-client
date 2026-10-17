@@ -174,16 +174,14 @@ export function registerIpcHandlers({ workspace, requests, settings, loadTests, 
   const saveAs = async (
     event: Electron.IpcMainInvokeEvent,
     defaultName: string,
-    ext: 'json' | 'md',
+    ext: 'json' | 'md' | 'csv',
     content: string,
   ) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const options: Electron.SaveDialogOptions = {
       title: 'Exportar',
       defaultPath: defaultName,
-      filters: [
-        ext === 'json' ? { name: 'JSON', extensions: ['json'] } : { name: 'Markdown', extensions: ['md'] },
-      ],
+      filters: [{ name: { json: 'JSON', md: 'Markdown', csv: 'CSV (Excel)' }[ext], extensions: [ext] }],
     };
     const result = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
     if (result.canceled || !result.filePath) return null;
@@ -204,6 +202,10 @@ export function registerIpcHandlers({ workspace, requests, settings, loadTests, 
         )
       : saveAs(event, `${base}.md`, 'md', collectionToMarkdown(collection));
   });
+  // BOM: o Excel só reconhece os acentos de um CSV em UTF-8 com ele.
+  handle('export:csv', (event, name, csv) =>
+    saveAs(event, `${slugify(name) || 'tabela'}.csv`, 'csv', `﻿${csv}`),
+  );
   handle('export:variables', (event, id) => {
     const snap = workspace.current.snapshot();
     if (id === null) {

@@ -9,6 +9,7 @@ import { AskClaudeButton } from './claude/AskClaude';
 import { CodegenButton, CodegenDialog } from './codegen/CodegenDialog';
 import { compareSections } from './compare/ResponseCompare';
 import { handleUrlPaste } from './curl/paste-curl';
+import { DynamicVariablesButton, DynamicVariablesDialog } from './dynamic/DynamicVariablesDialog';
 import { SaveExampleButton } from './examples/ExampleTabView';
 import { HistoryActions, HistoryPanel } from './history/HistoryPanel';
 import { ImportDialog, openImportDialog } from './import/ImportDialog';
@@ -16,6 +17,7 @@ import { LoadTestButton } from './loadtest/LoadTestView';
 import { McpConfirmDialog, subscribeMcpEvents } from './mcp/McpConfirmDialog';
 import { McpSettings } from './mcp/McpSettings';
 import { registerRequestEditorExtensions } from './request/RequestEditor';
+import { SaveToVariableDialog } from './response/SaveToVariableDialog';
 import { scriptResultSections } from './scripts/ScriptResults';
 import { ScriptsEditor } from './scripts/ScriptsEditor';
 import { SearchPalette } from './search/SearchPalette';
@@ -48,6 +50,7 @@ export function registerFeatures(): void {
         createElement(LoadTestButton, { tab }),
         createElement(CodegenButton, { tabId: tab.id }),
         createElement(AskClaudeButton, { tab }),
+        createElement(DynamicVariablesButton),
       ),
     responseActions: (tab) => createElement(SaveExampleButton, { tab }),
   });
@@ -80,4 +83,8 @@ export function registerFeatures(): void {
 
   // Fase 9: configuração do Claude Desktop / Claude Code.
   registerMcpSettings(() => createElement(McpSettings));
+
+  // Fase 11: dados de teste, salvar em variável, tabela e desfazer.
+  registerOverlay(DynamicVariablesDialog);
+  registerOverlay(SaveToVariableDialog);
 }

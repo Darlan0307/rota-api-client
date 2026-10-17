@@ -78,7 +78,7 @@ export type WorkspaceCommand =
   | { type: 'updateGlobals'; variables: VariableInput[] };
 
 export interface CommandResult {
-  /** Id do item criado/duplicado, quando aplicável. */
+  /** Id do item criado/duplicado ou, ao excluir, da entrada na lixeira. */
   id?: string;
 }
 
@@ -188,6 +188,8 @@ export interface IpcContract {
 
   /** Exporta uma coleção (Postman v2.1 ou documentação Markdown). Devolve o arquivo salvo (null = cancelado). */
   'export:collection': { args: [id: string, format: 'postman' | 'markdown']; result: string | null };
+  /** Salva uma tabela da resposta em CSV (nome sugerido sem extensão). */
+  'export:csv': { args: [name: string, csv: string]; result: string | null };
   /** Exporta um ambiente (ou as globais, com id null) no formato do Postman. */
   'export:variables': { args: [id: string | null]; result: string | null };
 
@@ -265,6 +267,7 @@ export const IPC_CHANNELS = [
   'codegen:generate',
   'export:collection',
   'export:variables',
+  'export:csv',
   'examples:save',
   'loadtest:start',
   'loadtest:cancel',

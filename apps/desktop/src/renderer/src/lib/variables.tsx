@@ -1,5 +1,7 @@
 import {
   collectionOf,
+  DYNAMIC_VARIABLES,
+  findDynamicVariable,
   resolveTemplate,
   type ScopeLayer,
   SECRET_MASK,
@@ -35,6 +37,8 @@ export interface VariableInfo {
   source: VariableSource;
   sourceLabel: string;
   secret: boolean;
+  /** Variáveis dinâmicas: o que é gerado. */
+  description?: string;
 }
 
 function layer(source: ScopeLayer['source'], vars: readonly VariableView[]): ScopeLayer {
@@ -65,7 +69,7 @@ export function useVariableScope(): { scope: VariableScope; labels: Record<strin
       collection: collection ? `Coleção: ${collection.name}` : 'Coleção',
       environment: env ? `Ambiente: ${env.name}` : 'Ambiente',
       local: 'Local',
-      dynamic: 'Dinâmica (gerada no envio)',
+      dynamic: 'Dinâmica: valor novo a cada envio',
     };
     return { scope: new VariableScope(layers), labels };
   }, [snapshot, envId, itemId]);
@@ -77,8 +81,18 @@ export function useVariableResolver(): (name: string) => VariableInfo | undefine
     (name: string) => {
       const v = scope.get(name);
       if (!v) return undefined;
-      const display =
-        v.source === 'dynamic' ? `{{${name}}}` : resolveTemplate(v.value, scope, { maskSecrets: true });
+      if (v.source === 'dynamic') {
+        const description = findDynamicVariable(name)?.description;
+        return {
+          name,
+          display: `ex.: ${v.value}`,
+          source: v.source,
+          sourceLabel: labels.dynamic ?? 'Dinâmica',
+          secret: false,
+          ...(description ? { description } : {}),
+        };
+      }
+      const display = resolveTemplate(v.value, scope, { maskSecrets: true });
       return {
         name,
         display: v.secret ? (v.value === '' ? '(sem valor salvo)' : SECRET_MASK) : display,
@@ -91,7 +105,10 @@ export function useVariableResolver(): (name: string) => VariableInfo | undefine
   );
 }
 
-/** Nomes disponíveis para autocompletar. */
+/** Variáveis dinâmicas mostradas nas sugestões (sem os nomes antigos do Postman). */
+export const DYNAMIC_SUGGESTIONS = DYNAMIC_VARIABLES.filter((v) => !v.postmanAlias);
+
+/** Nomes disponíveis para autocompletar (as dinâmicas ficam à parte, em DYNAMIC_SUGGESTIONS). */
 export function useVariableNames(): string[] {
   const { scope } = useVariableScope();
   return useMemo(

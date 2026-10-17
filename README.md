@@ -27,6 +27,10 @@ O servidor roda com o próprio `Rota.exe` (modo Node), sem precisar de Node inst
 - **Contrato:** salve uma resposta boa como exemplo; nas próximas, a aba "Contrato" avisa se um campo sumiu ou mudou de tipo.
 - **Comparar:** diff da resposta atual com um exemplo ou um envio anterior.
 - **Claude:** o botão "Claude" na requisição copia pedidos prontos (gerar testes, explicar erro, documentar a coleção).
+- **Dados de teste:** `{{$cpf}}`, `{{$cnpj}}`, `{{$nomeCompleto}}`, `{{$email}}`, `{{$celular}}`, `{{$cep}}`, `{{$placa}}`, `{{$hoje}}`... geram um valor novo a cada envio (CPF/CNPJ válidos). Digite `{{$` num campo ou abra a lista pelo ícone de dado no topo da requisição.
+- **Salvar em variável:** clique num campo do JSON da resposta (ou numa célula da tabela) e use "Salvar em variável". O valor é gravado na hora e, se quiser, o pós-script passa a atualizá-lo a cada envio.
+- **Tabela:** listas da resposta viram tabela com ordenação, filtro e exportação para CSV.
+- **Desfazer:** excluir, mover, renomear ou duplicar mostra "Desfazer" (ou Ctrl+Z fora de campos de texto).
 
 ### Criar uma coleção a partir de uma documentação
 

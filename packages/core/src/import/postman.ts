@@ -12,8 +12,8 @@ import {
   type Scripts,
 } from '../model/schemas';
 import type { ImportedChild, ImportedCollection } from '../storage/workspace-store';
+import { DYNAMIC_VARIABLE_NAMES } from '../variables/dynamic';
 import type { VariableInput } from '../variables/persist';
-import { DYNAMIC_VARIABLE_NAMES } from '../variables/template';
 
 /**
  * Conversão de exportações do Postman (coleções v2.1/v2.0, ambientes e
@@ -199,7 +199,7 @@ class Context {
     for (const [name, path] of this.dynamicUsed) {
       this.warn(
         path,
-        `A variável dinâmica {{${name}}} não é gerada pelo app (suportadas: ${DYNAMIC_VARIABLE_NAMES.join(', ')}). Ela será enviada como texto literal.`,
+        `A variável dinâmica {{${name}}} não é gerada pelo app (veja as suportadas em "Dados de teste", no topo da requisição). Ela será enviada como texto literal.`,
       );
     }
   }

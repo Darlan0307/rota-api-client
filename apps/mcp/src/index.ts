@@ -1,8 +1,13 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { DYNAMIC_VARIABLES } from '@rota/core';
 import { McpSession } from './session';
 import { registerTools } from './tools';
 import { registerDocumentationTools } from './tools-docs';
+
+const DYNAMIC_REFS = DYNAMIC_VARIABLES.filter((v) => !v.postmanAlias)
+  .map((v) => `{{${v.name}}}`)
+  .join(', ');
 
 /**
  * Servidor MCP do Rota (stdio). Usa o mesmo core do app: lê e grava o mesmo
@@ -17,6 +22,7 @@ export function createServer(session = new McpSession()): McpServer {
         'Use listar_colecoes/buscar para descobrir ids antes de ler ou alterar itens.',
         'Prefira {{variaveis}} de ambiente para URLs base e tokens; nunca escreva segredos literais em requisições.',
         'Para montar uma coleção a partir de documentação, use criar_colecao_completa (tudo numa chamada) ou importar_arquivo (Postman/OpenAPI).',
+        `Em corpos de requisição, use dados de teste dinâmicos (valor novo a cada envio): ${DYNAMIC_REFS}.`,
         'Ao enviar uma requisição com exemplos salvos, o resultado traz "contrato": campos removidos ou com tipo diferente do exemplo.',
         'Valores de variáveis secretas nunca são exibidos (aparecem como ••••••), mas podem ser usados ao enviar requisições.',
         'Editar ou excluir itens, enviar DELETE/PUT/PATCH, rodar teste de carga e esvaziar a lixeira pedem confirmação do usuário no app;',

@@ -79,7 +79,7 @@ const collection = {
             { key: 'ativo', value: 'true' },
             { key: 'debug', value: '1', disabled: true },
             { key: 'seed', value: '{{$randomInt}}' },
-            { key: 'nome', value: '{{$randomFirstName}}' },
+            { key: 'nome', value: '{{$randomBitcoin}}' },
           ],
           variable: [{ key: 'id', value: '42' }],
         },
@@ -185,7 +185,7 @@ describe('convertCollection', () => {
       { key: 'ativo', value: 'true', enabled: true },
       { key: 'debug', value: '1', enabled: false },
       { key: 'seed', value: '{{$randomInt}}', enabled: true },
-      { key: 'nome', value: '{{$randomFirstName}}', enabled: true },
+      { key: 'nome', value: '{{$randomBitcoin}}', enabled: true },
     ]);
     expect(produto.body).toEqual({ mode: 'json', text: '{\n"a":1\n}' });
     expect(produto.settings).toMatchObject({ followRedirects: false, verifySsl: false });
@@ -213,7 +213,7 @@ describe('convertCollection', () => {
     expectWarning(/Produto: Variáveis de caminho \(:id\) foram substituídas/);
     expectWarning(/Produto: Autenticação "oauth2" não é suportada/);
     expectWarning(/Produto: Configuração "maxRedirects"/);
-    expectWarning(/Produto: A variável dinâmica \{\{\$randomFirstName\}\} não é gerada/);
+    expectWarning(/Produto: A variável dinâmica \{\{\$randomBitcoin\}\} não é gerada/);
     expectWarning(/GraphQL: Body GraphQL convertido/);
     expectWarning(/Upload: O campo "arquivo" tinha 2 arquivos/);
     // $randomInt é suportado; não deve gerar aviso de variável dinâmica.

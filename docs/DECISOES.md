@@ -44,6 +44,10 @@ Registro das decisões tomadas com o dono do projeto. Atualizar a cada fase.
 | D17 | OpenAPI/Swagger | Importação de OpenAPI 3.0/3.1 e Swagger 2.0 (JSON ou YAML): pasta por tag, `{{baseUrl}}`, parâmetros de caminho como variáveis da coleção, corpo e respostas de exemplo gerados dos exemplos ou do schema, segurança → auth da coleção com variáveis secretas vazias. |
 | D18 | Exportação | Coleções e ambientes para Postman v2.1 e coleção para Markdown. Valores secretos nunca são exportados. |
 | D19 | Claude no app | O app não chama a IA: o botão "Claude" copia um pedido pronto para colar no Claude Desktop/Code, que usa o MCP. O MCP ganhou `criar_colecao_completa` (coleção inteira numa chamada, ou em partes com `adicionarEm`), `importar_arquivo`, `gerar_documentacao` e prompts (`colecao_a_partir_de_documentacao`, `gerar_testes`, `explicar_erro`, `documentar_colecao`). |
+| D20 | Dados de teste | Variáveis dinâmicas brasileiras (`{{$cpf}}`, `{{$cnpj}}`, `{{$nomeCompleto}}`, `{{$celular}}`, `{{$cep}}`, `{{$placa}}`, datas...) com CPF/CNPJ de dígitos válidos; cada ocorrência gera um valor novo a cada envio, como no Postman. Alguns nomes do Postman (`$randomEmail`...) continuam funcionando. Lista com exemplos no botão de dados de teste da requisição e ao digitar `{{$`. |
+| D21 | Salvar em variável | Clicar num campo do JSON (ou numa célula da tabela) mostra o caminho; "Salvar em variável" grava o valor agora e, se marcado, inclui no pós-script `if (pm.response.code < 400) pm.<escopo>.set(...)`. A condição evita quebrar o script (e apagar o valor bom) quando a resposta é de erro. Linha repetida para a mesma variável é substituída. Nomes com token/senha/secret sugerem variável secreta. |
+| D22 | Tabela | Listas de objetos da resposta (na raiz ou em campos como `data.items`, até 3 níveis) viram tabela com ordenação, filtro e exportação CSV (`;` e BOM UTF-8, para o Excel em português). Mostra até 500 linhas; o CSV leva todas as filtradas. |
+| D23 | Desfazer | Excluir, mover, renomear, reordenar e duplicar mostram "Desfazer" por 6 s; Ctrl+Z (fora de campos de texto) vale por até 1 min. Excluir requisição ou exemplo não pede mais confirmação (dá para desfazer); coleção, pasta e ambiente continuam pedindo. |
 | D13 | Nome e paleta | Nome "Rota"; paleta padrão "Índigo noturno" (alternativa "Azul profundo"), ambas validadas em WCAG AA nos testes. |
 
 ## Formato de dados (implementado na Fase 2)
@@ -84,6 +88,6 @@ A variável de ambiente `ROTA_DATA_DIR` substitui `%APPDATA%/Rota` (usada em tes
 
 ## Atalhos
 
-Ctrl+Enter enviar · Ctrl+S salvar · Ctrl+P buscar · Ctrl+W fechar aba · Ctrl+T nova aba · Ctrl+B recolher sidebar · Ctrl+Tab próxima aba · Ctrl+, configurações · Ctrl+E (ou F2) renomear item · Ctrl+D duplicar item · Del excluir item.
+Ctrl+Enter enviar · Ctrl+S salvar · Ctrl+P buscar · Ctrl+W fechar aba · Ctrl+T nova aba · Ctrl+B recolher sidebar · Ctrl+Tab próxima aba · Ctrl+, configurações · Ctrl+E (ou F2) renomear item · Ctrl+D duplicar item · Del excluir item · Ctrl+Z desfazer a última ação na árvore.
 
 Ctrl+E e Ctrl+D agem sobre o item focado na sidebar ou, se o foco estiver em outro lugar, sobre o item da aba ativa. Dentro do editor de código (Monaco) as teclas mantêm o comportamento do editor.

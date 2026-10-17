@@ -1,10 +1,12 @@
 import { ancestorsOf, findNode, type TreeNode } from '@rota/core/shared';
 import { create } from 'zustand';
+import type { WorkspaceCommand } from '../../../../shared/ipc';
 import { api, errorMessage, runCommand } from '../../lib/api';
 import { confirmDialog, promptDialog } from '../../state/dialogs';
 import { useTabs } from '../../state/tabs';
 import { toast } from '../../state/toasts';
 import { useUiStore } from '../../state/ui';
+import { offerUndo } from '../../state/undo';
 import { useWorkspace } from '../../state/workspace';
 
 /** Item em renomeação inline na sidebar. */
@@ -97,7 +99,55 @@ export function duplicateSelected(): void {
 
 export async function duplicateItem(id: string): Promise<void> {
   const result = await runCommand({ type: 'duplicate', id });
-  if (result?.id) toast.success('Item duplicado.');
+  const copyId = result?.id;
+  if (copyId) offerUndo('Item duplicado.', () => command({ type: 'remove', id: copyId }));
+}
+
+/** Comando sem o toast de erro do runCommand (o desfazer mostra o próprio erro). */
+function command(cmd: WorkspaceCommand) {
+  return api.invoke('workspace:command', cmd);
+}
+
+/** Exclui (vai para a lixeira) e oferece desfazer. */
+export async function removeItem(id: string, name: string): Promise<void> {
+  const result = await runCommand({ type: 'remove', id });
+  const trashId = result?.id;
+  if (trashId) offerUndo(`"${name}" foi para a lixeira.`, () => api.invoke('trash:restore', trashId));
+}
+
+export async function renameItem(id: string, previous: string, name: string): Promise<void> {
+  if (!name || name === previous) return;
+  const result = await runCommand({ type: 'rename', id, name });
+  if (result) offerUndo(`Renomeado para "${name}".`, () => command({ type: 'rename', id, name: previous }));
+}
+
+/** Move um item na árvore lembrando a posição anterior (para desfazer). */
+export async function moveItem(id: string, parentId: string, index?: number): Promise<void> {
+  const snap = snapshot();
+  const origin = snap ? positionOf(snap.collections, id) : undefined;
+  const result = await runCommand({ type: 'move', id, parentId, ...(index !== undefined ? { index } : {}) });
+  if (result && origin)
+    offerUndo('Item movido.', () =>
+      command({ type: 'move', id, parentId: origin.parentId, index: origin.index }),
+    );
+}
+
+export async function reorderCollections(order: string[]): Promise<void> {
+  const previous = snapshot()?.collections.map((c) => c.id);
+  const result = await runCommand({ type: 'reorderCollections', order });
+  if (result && previous)
+    offerUndo('Ordem das coleções alterada.', () => command({ type: 'reorderCollections', order: previous }));
+}
+
+function positionOf(nodes: readonly TreeNode[], id: string): { parentId: string; index: number } | undefined {
+  for (const node of nodes) {
+    if (node.kind === 'request') continue;
+    const index = node.children.findIndex((c) => c.id === id);
+    if (index >= 0) return { parentId: node.id, index };
+    const inner = positionOf(node.children, id);
+    if (inner) return inner;
+  }
+  return undefined;
 }
 
 export async function deleteItem(
@@ -109,6 +159,11 @@ export async function deleteItem(
     request: 'a requisição',
     environment: 'o ambiente',
   }[node.kind];
+  // Uma requisição sozinha vai direto (dá para desfazer); o que agrupa outros itens pede confirmação.
+  if (node.kind === 'request') {
+    await removeItem(node.id, node.name);
+    return;
+  }
   const extra =
     node.kind === 'collection' || node.kind === 'folder' ? ' Tudo o que estiver dentro vai junto.' : '';
   const choice = await confirmDialog({
@@ -118,7 +173,7 @@ export async function deleteItem(
     danger: true,
   });
   if (choice !== 'confirm') return;
-  await runCommand({ type: 'remove', id: node.id });
+  await removeItem(node.id, node.name);
 }
 
 export async function renameEnvironment(id: string, current: string): Promise<void> {
@@ -128,7 +183,7 @@ export async function renameEnvironment(id: string, current: string): Promise<vo
     initialValue: current,
     validate: notEmpty,
   });
-  if (name && name !== current) await runCommand({ type: 'rename', id, name });
+  if (name) await renameItem(id, current, name);
 }
 
 export async function newEnvironment(): Promise<void> {

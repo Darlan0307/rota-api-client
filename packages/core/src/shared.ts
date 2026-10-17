@@ -33,6 +33,7 @@ export type {
   RunTest,
   ScriptOrigin,
 } from './runner/run-request';
+export * from './scripts/capture';
 export type { ConsoleEntry, TestResult, TestStatus } from './scripts/sandbox';
 export * from './search/search';
 export type { AppSettings } from './settings';
@@ -41,6 +42,9 @@ export type { ItemKind, VariableTarget } from './storage/workspace-store';
 export type { TrashEntry } from './trash/trash';
 export { contrastRatio, relativeLuminance, WCAG } from './util/contrast';
 export * from './util/diff';
+export * from './util/json-path';
+export * from './util/json-table';
 export { slugify, uniqueSlug } from './util/slug';
+export * from './variables/dynamic';
 export type { VariableInput } from './variables/persist';
 export * from './variables/template';

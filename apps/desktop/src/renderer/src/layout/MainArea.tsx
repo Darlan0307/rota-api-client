@@ -99,6 +99,7 @@ function WelcomeScreen() {
           <Shortcut label="Recolher sidebar" keys="Ctrl+B" />
           <Shortcut label="Renomear item" keys="Ctrl+E" />
           <Shortcut label="Duplicar item" keys="Ctrl+D" />
+          <Shortcut label="Desfazer (árvore)" keys="Ctrl+Z" />
         </div>
       </div>
     </div>

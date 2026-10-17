@@ -5,14 +5,15 @@ import { Button } from '../../components/Button';
 import { CodeEditor } from '../../components/CodeEditor';
 import { MethodBadge } from '../../components/MethodBadge';
 import { TabStrip } from '../../components/TabStrip';
-import { api, errorMessage, runCommand } from '../../lib/api';
+import { api, errorMessage } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import { formatDateTime, formatDuration, statusTone } from '../../lib/format';
-import { confirmDialog, promptDialog } from '../../state/dialogs';
+import { promptDialog } from '../../state/dialogs';
 import { type ExampleTab, type RequestTab, useTabs } from '../../state/tabs';
 import { toast } from '../../state/toasts';
 import { useWorkspace } from '../../state/workspace';
 import { openItemById } from '../request/open';
+import { removeItem, renameItem } from '../sidebar/item-actions';
 
 /** Salva a resposta atual como exemplo nomeado da requisição. */
 export async function saveResponseAsExample(tab: RequestTab): Promise<void> {
@@ -83,19 +84,13 @@ export function ExampleTabView({ tab }: { tab: ExampleTab }) {
 
   async function rename() {
     const name = await promptDialog({ title: 'Renomear exemplo', initialValue: ex.name });
-    if (name && name !== ex.name && tab.itemId) await runCommand({ type: 'rename', id: tab.itemId, name });
+    if (name && tab.itemId) await renameItem(tab.itemId, ex.name, name);
   }
 
   async function remove() {
-    const choice = await confirmDialog({
-      title: `Excluir o exemplo "${ex.name}"?`,
-      confirmLabel: 'Excluir',
-      danger: true,
-    });
-    if (choice === 'confirm' && tab.itemId) {
-      await runCommand({ type: 'remove', id: tab.itemId });
-      useTabs.getState().close(tab.id);
-    }
+    if (!tab.itemId) return;
+    useTabs.getState().close(tab.id);
+    await removeItem(tab.itemId, ex.name);
   }
 
   const requestName =
