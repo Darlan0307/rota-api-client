@@ -1,11 +1,37 @@
+# Dependências
 node_modules/
+.pnpm-store/
+
+# Build e empacotamento
 dist/
 out/
 release/
+*.tsbuildinfo
+
+# Testes
 coverage/
+
+# Variáveis de ambiente
+.env
+.env.*
+!.env.example
+
+# Logs
 *.log
+npm-debug.log*
+pnpm-debug.log*
+
+# IDE e sistema
+.vscode/
+.idea/
+*.swp
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Exportações reais do Postman (podem conter tokens/segredos)
 ex-export/
+*.postman_collection.json
+*.postman_environment.json
+*.postman_globals.json
+Rota-backup-*/

@@ -5,3 +5,7 @@ packages:
 onlyBuiltDependencies:
   - electron
   - esbuild
+
+# Só usado pelo alvo Squirrel do electron-builder; o instalador é NSIS.
+ignoredBuiltDependencies:
+  - electron-winstaller
