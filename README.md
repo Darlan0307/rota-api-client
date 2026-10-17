@@ -4,12 +4,38 @@ Cliente de API desktop pessoal (estilo Postman) para Windows, com integração a
 
 ## Instalar
 
+### 1. Gerar o instalador (se ainda não existir)
+
 ```sh
 pnpm install
 pnpm --filter @rota/desktop dist
 ```
 
-O instalador fica em `apps/desktop/release/Rota-Setup-<versão>.exe`. Ele instala para o usuário atual (sem administrador), permite escolher a pasta e cria atalhos na **área de trabalho** e no **Menu Iniciar**. Desinstalar não apaga seus dados em `%APPDATA%\Rota`.
+O instalador fica em `apps/desktop/release/Rota-Setup-<versão>.exe` (cerca de 115 MB).
+
+### 2. Instalar
+
+1. Dê dois cliques em `Rota-Setup-<versão>.exe`.
+2. **Aviso do Windows "O Windows protegeu o computador":** aparece porque o instalador não tem assinatura digital paga (é normal para apps pessoais). Clique em **Mais informações** → **Executar assim mesmo**.
+3. Escolha a pasta (a sugerida serve) e clique em **Instalar**. Não pede senha de administrador: o Rota é instalado só para o seu usuário.
+4. Ao terminar, abra pelo atalho **Rota** na **área de trabalho** ou no **Menu Iniciar**.
+
+### 3. Primeiro uso
+
+- O app abre com um workspace vazio. Para trazer o que você tem no Postman: no Postman, exporte as coleções e os ambientes (**Export**, formato v2.1), e no Rota use **Importar** (ícone de download na barra de coleções).
+- Para usar com o Claude: **Configurações → Claude (MCP)** (detalhes abaixo).
+
+### Atualizar, desinstalar e onde ficam os dados
+
+- **Atualizar:** rode o instalador da versão nova por cima. Coleções, ambientes, histórico e segredos são mantidos.
+- **Desinstalar:** **Configurações do Windows → Aplicativos → Aplicativos instalados → Rota → Desinstalar**. Seus dados **não** são apagados (ficam em `%APPDATA%\Rota`); apague essa pasta se quiser remover tudo.
+- **Backup antes de formatar o PC:** use **Exportar tudo (backup)** e marque "Incluir valores secretos" (os segredos ficam presos a este Windows e se perdem ao formatar sem isso).
+
+### Fechar o app
+
+Fechar a janela encerra o Rota por completo: túneis (cloudflared), conexões e processos param, e a memória é liberada. Nada fica rodando em segundo plano nem na bandeja. Se o Rota for fechado à força (Gerenciador de Tarefas, queda), na próxima abertura ele encerra qualquer túnel que tenha sobrado.
+
+> Se o Claude Desktop ou o Claude Code estiver usando o Rota via MCP, você pode ver um processo **Rota** no Gerenciador de Tarefas mesmo com o app fechado: é o servidor MCP, iniciado e encerrado pelo próprio Claude (ele some quando você fecha o Claude).
 
 ## Conectar ao Claude (MCP)
 

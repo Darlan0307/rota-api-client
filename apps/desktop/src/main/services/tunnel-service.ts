@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { createWriteStream, existsSync } from 'node:fs';
 import { mkdir, open, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -67,11 +67,49 @@ export class TunnelService {
     return join(this.dataDir, 'tunnels.json');
   }
 
+  /** PIDs dos cloudflared em execução (para encerrar sobras se o app for morto à força). */
+  private get pidsFile() {
+    return join(this.dataDir, 'tunnels.pids.json');
+  }
+
+  private savePids(): Promise<void> {
+    const pids = [...this.runtimes.values()].map((rt) => rt.tunnel?.pid).filter((p): p is number => !!p);
+    return this.writes
+      .run(async () => {
+        await mkdir(this.dataDir, { recursive: true });
+        await writeJsonAtomic(this.pidsFile, pids);
+      })
+      .catch(() => undefined);
+  }
+
+  /**
+   * O Rota foi fechado à força (Gerenciador de Tarefas, queda): encerra os
+   * cloudflared que ficaram rodando. Só mata o PID se ele ainda for um cloudflared.
+   */
+  private async killOrphans(): Promise<void> {
+    const saved = await readJsonIfExists(this.pidsFile).catch(() => null);
+    if (!Array.isArray(saved) || saved.length === 0) return;
+    for (const pid of saved) {
+      if (typeof pid !== 'number') continue;
+      try {
+        const out = execFileSync('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'], {
+          encoding: 'utf8',
+          windowsHide: true,
+        });
+        if (/"cloudflared(\.exe)?"/i.test(out)) process.kill(pid);
+      } catch {
+        // Já encerrado.
+      }
+    }
+    await writeJsonAtomic(this.pidsFile, []).catch(() => undefined);
+  }
+
   private get appBinary() {
     return join(this.dataDir, 'bin', 'cloudflared.exe');
   }
 
   async load(): Promise<void> {
+    await this.killOrphans();
     const saved = await readJsonIfExists(this.file).catch(() => null);
     const list = Array.isArray(saved) ? saved : [];
     this.configs = list.filter(isConfig).map((c) => ({
@@ -280,7 +318,7 @@ export class TunnelService {
       const port = await rt.inspector.start();
       const tunnel = new QuickTunnel();
       rt.tunnel = tunnel;
-      rt.publicUrl = await tunnel.start({
+      const starting = tunnel.start({
         binary: binary.path,
         localPort: port,
         onLog: (line) => {
@@ -293,9 +331,12 @@ export class TunnelService {
           rt.publicUrl = null;
           rt.error = `O túnel caiu. ${describeCloudflaredFailure(logs)}`;
           void rt.inspector.stop();
+          void this.savePids();
           this.notify();
         },
       });
+      void this.savePids();
+      rt.publicUrl = await starting;
       // Cancelado enquanto ligava.
       if (rt.status !== 'starting') return false;
       rt.status = 'running';
@@ -304,6 +345,7 @@ export class TunnelService {
       if (rt.status !== 'starting') return false;
       rt.tunnel?.stop();
       rt.tunnel = null;
+      void this.savePids();
       await rt.inspector.stop();
       rt.status = 'error';
       rt.publicUrl = null;
@@ -320,6 +362,7 @@ export class TunnelService {
     if (!rt) return;
     rt.tunnel?.stop();
     rt.tunnel = null;
+    void this.savePids();
     await rt.inspector.stop();
     rt.status = 'stopped';
     rt.publicUrl = null;
@@ -327,11 +370,16 @@ export class TunnelService {
     this.notify();
   }
 
-  stopAll(): void {
+  /** Fechamento do app: encerra os cloudflared e libera as portas locais. */
+  async stopAll(): Promise<void> {
+    const stops: Promise<void>[] = [];
     for (const rt of this.runtimes.values()) {
       rt.tunnel?.stop();
-      void rt.inspector.stop();
+      rt.tunnel = null;
+      stops.push(rt.inspector.stop());
     }
+    stops.push(this.savePids());
+    await Promise.allSettled(stops);
   }
 
   // -------------------------------------------------------------------------

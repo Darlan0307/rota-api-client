@@ -126,13 +126,24 @@ if (!app.requestSingleInstanceLock()) {
       // Outra instância (ou um processo antigo) segurando o pipe: o app segue sem a ponte.
       console.error('Ponte com o MCP indisponível:', error);
     });
-    app.on('will-quit', () => void mcp.stop());
     const tunnels = new TunnelService(appDataDir(), (views) => {
       for (const win of BrowserWindow.getAllWindows()) win.webContents.send('tunnel:changed', views);
     });
     await tunnels.load();
-    // Fechar o app derruba os túneis (nada fica exposto sem o app aberto).
-    app.on('will-quit', () => tunnels.stopAll());
+
+    // Fechar o app encerra tudo: túneis (cloudflared), ponte com o Claude e o
+    // vigia de arquivos. Depois sai de vez (app.exit), sem processo sobrando.
+    let quitting = false;
+    app.on('before-quit', (event) => {
+      if (quitting) return;
+      quitting = true;
+      event.preventDefault();
+      for (const win of BrowserWindow.getAllWindows()) win.hide();
+      const cleanup = Promise.allSettled([tunnels.stopAll(), mcp.stop(), workspace.close()]);
+      // Limite de segurança: algo travado não pode segurar o processo aberto.
+      const limit = new Promise((resolve) => setTimeout(resolve, 3000));
+      void Promise.race([cleanup, limit]).then(() => app.exit(0));
+    });
     registerIpcHandlers({ workspace, requests, settings, loadTests, mcp, tunnels });
     createMainWindow();
 

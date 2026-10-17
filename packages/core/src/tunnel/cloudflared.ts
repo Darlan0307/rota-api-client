@@ -125,6 +125,11 @@ export class QuickTunnel {
     });
   }
 
+  /** PID do processo (para encerrar sobras se o app for morto à força). */
+  get pid(): number | undefined {
+    return this.child?.pid;
+  }
+
   get running(): boolean {
     return this.child !== null;
   }
