@@ -1,8 +1,14 @@
 import { Search } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { Dialog } from '../components/Dialog';
 import { EmptyState } from '../components/EmptyState';
-import { Kbd } from '../components/Kbd';
 import { useUiStore } from '../state/ui';
+
+/** Conteúdo da busca global (Fase 4). */
+let searchContent: ((close: () => void) => ReactNode) | undefined;
+export function registerSearchContent(render: (close: () => void) => ReactNode): void {
+  searchContent = render;
+}
 
 export function SearchDialog() {
   const open = useUiStore((s) => s.searchOpen);
@@ -15,25 +21,15 @@ export function SearchDialog() {
       title="Busca global"
       hideTitle
       placement="top"
-      className="w-[min(640px,90vw)]"
+      className="w-[min(680px,92vw)]"
     >
-      <label className="flex h-12 items-center gap-3 border-b border-border px-4">
-        <Search className="size-4 text-fg-subtle" strokeWidth={1.75} />
-        <input
-          autoFocus
-          placeholder="Buscar por nome, URL ou conteúdo"
-          className="flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle"
-        />
-        <Kbd keys="Esc" />
-      </label>
-      <div className="h-64">
-        <EmptyState
-          compact
-          icon={Search}
-          title="Busca global em construção"
-          description="A busca por coleções, pastas, requisições e ambientes chega na Fase 4."
-        />
-      </div>
+      {searchContent ? (
+        searchContent(() => setOpen(false))
+      ) : (
+        <div className="h-64">
+          <EmptyState compact icon={Search} title="Busca global" description="Em breve." />
+        </div>
+      )}
     </Dialog>
   );
 }

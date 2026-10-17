@@ -1,60 +1,52 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { HttpMethod } from '../lib/http-method';
 import { DEFAULT_PALETTE, isPaletteId, type PaletteId } from '../theme/palettes';
 
 export type SidebarSection = 'collections' | 'environments' | 'history' | 'trash';
 export type PaneLayout = 'horizontal' | 'vertical';
-
-export interface RequestTab {
-  id: string;
-  name: string;
-  method: HttpMethod;
-  /** Id do item salvo na coleção; ausente em requisições novas ainda não salvas. */
-  itemId?: string;
-}
+export type SettingsSection = 'appearance' | 'requests' | 'network' | 'mcp' | 'about';
 
 interface UiState {
   paletteId: PaletteId;
   sidebarCollapsed: boolean;
   sidebarSection: SidebarSection;
   paneLayout: PaneLayout;
-  activeEnvironmentId: string | null;
-
-  tabs: RequestTab[];
-  activeTabId: string | null;
+  /** Pastas/coleções expandidas na árvore. */
+  expanded: Record<string, boolean>;
 
   searchOpen: boolean;
   settingsOpen: boolean;
+  settingsSection: SettingsSection;
+  /** Aba de requisição nova sendo salva ("Salvar como"). */
+  saveAsTabId: string | null;
 
   setPalette(id: PaletteId): void;
   toggleSidebar(): void;
   /** Clicar na seção já ativa recolhe a sidebar (como no VS Code). */
   selectSection(section: SidebarSection): void;
+  showSection(section: SidebarSection): void;
   togglePaneLayout(): void;
-  setActiveEnvironment(id: string | null): void;
-
-  openTab(tab: Omit<RequestTab, 'id'> & { id?: string }): void;
-  newTab(): void;
-  closeTab(id: string): void;
-  setActiveTab(id: string): void;
+  setExpanded(id: string, expanded: boolean): void;
+  expandMany(ids: string[]): void;
 
   setSearchOpen(open: boolean): void;
+  openSettings(section?: SettingsSection): void;
   setSettingsOpen(open: boolean): void;
+  setSaveAsTabId(id: string | null): void;
 }
 
 export const useUiStore = create<UiState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       paletteId: DEFAULT_PALETTE,
       sidebarCollapsed: false,
       sidebarSection: 'collections',
       paneLayout: 'horizontal',
-      activeEnvironmentId: null,
-      tabs: [],
-      activeTabId: null,
+      expanded: {},
       searchOpen: false,
       settingsOpen: false,
+      settingsSection: 'appearance',
+      saveAsTabId: null,
 
       setPalette: (paletteId) => set({ paletteId }),
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
@@ -64,47 +56,32 @@ export const useUiStore = create<UiState>()(
             ? { sidebarCollapsed: true }
             : { sidebarSection: section, sidebarCollapsed: false },
         ),
+      showSection: (section) => set({ sidebarSection: section, sidebarCollapsed: false }),
       togglePaneLayout: () =>
         set((s) => ({ paneLayout: s.paneLayout === 'horizontal' ? 'vertical' : 'horizontal' })),
-      setActiveEnvironment: (activeEnvironmentId) => set({ activeEnvironmentId }),
-
-      openTab: (tab) => {
-        const existing = tab.itemId ? get().tabs.find((t) => t.itemId === tab.itemId) : undefined;
-        if (existing) {
-          set({ activeTabId: existing.id });
-          return;
-        }
-        const id = tab.id ?? crypto.randomUUID();
-        set((s) => ({ tabs: [...s.tabs, { ...tab, id }], activeTabId: id }));
-      },
-      newTab: () => get().openTab({ name: 'Nova requisição', method: 'GET' }),
-      closeTab: (id) =>
-        set((s) => {
-          const index = s.tabs.findIndex((t) => t.id === id);
-          if (index === -1) return s;
-          const tabs = s.tabs.filter((t) => t.id !== id);
-          if (s.activeTabId !== id) return { tabs };
-          // Ao fechar a aba ativa, ativa a vizinha (preferindo a da direita).
-          const next = tabs[index] ?? tabs[index - 1] ?? null;
-          return { tabs, activeTabId: next?.id ?? null };
-        }),
-      setActiveTab: (activeTabId) => set({ activeTabId }),
+      setExpanded: (id, expanded) => set((s) => ({ expanded: { ...s.expanded, [id]: expanded } })),
+      expandMany: (ids) =>
+        set((s) => ({ expanded: { ...s.expanded, ...Object.fromEntries(ids.map((id) => [id, true])) } })),
 
       setSearchOpen: (searchOpen) => set({ searchOpen }),
+      openSettings: (section) =>
+        set((s) => ({ settingsOpen: true, settingsSection: section ?? s.settingsSection })),
       setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+      setSaveAsTabId: (saveAsTabId) => set({ saveAsTabId }),
     }),
     {
       name: 'rota:ui',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
-      // Só preferências de layout persistem; abas e diálogos não.
+      // Só preferências de layout persistem; diálogos não.
       partialize: (s) => ({
         paletteId: s.paletteId,
         sidebarCollapsed: s.sidebarCollapsed,
         sidebarSection: s.sidebarSection,
         paneLayout: s.paneLayout,
-        activeEnvironmentId: s.activeEnvironmentId,
+        expanded: s.expanded,
       }),
+      migrate: (persisted) => persisted as UiState,
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<UiState>;
         return {

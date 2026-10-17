@@ -1,64 +1,46 @@
-import { Download, FolderOpen, Plus } from 'lucide-react';
+import { Download, FolderOpen, Layers, Plus } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { Group, Panel, Separator, useDefaultLayout } from 'react-resizable-panels';
 import { Kbd } from '../components/Kbd';
 import { Logo } from '../components/Logo';
-import { cn } from '../lib/cn';
-import { useUiStore } from '../state/ui';
-import { RequestPane, ResponsePane } from './RequestPane';
+import { ContainerTabView } from '../features/collection/ContainerTabView';
+import { RequestEditor } from '../features/request/RequestEditor';
+import { newCollection, newEnvironment } from '../features/sidebar/item-actions';
+import { VariablesTabView } from '../features/variables/VariablesTabView';
+import { useActiveTab, useTabs } from '../state/tabs';
 import { TabBar } from './TabBar';
 
+/** Ações da tela inicial que dependem de fases seguintes (importar, abrir pasta). */
+export interface WelcomeExtensions {
+  onImport?: () => void;
+  onOpenFolder?: () => void;
+}
+let welcome: WelcomeExtensions = {};
+export function registerWelcomeExtensions(ext: WelcomeExtensions): void {
+  welcome = { ...welcome, ...ext };
+}
+
 export function MainArea() {
-  const activeTab = useUiStore((s) => s.tabs.find((t) => t.id === s.activeTabId));
+  const tab = useActiveTab();
 
   return (
     <div className="flex h-full min-w-0 flex-col">
       <TabBar />
       <div className="min-h-0 flex-1">
-        {activeTab ? <RequestResponseSplit key={activeTab.id} tab={activeTab} /> : <WelcomeScreen />}
+        {!tab && <WelcomeScreen />}
+        {tab?.kind === 'request' && <RequestEditor key={tab.id} tab={tab} />}
+        {(tab?.kind === 'environment' || tab?.kind === 'globals') && (
+          <VariablesTabView key={tab.id} tab={tab} />
+        )}
+        {(tab?.kind === 'collection' || tab?.kind === 'folder') && (
+          <ContainerTabView key={tab.id} tab={tab} />
+        )}
       </div>
     </div>
   );
 }
 
-function RequestResponseSplit({ tab }: { tab: Parameters<typeof RequestPane>[0]['tab'] }) {
-  const paneLayout = useUiStore((s) => s.paneLayout);
-  // Layout separado por orientação, para cada modo lembrar o seu próprio tamanho.
-  const layout = useDefaultLayout({ id: `request-response-${paneLayout}`, storage: localStorage });
-
-  return (
-    <Group
-      key={paneLayout}
-      orientation={paneLayout}
-      defaultLayout={layout.defaultLayout}
-      onLayoutChanged={layout.onLayoutChanged}
-      className="h-full"
-    >
-      <Panel id="request" minSize="25%" defaultSize="50%">
-        <RequestPane tab={tab} />
-      </Panel>
-      <ResizeHandle vertical={paneLayout === 'vertical'} />
-      <Panel id="response" minSize="20%" defaultSize="50%">
-        <ResponsePane />
-      </Panel>
-    </Group>
-  );
-}
-
-export function ResizeHandle({ vertical = false }: { vertical?: boolean }) {
-  return (
-    <Separator
-      className={cn(
-        'group relative shrink-0 bg-border outline-none transition-colors',
-        'data-[separator=hover]:bg-primary data-[separator=active]:bg-primary focus-visible:bg-primary',
-        vertical ? 'h-px w-full' : 'h-full w-px',
-      )}
-    />
-  );
-}
-
 function WelcomeScreen() {
-  const newTab = useUiStore((s) => s.newTab);
+  const openNewRequest = useTabs((s) => s.openNewRequest);
 
   return (
     <div className="flex h-full items-center justify-center bg-bg p-8 animate-fade-in">
@@ -72,13 +54,36 @@ function WelcomeScreen() {
         </div>
 
         <div className="space-y-1">
-          <WelcomeAction icon={<Plus className="size-4" />} label="Nova requisição" onClick={newTab} />
-          <WelcomeAction icon={<Download className="size-4" />} label="Importar do Postman" hint="Fase 3" />
           <WelcomeAction
-            icon={<FolderOpen className="size-4" />}
-            label="Abrir pasta como workspace"
-            hint="Fase 6"
+            icon={<Plus className="size-4" />}
+            label="Nova requisição"
+            shortcut="Ctrl+T"
+            onClick={() => openNewRequest()}
           />
+          <WelcomeAction
+            icon={<Plus className="size-4" />}
+            label="Nova coleção"
+            onClick={() => void newCollection()}
+          />
+          <WelcomeAction
+            icon={<Layers className="size-4" />}
+            label="Novo ambiente"
+            onClick={() => void newEnvironment()}
+          />
+          {welcome.onImport && (
+            <WelcomeAction
+              icon={<Download className="size-4" />}
+              label="Importar do Postman"
+              onClick={welcome.onImport}
+            />
+          )}
+          {welcome.onOpenFolder && (
+            <WelcomeAction
+              icon={<FolderOpen className="size-4" />}
+              label="Abrir pasta como workspace"
+              onClick={welcome.onOpenFolder}
+            />
+          )}
         </div>
 
         <div className="mt-8 grid grid-cols-2 gap-x-6 gap-y-2.5 border-t border-border pt-6 text-xs text-fg-muted">
@@ -86,6 +91,8 @@ function WelcomeScreen() {
           <Shortcut label="Salvar" keys="Ctrl+S" />
           <Shortcut label="Buscar" keys="Ctrl+P" />
           <Shortcut label="Fechar aba" keys="Ctrl+W" />
+          <Shortcut label="Nova aba" keys="Ctrl+T" />
+          <Shortcut label="Recolher sidebar" keys="Ctrl+B" />
         </div>
       </div>
     </div>
@@ -95,24 +102,23 @@ function WelcomeScreen() {
 function WelcomeAction({
   icon,
   label,
-  hint,
+  shortcut,
   onClick,
 }: {
   icon: ReactNode;
   label: string;
-  hint?: string;
-  onClick?: () => void;
+  shortcut?: string;
+  onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={!onClick}
-      className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] text-fg transition-colors hover:bg-surface-2 disabled:text-fg-muted disabled:hover:bg-transparent"
+      className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] text-fg transition-colors hover:bg-surface-2"
     >
       <span className="text-primary">{icon}</span>
       <span className="flex-1">{label}</span>
-      {hint && <span className="text-2xs text-fg-subtle">{hint}</span>}
+      {shortcut && <Kbd keys={shortcut} />}
     </button>
   );
 }

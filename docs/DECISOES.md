@@ -27,18 +27,18 @@ Registro das decisões tomadas com o dono do projeto. Atualizar a cada fase.
 | Id | Tema | Escolha |
 |----|------|---------|
 | D1 | Ponte MCP ↔ app | Named pipe + token em `%APPDATA%`, JSON-RPC. App fechado: leituras/criações direto pelo core; ações destrutivas recusadas. |
-| D2 | Secrets | `@napi-rs/keyring` (Windows Credential Manager), funciona no app e no MCP. |
+| D2 | Secrets | **Revisada na Fase 2:** o Credential Manager limita cada valor a ~1280 caracteres (menor que muitos JWTs). Por isso ele guarda só uma **chave mestra AES-256** (via `@napi-rs/keyring`), e os valores ficam cifrados (AES-256-GCM) em `%APPDATA%/Rota/workspaces/<hash>/secrets.json`, fora do workspace. App e MCP leem o mesmo arquivo. |
 | D3 | Sandbox de scripts | QuickJS (WASM) com `chai` embutido e timeout. |
 | D4 | IPC | Contrato tipado próprio em `apps/desktop/src/shared/ipc.ts`. |
 | D5 | Codegen e parser de cURL | Implementação própria. |
 | D6 | Importação Postman | Mapeador próprio validado com zod. |
 | D7 | Lint/format | Biome. |
 
-## Formato de dados (proposto, a implementar na Fase 2)
+## Formato de dados (implementado na Fase 2)
 
 ```
 <workspace>/
-├─ apiclient.workspace.json
+├─ rota.workspace.json
 ├─ globals.json
 ├─ environments/<slug>.env.json
 └─ collections/<slug>/
@@ -50,5 +50,23 @@ Registro das decisões tomadas com o dono do projeto. Atualizar a cada fase.
 
 - Nome de arquivo = slug do nome (`@rota/core` → `slugify`/`uniqueSlug`); `id` estável dentro do JSON.
 - Ordem dos itens em `order: [ids]` no arquivo do pai.
-- Secrets: só o nome no arquivo (`"type": "secret"`); valor no Credential Manager.
+- Secrets: só o nome no arquivo (`"type": "secret"`); valor cifrado localmente (ver D2).
 - Histórico, ambiente ativo e estado da UI ficam em `%APPDATA%`, fora do workspace.
+
+## Dados locais (fora do workspace)
+
+```
+%APPDATA%/Rota/
+├─ settings.json              # timeout padrão, proxy, workspace atual, recentes
+├─ workspace/                 # workspace padrão
+├─ electron/                  # dados do Chromium (cache, localStorage)
+└─ workspaces/<hash do caminho>/
+   ├─ state.json              # ambiente ativo
+   └─ secrets.json            # valores secretos cifrados
+```
+
+A variável de ambiente `ROTA_DATA_DIR` substitui `%APPDATA%/Rota` (usada em testes).
+
+## Atalhos
+
+Ctrl+Enter enviar · Ctrl+S salvar · Ctrl+P buscar · Ctrl+W fechar aba · Ctrl+T nova aba · Ctrl+B recolher sidebar · Ctrl+Tab próxima aba · Ctrl+, configurações · F2 renomear item · Del excluir item.

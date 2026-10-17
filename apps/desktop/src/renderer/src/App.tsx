@@ -1,31 +1,70 @@
+import { LoaderCircle } from 'lucide-react';
 import { useEffect } from 'react';
 import { Group, Panel, usePanelRef } from 'react-resizable-panels';
 import { TooltipProvider } from './components/Tooltip';
 import { ActivityBar } from './layout/ActivityBar';
-import { MainArea, ResizeHandle } from './layout/MainArea';
+import { DialogHost } from './layout/DialogHost';
+import { MainArea } from './layout/MainArea';
+import { ResizeHandle } from './layout/ResizeHandle';
 import { SearchDialog } from './layout/SearchDialog';
 import { SettingsDialog } from './layout/SettingsDialog';
 import { Sidebar } from './layout/Sidebar';
+import { StatusBar } from './layout/StatusBar';
 import { TitleBar } from './layout/TitleBar';
 import { useHotkeys } from './lib/hotkeys';
+import { closeTab, saveTab, sendRequest } from './state/actions';
+import { useTabs } from './state/tabs';
 import { useUiStore } from './state/ui';
+import { useWorkspace } from './state/workspace';
 
 export function App() {
+  const ready = useWorkspace((s) => s.state !== null);
+  const error = useWorkspace((s) => s.error);
   useGlobalHotkeys();
+  useWorkspaceSync();
 
   return (
     <TooltipProvider delayDuration={400} skipDelayDuration={200}>
       <div className="flex h-full flex-col">
         <TitleBar />
-        <div className="flex min-h-0 flex-1">
-          <ActivityBar />
-          <SidebarLayout />
-        </div>
+        {ready ? (
+          <div className="flex min-h-0 flex-1">
+            <ActivityBar />
+            <SidebarLayout />
+          </div>
+        ) : (
+          <div className="flex flex-1 items-center justify-center gap-2 text-[13px] text-fg-muted">
+            {error ? (
+              <span className="text-danger">Não foi possível abrir o workspace: {error}</span>
+            ) : (
+              <>
+                <LoaderCircle className="size-4 animate-spin" /> Abrindo workspace…
+              </>
+            )}
+          </div>
+        )}
+        <StatusBar />
       </div>
       <SearchDialog />
       <SettingsDialog />
+      <DialogHost />
     </TooltipProvider>
   );
+}
+
+/** Carrega o workspace e mantém as abas em sincronia com os arquivos. */
+function useWorkspaceSync() {
+  useEffect(() => {
+    void useWorkspace.getState().init();
+    return useWorkspace.subscribe((current, previous) => {
+      const state = current.state;
+      if (!state || state === previous.state) return;
+      const tabs = useTabs.getState();
+      if (tabs.workspaceRoot !== state.snapshot.root)
+        tabs.loadForWorkspace(state.snapshot.root, state.snapshot);
+      else tabs.reconcile(state.snapshot);
+    });
+  }, []);
 }
 
 function SidebarLayout() {
@@ -69,15 +108,25 @@ function SidebarLayout() {
 }
 
 function useGlobalHotkeys() {
-  const setSearchOpen = useUiStore((s) => s.setSearchOpen);
+  const activeId = () => useTabs.getState().activeId;
   useHotkeys({
-    'mod+p': () => setSearchOpen(true),
+    'mod+p': () => useUiStore.getState().setSearchOpen(true),
     'mod+w': () => {
-      const { activeTabId, closeTab } = useUiStore.getState();
-      if (activeTabId) closeTab(activeTabId);
+      const id = activeId();
+      if (id) void closeTab(id);
     },
-    // Envio e salvamento são implementados na Fase 2.
-    'mod+enter': () => undefined,
-    'mod+s': () => undefined,
+    'mod+enter': () => {
+      const id = activeId();
+      if (id) void sendRequest(id);
+    },
+    'mod+s': () => {
+      const id = activeId();
+      if (id) void saveTab(id);
+    },
+    'mod+t': () => useTabs.getState().openNewRequest(),
+    'mod+b': () => useUiStore.getState().toggleSidebar(),
+    'mod+tab': () => useTabs.getState().activateRelative(1),
+    'mod+shift+tab': () => useTabs.getState().activateRelative(-1),
+    'mod+,': () => useUiStore.getState().openSettings(),
   });
 }

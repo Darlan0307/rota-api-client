@@ -82,6 +82,20 @@
     user-select: text;
   }
 
+  /* Tailwind v4 não aplica pointer em botões por padrão; todo elemento clicável usa. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"],
+  [role="menuitem"],
+  [role="menuitemradio"],
+  [role="menuitemcheckbox"],
+  [role="option"],
+  summary,
+  label:has(> input[type="checkbox"]),
+  select {
+    cursor: pointer;
+  }
+
   ::selection {
     background: var(--color-primary-soft);
     color: var(--color-fg);
@@ -124,3 +138,16 @@
 @utility no-drag {
   -webkit-app-region: no-drag;
 }
+
+/* {{variáveis}} dentro do Monaco (decorações). O !important vence a cor do token de sintaxe. */
+/* biome-ignore-start lint/complexity/noImportantStyles: precisa sobrepor a cor de sintaxe do Monaco */
+.rota-var {
+  color: var(--color-primary) !important;
+  background: var(--color-primary-soft);
+  border-radius: 3px;
+}
+.rota-var-missing {
+  color: var(--color-danger) !important;
+  background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+}
+/* biome-ignore-end lint/complexity/noImportantStyles: fim */

@@ -1,7 +1,12 @@
 import { join } from 'node:path';
+import { appDataDir } from '@rota/core';
 import { app, BrowserWindow, Menu, shell } from 'electron';
 import { APP_NAME, TITLE_BAR_HEIGHT } from '../shared/constants';
+import type { WorkspaceState } from '../shared/ipc';
 import { registerIpcHandlers } from './ipc';
+import { RequestService } from './services/request-service';
+import { SettingsService } from './services/settings-service';
+import { WorkspaceService } from './services/workspace-service';
 
 // Cores iniciais da janela (antes do renderer aplicar a paleta), evitando
 // o "flash" branco ao abrir.
@@ -9,6 +14,13 @@ const INITIAL_BG = '#0E0F1A';
 const INITIAL_SYMBOL = '#A3A6C2';
 
 app.setName(APP_NAME);
+// Dados do Chromium (cache, localStorage) numa subpasta, separados dos dados do
+// app em %APPDATA%/Rota (settings.json, workspace padrão, segredos), que o MCP também lê.
+app.setPath('userData', join(appDataDir(), 'electron'));
+
+function broadcast(state: WorkspaceState): void {
+  for (const win of BrowserWindow.getAllWindows()) win.webContents.send('workspace:changed', state);
+}
 
 function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -86,10 +98,22 @@ if (!app.requestSingleInstanceLock()) {
     win.focus();
   });
 
-  void app.whenReady().then(() => {
+  void app.whenReady().then(async () => {
     app.setAppUserModelId('dev.rota.app');
     installMenu();
-    registerIpcHandlers();
+
+    const settings = new SettingsService();
+    const workspace = new WorkspaceService(broadcast);
+    const requests = new RequestService(workspace, settings, `${APP_NAME}/${app.getVersion()}`);
+    const loaded = await settings.load();
+    try {
+      await workspace.open(loaded.currentWorkspace);
+    } catch {
+      // Pasta de projeto removida/inacessível: volta para o workspace padrão.
+      await settings.update({ currentWorkspace: null });
+      await workspace.open(null);
+    }
+    registerIpcHandlers({ workspace, requests, settings });
     createMainWindow();
 
     app.on('activate', () => {
