@@ -12,6 +12,7 @@ import {
 } from '@rota/core';
 import { app, BrowserWindow, dialog, type IpcMainInvokeEvent, ipcMain, shell } from 'electron';
 import { IPC_ERROR_PREFIX, type IpcArgs, type IpcChannel, type IpcResult } from '../shared/ipc';
+import type { LoadTestService } from './services/loadtest-service';
 import type { RequestService } from './services/request-service';
 import type { SettingsService } from './services/settings-service';
 import type { WorkspaceService } from './services/workspace-service';
@@ -36,9 +37,10 @@ export interface Services {
   workspace: WorkspaceService;
   requests: RequestService;
   settings: SettingsService;
+  loadTests: LoadTestService;
 }
 
-export function registerIpcHandlers({ workspace, requests, settings }: Services): void {
+export function registerIpcHandlers({ workspace, requests, settings, loadTests }: Services): void {
   handle('app:getInfo', () => ({
     name: app.getName(),
     version: app.getVersion(),
@@ -130,6 +132,14 @@ export function registerIpcHandlers({ workspace, requests, settings }: Services)
     });
     return generateCode(prepared, input.target);
   });
+
+  // Teste de carga
+  handle('loadtest:start', (event, input) =>
+    loadTests.run(input, (stats) => {
+      if (!event.sender.isDestroyed()) event.sender.send('loadtest:progress', { runId: input.runId, stats });
+    }),
+  );
+  handle('loadtest:cancel', (_e, runId) => loadTests.cancel(runId));
 
   // Lixeira
   const trashChanged = (sender: Electron.WebContents) => sender.send('trash:changed', null);

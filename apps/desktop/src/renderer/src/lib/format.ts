@@ -1,13 +1,16 @@
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024) return `${num(bytes / 1024, bytes < 10 * 1024 ? 1 : 0)} KB`;
+  return `${num(bytes / 1024 / 1024, 1)} MB`;
 }
 
+const num = (n: number, digits: number) =>
+  n.toLocaleString('pt-BR', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+
 export function formatDuration(ms: number): string {
-  if (ms < 1) return `${ms.toFixed(1)} ms`;
+  if (ms < 1) return `${num(ms, 1)} ms`;
   if (ms < 1000) return `${Math.round(ms)} ms`;
-  if (ms < 60_000) return `${(ms / 1000).toFixed(2)} s`;
+  if (ms < 60_000) return `${num(ms / 1000, 2)} s`;
   return `${Math.floor(ms / 60_000)} min ${Math.round((ms % 60_000) / 1000)} s`;
 }
 

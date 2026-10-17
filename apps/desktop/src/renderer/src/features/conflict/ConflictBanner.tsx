@@ -12,6 +12,7 @@ const KIND_LABEL: Record<Tab['kind'], string> = {
   collection: 'Esta coleção',
   folder: 'Esta pasta',
   example: 'Este exemplo',
+  loadtest: 'Este teste',
 };
 
 /**

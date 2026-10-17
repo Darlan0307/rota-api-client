@@ -1,4 +1,4 @@
-import { createElement } from 'react';
+import { createElement, Fragment } from 'react';
 import { registerOverlay } from '../layout/DialogHost';
 import { registerWelcomeExtensions } from '../layout/MainArea';
 import { registerSearchContent } from '../layout/SearchDialog';
@@ -9,6 +9,7 @@ import { handleUrlPaste } from './curl/paste-curl';
 import { SaveExampleButton } from './examples/ExampleTabView';
 import { HistoryActions, HistoryPanel } from './history/HistoryPanel';
 import { ImportDialog, openImportDialog } from './import/ImportDialog';
+import { LoadTestButton } from './loadtest/LoadTestView';
 import { registerRequestEditorExtensions } from './request/RequestEditor';
 import { scriptResultSections } from './scripts/ScriptResults';
 import { ScriptsEditor } from './scripts/ScriptsEditor';
@@ -35,7 +36,13 @@ export function registerFeatures(): void {
   registerOverlay(CodegenDialog);
   registerRequestEditorExtensions({
     onUrlPaste: handleUrlPaste,
-    headerActions: (tab) => createElement(CodegenButton, { tabId: tab.id }),
+    headerActions: (tab) =>
+      createElement(
+        Fragment,
+        null,
+        createElement(LoadTestButton, { tab }),
+        createElement(CodegenButton, { tabId: tab.id }),
+      ),
     responseActions: (tab) => createElement(SaveExampleButton, { tab }),
   });
   registerSearchContent((close) => createElement(SearchPalette, { close }));

@@ -4,6 +4,7 @@ import { Kbd } from '../components/Kbd';
 import { Logo } from '../components/Logo';
 import { ContainerTabView } from '../features/collection/ContainerTabView';
 import { ExampleTabView } from '../features/examples/ExampleTabView';
+import { LoadTestView } from '../features/loadtest/LoadTestView';
 import { RequestEditor } from '../features/request/RequestEditor';
 import { newCollection, newEnvironment } from '../features/sidebar/item-actions';
 import { VariablesTabView } from '../features/variables/VariablesTabView';
@@ -33,6 +34,7 @@ export function MainArea() {
           <VariablesTabView key={tab.id} tab={tab} />
         )}
         {tab?.kind === 'example' && <ExampleTabView key={tab.id} tab={tab} />}
+        {tab?.kind === 'loadtest' && <LoadTestView key={tab.id} tab={tab} />}
         {(tab?.kind === 'collection' || tab?.kind === 'folder') && (
           <ContainerTabView key={tab.id} tab={tab} />
         )}

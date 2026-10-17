@@ -1,4 +1,15 @@
-import { Bookmark, Columns2, Folder, Globe, Library, PanelLeftOpen, Plus, Rows2, X } from 'lucide-react';
+import {
+  Bookmark,
+  Columns2,
+  Folder,
+  Gauge,
+  Globe,
+  Library,
+  PanelLeftOpen,
+  Plus,
+  Rows2,
+  X,
+} from 'lucide-react';
 import { useState } from 'react';
 import { ContextActions } from '../components/ActionMenu';
 import { IconButton } from '../components/IconButton';
@@ -132,6 +143,8 @@ function TabIcon({ tab }: { tab: Tab }) {
       return <Library className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
     case 'folder':
       return <Folder className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
+    case 'loadtest':
+      return <Gauge className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
     case 'example':
       return <Bookmark className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
     default:

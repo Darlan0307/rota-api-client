@@ -17,6 +17,9 @@ import type {
   HttpResponse,
   ImportPreview,
   ImportReport,
+  LoadTestConfig,
+  LoadTestResult,
+  LoadTestStats,
   PreparedRequest,
   RequestData,
   RunResult,
@@ -98,6 +101,14 @@ export interface CodegenInput {
   reveal: boolean;
 }
 
+export interface LoadTestInput {
+  runId: string;
+  requestId?: string | undefined;
+  parentId?: string | undefined;
+  data: RequestData;
+  config: LoadTestConfig;
+}
+
 export interface SaveExampleInput {
   requestId: string;
   name: string;
@@ -145,6 +156,11 @@ export interface IpcContract {
 
   'codegen:generate': { args: [input: CodegenInput]; result: string };
 
+  /** Resolve ao terminar (ou ser cancelado); o progresso chega por 'loadtest:progress'. */
+  'loadtest:start': { args: [input: LoadTestInput]; result: LoadTestResult };
+  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
+  'loadtest:cancel': { args: [runId: string]; result: void };
+
   'trash:list': { args: []; result: TrashEntry[] };
   // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
   'trash:restore': { args: [id: string]; result: void };
@@ -171,6 +187,7 @@ export interface IpcEvents {
   /** O histórico ganhou/perdeu entradas. */
   'history:changed': null;
   'trash:changed': null;
+  'loadtest:progress': { runId: string; stats: LoadTestStats };
 }
 
 export type IpcChannel = keyof IpcContract;
@@ -200,6 +217,8 @@ export const IPC_CHANNELS = [
   'history:clear',
   'codegen:generate',
   'examples:save',
+  'loadtest:start',
+  'loadtest:cancel',
   'trash:list',
   'trash:restore',
   'trash:remove',
@@ -215,6 +234,7 @@ export const IPC_EVENTS = [
   'workspace:changed',
   'history:changed',
   'trash:changed',
+  'loadtest:progress',
 ] as const satisfies readonly IpcEvent[];
 
 // Garante em tempo de compilação que as listas cobrem todo o contrato.

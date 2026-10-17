@@ -18,6 +18,7 @@ export type { PreparedBody, PreparedRequest } from './http/prepare';
 export * from './http/url';
 export type { ImportPreview, ImportReport, ImportResultItem } from './import/import-postman';
 export type { ImportCounts, ImportWarning, PostmanFileKind } from './import/postman';
+export * from './loadtest/config';
 export * from './model/schemas';
 export * from './model/tree';
 export type {

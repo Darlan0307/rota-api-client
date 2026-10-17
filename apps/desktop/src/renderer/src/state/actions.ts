@@ -133,6 +133,7 @@ export async function saveTab(tabId: string): Promise<boolean> {
       return Boolean(ok);
     }
     case 'example':
+    case 'loadtest':
       return true;
   }
 }
@@ -166,5 +167,15 @@ export async function closeTab(tabId: string): Promise<void> {
     if (choice === 'confirm' && !(await saveTab(tabId))) return;
   }
   if (tab.kind === 'request') cancelRequest(tabId);
+  if (tab.kind === 'loadtest' && tab.status === 'running' && tab.runId) {
+    const choice = await confirmDialog({
+      title: 'Cancelar o teste de carga?',
+      description: 'O teste está em andamento. Fechar a aba interrompe o envio.',
+      confirmLabel: 'Cancelar teste e fechar',
+      danger: true,
+    });
+    if (choice !== 'confirm') return;
+    void api.invoke('loadtest:cancel', tab.runId);
+  }
   useTabs.getState().close(tabId);
 }

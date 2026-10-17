@@ -4,6 +4,7 @@ import { app, BrowserWindow, Menu, shell } from 'electron';
 import { APP_NAME, TITLE_BAR_HEIGHT } from '../shared/constants';
 import type { WorkspaceState } from '../shared/ipc';
 import { registerIpcHandlers } from './ipc';
+import { LoadTestService } from './services/loadtest-service';
 import { RequestService } from './services/request-service';
 import { SettingsService } from './services/settings-service';
 import { WorkspaceService } from './services/workspace-service';
@@ -117,7 +118,8 @@ if (!app.requestSingleInstanceLock()) {
       await settings.update({ currentWorkspace: null });
       await workspace.open(null);
     }
-    registerIpcHandlers({ workspace, requests, settings });
+    const loadTests = new LoadTestService(workspace, settings, `${APP_NAME}/${app.getVersion()}`);
+    registerIpcHandlers({ workspace, requests, settings, loadTests });
     createMainWindow();
 
     app.on('activate', () => {

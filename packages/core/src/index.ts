@@ -22,6 +22,7 @@ export {
   detectPostmanFile,
   looksSensitive,
 } from './import/postman';
+export { type LoadTestOptions, LoadTestRecorder, runLoadTest } from './loadtest/loadtest';
 export * from './paths';
 export type { RunContext, RunOutcome, RunSettings } from './runner/run-request';
 export {

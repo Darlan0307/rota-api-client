@@ -7,6 +7,9 @@ import {
   type ExampleFile,
   type FieldChange,
   findNode,
+  type LoadTestConfig,
+  type LoadTestResult,
+  type LoadTestStats,
   type RequestData,
   RequestDataSchema,
   type RunResult,
@@ -88,7 +91,21 @@ export interface ExampleTab extends TabCommon {
   base: ExampleFile;
 }
 
-export type Tab = RequestTab | VariablesTab | CollectionTab | FolderTab | ExampleTab;
+/** Teste de carga de uma requisição (cópia da requisição no momento em que foi aberto). */
+export interface LoadTestTab extends TabCommon {
+  kind: 'loadtest';
+  requestId: string | null;
+  parentId: string | null;
+  data: RequestData;
+  config: LoadTestConfig;
+  runId: string | null;
+  status: 'idle' | 'running' | 'done';
+  stats: LoadTestStats | null;
+  result: LoadTestResult | null;
+  error: string | null;
+}
+
+export type Tab = RequestTab | VariablesTab | CollectionTab | FolderTab | ExampleTab | LoadTestTab;
 
 /** Localiza um exemplo e a requisição dona. */
 export function findExample(snapshot: WorkspaceSnapshot, id: string) {
@@ -160,6 +177,7 @@ export function isDirty(tab: Tab): boolean {
     case 'folder':
       return !deepEqual(tab.draft, tab.base);
     case 'example':
+    case 'loadtest':
       return false;
   }
 }
@@ -198,6 +216,8 @@ function withIncoming(tab: Tab, value: unknown): Tab {
       const v = value as ExampleFile;
       return { ...tab, base: v, draft: v, conflict: null };
     }
+    case 'loadtest':
+      return tab;
   }
 }
 
@@ -231,6 +251,7 @@ function describeChanges(tab: Tab, incoming: unknown): FieldChange[] {
       ];
     }
     case 'example':
+    case 'loadtest':
       return [];
   }
 }
@@ -272,6 +293,7 @@ function draftMatches(tab: Tab, incoming: unknown): boolean {
     case 'folder':
       return deepEqual(tab.draft, incoming);
     case 'example':
+    case 'loadtest':
       return true;
   }
 }
@@ -291,6 +313,7 @@ interface TabsState {
     snapshot: WorkspaceSnapshot,
   ): void;
   openGlobals(snapshot: WorkspaceSnapshot): void;
+  openLoadTest(source: RequestTab): void;
   openNewRequest(options?: {
     parentId?: string | null;
     data?: Partial<RequestData>;
@@ -408,6 +431,26 @@ export const useTabs = create<TabsState>()((set, get) => ({
     set((s) => ({ tabs: [...s.tabs, tab], activeId: tab.id }));
   },
 
+  openLoadTest(source) {
+    const tab: LoadTestTab = {
+      id: tabId(),
+      kind: 'loadtest',
+      title: `Carga · ${source.title}`,
+      itemId: null,
+      conflict: null,
+      requestId: source.itemId,
+      parentId: source.parentId,
+      data: structuredClone(source.draft),
+      config: { mode: 'count', total: 100, durationSec: 30, concurrency: 10 },
+      runId: null,
+      status: 'idle',
+      stats: null,
+      result: null,
+      error: null,
+    };
+    set((s) => ({ tabs: [...s.tabs, tab], activeId: tab.id }));
+  },
+
   openNewRequest(options = {}) {
     const data = newRequestData(options.data);
     const tab: RequestTab = {
@@ -510,7 +553,7 @@ export const useTabs = create<TabsState>()((set, get) => ({
     set((s) => {
       const tabs: Tab[] = [];
       for (const tab of s.tabs) {
-        if (tab.kind === 'request' && tab.itemId === null) {
+        if ((tab.kind === 'request' && tab.itemId === null) || tab.kind === 'loadtest') {
           tabs.push(tab);
           continue;
         }
@@ -582,7 +625,15 @@ useTabs.subscribe((state) => {
   saveTimer = window.setTimeout(() => {
     try {
       // Respostas não são persistidas (podem ser grandes e conter dados sensíveis).
-      const tabs = state.tabs.map((t) => (t.kind === 'request' ? { ...t, run: null } : t));
+      const tabs = state.tabs
+        .filter((t) => t.kind !== 'loadtest' || t.status !== 'running')
+        .map((t) =>
+          t.kind === 'request'
+            ? { ...t, run: null }
+            : t.kind === 'loadtest'
+              ? { ...t, stats: null, result: null, runId: null, status: 'idle' as const }
+              : t,
+        );
       localStorage.setItem(
         STORAGE_PREFIX + state.workspaceRoot,
         JSON.stringify({ tabs, activeId: state.activeId }),
