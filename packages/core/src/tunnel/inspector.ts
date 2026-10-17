@@ -196,8 +196,12 @@ export class TunnelInspector {
     try {
       if (config.mode === 'capture') await this.capture(input, config);
       else await this.forward(input);
-    } catch {
-      // Já registrado/respondido em forward.
+    } catch (error) {
+      // Erro inesperado (ex.: destino inválido): responde para não deixar o serviço esperando.
+      if (!res.headersSent) {
+        res.writeHead(500, { 'content-type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ erro: `Rota: ${error instanceof Error ? error.message : String(error)}` }));
+      } else res.destroy();
     }
   }
 
@@ -265,6 +269,23 @@ export class TunnelInspector {
     };
 
     return new Promise<TunnelExchange>((resolve) => {
+      // Cada chamada é registrada uma única vez, aconteça o que acontecer.
+      let settled = false;
+      const finish = (exchange: TunnelExchange) => {
+        if (settled) return;
+        settled = true;
+        resolve(this.record(exchange));
+      };
+      const failed = (message: string) =>
+        finish({
+          ...base,
+          requestBody: requestRecorder.toBody(headerOf(input.headers, 'content-type')),
+          responseHeaders: [],
+          responseBody: null,
+          durationMs: Date.now() - started,
+          error: message,
+        });
+
       // autoSelectFamily é repassado ao net.connect (falta nos tipos do http).
       const options: RequestOptions & { autoSelectFamily: boolean } = {
         protocol: target.protocol,
@@ -293,16 +314,20 @@ export class TunnelInspector {
         });
         response.on('end', () => {
           client?.end();
-          resolve(
-            this.record({
-              ...base,
-              requestBody: requestRecorder.toBody(headerOf(input.headers, 'content-type')),
-              status: response.statusCode ?? 0,
-              responseHeaders,
-              responseBody: responseRecorder.toBody(headerOf(responseHeaders, 'content-type')),
-              durationMs: Date.now() - started,
-            }),
-          );
+          finish({
+            ...base,
+            requestBody: requestRecorder.toBody(headerOf(input.headers, 'content-type')),
+            status: response.statusCode ?? 0,
+            responseHeaders,
+            responseBody: responseRecorder.toBody(headerOf(responseHeaders, 'content-type')),
+            durationMs: Date.now() - started,
+          });
+        });
+        // A API caiu no meio da resposta (ou quem chamou desistiu).
+        response.on('close', () => {
+          if (response.complete) return;
+          client?.destroy();
+          failed('A resposta da API foi interrompida antes do fim.');
         });
         response.on('error', () => client?.destroy());
       });
@@ -315,21 +340,14 @@ export class TunnelInspector {
           client.writeHead(502, { 'content-type': 'application/json; charset=utf-8' });
           client.end(body);
         } else client?.destroy();
-        resolve(
-          this.record({
-            ...base,
-            requestBody: requestRecorder.toBody(headerOf(input.headers, 'content-type')),
-            responseHeaders: [],
-            responseBody: null,
-            durationMs: Date.now() - started,
-            error: message,
-          }),
-        );
+        failed(message);
       });
 
       // Quem chamou desistiu: cancela o repasse.
       input.client?.on('close', () => {
-        if (!input.client?.writableFinished) upstream.destroy();
+        if (input.client?.writableFinished) return;
+        upstream.destroy();
+        failed('Quem chamou desistiu antes da resposta (tempo esgotado no serviço?).');
       });
 
       input.body.on('data', (chunk: Buffer) => requestRecorder.push(chunk));

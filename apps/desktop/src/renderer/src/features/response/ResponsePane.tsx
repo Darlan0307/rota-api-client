@@ -221,9 +221,10 @@ function ResponseView({
     if (field) openSaveToVariable({ tabId: tab.id, path: field.path, value: field.value });
   };
 
+  // O editor continua montado entre envios: a resposta pode passar a ser JSON
+  // depois, então os ganchos valem sempre e consultam a resposta atual.
   function handleEditor(editor: monaco.editor.IStandaloneCodeEditor) {
     editorRef.current = editor;
-    if (!isJson) return;
     editor.onDidChangeCursorPosition((e) => {
       if (e.source === 'mouse' || e.source === 'keyboard') setSelection(selectAtCursor(editor));
     });
@@ -232,7 +233,11 @@ function ResponseView({
       label: 'Salvar em variável…',
       contextMenuGroupId: 'navigation',
       contextMenuOrder: 0,
-      run: () => saveSelection(selectAtCursor(editor)),
+      run: () => {
+        const field = selectAtCursor(editor);
+        if (field) saveSelection(field);
+        else toast.info('Clique num campo de uma resposta JSON para salvar o valor numa variável.');
+      },
     });
   }
 

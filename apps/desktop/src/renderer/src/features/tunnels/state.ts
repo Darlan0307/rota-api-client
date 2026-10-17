@@ -1,4 +1,4 @@
-import type { TunnelConfig, TunnelView } from '@rota/core/shared';
+import { normalizeTarget, type TunnelConfig, type TunnelView } from '@rota/core/shared';
 import { create } from 'zustand';
 import type { CloudflaredInfo } from '../../../../shared/ipc';
 import { api, errorMessage } from '../../lib/api';
@@ -9,6 +9,8 @@ import { useUiStore } from '../../state/ui';
 
 interface TunnelState {
   views: TunnelView[];
+  /** A lista inicial já chegou do processo principal. */
+  loaded: boolean;
   binary: CloudflaredInfo | null;
   /** Download do cloudflared em andamento. */
   download: { received: number; total: number | null } | null;
@@ -19,6 +21,7 @@ interface TunnelState {
 
 export const useTunnels = create<TunnelState>()((set) => ({
   views: [],
+  loaded: false,
   binary: null,
   download: null,
   guideOpen: false,
@@ -31,10 +34,22 @@ let subscribed = false;
 export function subscribeTunnelEvents(): void {
   if (subscribed) return;
   subscribed = true;
-  api.on('tunnel:changed', (views) => useTunnels.setState({ views }));
+  api.on('tunnel:changed', (views) => {
+    warnDropped(useTunnels.getState().views, views);
+    useTunnels.setState({ views, loaded: true });
+  });
   api.on('tunnel:download', (download) => useTunnels.setState({ download }));
-  void api.invoke('tunnel:list').then((views) => useTunnels.setState({ views }));
+  void api.invoke('tunnel:list').then((views) => useTunnels.setState({ views, loaded: true }));
   void api.invoke('tunnel:binary').then((binary) => useTunnels.setState({ binary }));
+}
+
+/** O túnel caiu sozinho (rede, Cloudflare): avisa mesmo se a tela dele estiver fechada. */
+function warnDropped(before: TunnelView[], after: TunnelView[]): void {
+  for (const view of after) {
+    const previous = before.find((v) => v.config.id === view.config.id);
+    if (previous?.status === 'running' && view.status === 'error')
+      toast.error(`Túnel "${view.config.name}": ${view.error ?? 'caiu.'}`);
+  }
 }
 
 export function useTunnel(id: string | null): TunnelView | undefined {
@@ -61,7 +76,12 @@ export async function newTunnel(): Promise<void> {
     label: 'Porta ou endereço da sua API local',
     placeholder: 'Ex.: 3000 ou http://localhost:8080',
     initialValue: '3000',
-    validate: (v) => (v.trim() === '' ? 'Informe a porta da sua API.' : null),
+    validate: (v) =>
+      v.trim() === ''
+        ? 'Informe a porta da sua API.'
+        : normalizeTarget(v)
+          ? null
+          : 'Use uma porta (3000) ou um endereço (http://localhost:8080).',
   });
   if (!port) return;
   const id = await guarded(() => api.invoke('tunnel:create', { target: port }));
@@ -71,17 +91,20 @@ export async function newTunnel(): Promise<void> {
   useTabs.getState().openTunnel(id, 'Túnel');
 }
 
-export async function updateTunnel(id: string, patch: Partial<Omit<TunnelConfig, 'id'>>): Promise<void> {
-  await guarded(() => api.invoke('tunnel:update', id, patch));
+/** false = recusado (o erro já apareceu num aviso); a tela volta ao valor salvo. */
+export async function updateTunnel(id: string, patch: Partial<Omit<TunnelConfig, 'id'>>): Promise<boolean> {
+  return (await guarded(() => api.invoke('tunnel:update', id, patch).then(() => true))) ?? false;
 }
 
 export async function startTunnel(id: string): Promise<void> {
   const state = useTunnels.getState();
   if (!state.binary?.installed) {
+    // Abre a aba para o progresso do download ficar visível.
+    openTunnel(id);
     const info = await installCloudflared();
     if (!info?.installed) return;
   }
-  const ok = await guarded(() => api.invoke('tunnel:start', id).then(() => true));
+  const ok = await guarded(() => api.invoke('tunnel:start', id));
   if (ok) toast.success('Túnel ligado. Copie a URL pública e cole no serviço.');
 }
 

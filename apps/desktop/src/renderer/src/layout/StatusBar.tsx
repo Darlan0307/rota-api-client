@@ -1,5 +1,6 @@
 import * as Popover from '@radix-ui/react-popover';
 import { AlertTriangle, FolderOpen } from 'lucide-react';
+import { TunnelStatusIndicator } from '../features/tunnels/TunnelsPanel';
 import { api } from '../lib/api';
 import { useWorkspace } from '../state/workspace';
 
@@ -21,6 +22,7 @@ export function StatusBar() {
         <span className="truncate">{state.isDefault ? 'Workspace padrão' : snapshot.root}</span>
       </button>
       <div className="flex-1" />
+      <TunnelStatusIndicator />
       {snapshot.problems.length > 0 && (
         <Popover.Root>
           <Popover.Trigger asChild>

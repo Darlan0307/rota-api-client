@@ -259,9 +259,8 @@ export interface IpcContract {
   'tunnel:update': { args: [id: string, patch: Partial<Omit<TunnelConfig, 'id'>>]; result: void };
   // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
   'tunnel:remove': { args: [id: string]; result: void };
-  /** Resolve quando a URL pública já responde (até ~45 s). */
-  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
-  'tunnel:start': { args: [id: string]; result: void };
+  /** Resolve quando a URL pública já responde (até ~45 s); false = cancelado. */
+  'tunnel:start': { args: [id: string]; result: boolean };
   // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
   'tunnel:stop': { args: [id: string]; result: void };
   'tunnel:exchange': { args: [id: string, exchangeId: string]; result: TunnelExchange | null };

@@ -61,6 +61,7 @@ function copy(text: string, message: string) {
 /** Página de um túnel: destino, URL pública e chamadas recebidas. */
 export function TunnelTabView({ tab }: { tab: TunnelTab }) {
   const view = useTunnel(tab.itemId);
+  const loaded = useTunnels((s) => s.loaded);
   const update = useTabs((s) => s.update);
 
   // O título da aba acompanha o nome do túnel.
@@ -69,6 +70,8 @@ export function TunnelTabView({ tab }: { tab: TunnelTab }) {
     if (name && name !== tab.title) update<TunnelTab>(tab.id, (t) => ({ ...t, title: name }));
   }, [name, tab.id, tab.title, update]);
 
+  // Ao abrir o app, a lista ainda está chegando do processo principal.
+  if (!view && !loaded) return null;
   if (!view)
     return (
       <EmptyState icon={Unplug} title="Túnel não encontrado" description="Ele pode ter sido excluído." />
@@ -115,7 +118,10 @@ function Header({ view }: { view: TunnelViewData }) {
         aria-label="Nome do túnel"
         spellCheck={false}
         onChange={(e) => setName(e.target.value)}
-        onBlur={() => name.trim() !== config.name && void updateTunnel(config.id, { name })}
+        onBlur={() => {
+          if (name.trim() === '') setName(config.name);
+          else if (name.trim() !== config.name) void updateTunnel(config.id, { name });
+        }}
         onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
         className="min-w-0 flex-1 truncate rounded-md border border-transparent bg-transparent px-1.5 py-1 text-[15px] font-semibold text-fg outline-none hover:border-border focus:border-primary"
       />
@@ -127,8 +133,8 @@ function Header({ view }: { view: TunnelViewData }) {
       <Button
         size="sm"
         variant={on ? 'secondary' : 'primary'}
-        disabled={status === 'starting'}
         onClick={() => void (on ? stopTunnel(config.id) : startTunnel(config.id))}
+        title={status === 'starting' ? 'Cancelar a criação do túnel' : undefined}
         className="min-w-24"
       >
         {status === 'starting' ? (
@@ -138,7 +144,7 @@ function Header({ view }: { view: TunnelViewData }) {
         ) : (
           <Play className="size-3.5" />
         )}
-        {status === 'starting' ? 'Ligando' : on ? 'Desligar' : 'Ligar'}
+        {status === 'starting' ? 'Cancelar' : on ? 'Desligar' : 'Ligar'}
       </Button>
     </div>
   );
@@ -171,11 +177,8 @@ function TargetCard({ config }: { config: TunnelConfig }) {
 
   const commitTarget = async () => {
     if (target.trim() === config.target) return;
-    await updateTunnel(config.id, { target });
-    // Destino inválido: volta ao valor salvo.
-    setTarget(
-      useTunnels.getState().views.find((v) => v.config.id === config.id)?.config.target ?? config.target,
-    );
+    // Destino inválido: volta ao valor salvo (o aviso explica o formato).
+    if (!(await updateTunnel(config.id, { target }))) setTarget(config.target);
   };
 
   return (
@@ -237,10 +240,11 @@ function TargetCard({ config }: { config: TunnelConfig }) {
                 aria-label="Status da resposta"
                 value={captureStatus}
                 onChange={(e) => setCaptureStatus(e.target.value.replace(/\D/g, '').slice(0, 3))}
-                onBlur={() =>
-                  Number(captureStatus) !== config.captureStatus &&
-                  void updateTunnel(config.id, { captureStatus: Number(captureStatus) })
-                }
+                onBlur={async () => {
+                  if (Number(captureStatus) === config.captureStatus) return;
+                  if (!(await updateTunnel(config.id, { captureStatus: Number(captureStatus) })))
+                    setCaptureStatus(String(config.captureStatus));
+                }}
               />
             </div>
             <div className="space-y-1">
@@ -719,13 +723,15 @@ function ExchangeDetail({
             {side === 'response' && !exchange.responseBody ? 'A API não respondeu.' : 'Sem corpo.'}
           </p>
         ) : (
-          <div className="min-h-0">
+          <div className="flex min-h-0 flex-col">
             {rawBody?.truncated && (
-              <p className="px-4 py-1 text-2xs text-warning">
+              <p className="shrink-0 px-4 py-1 text-2xs text-warning">
                 Mostrando o primeiro 1 MB de {formatBytes(rawBody.size)}.
               </p>
             )}
-            <CodeEditor value={body.text} language={body.json ? 'json' : 'plaintext'} readOnly />
+            <div className="min-h-0 flex-1">
+              <CodeEditor value={body.text} language={body.json ? 'json' : 'plaintext'} readOnly />
+            </div>
           </div>
         )}
       </div>

@@ -4,6 +4,7 @@ import { Button } from '../../components/Button';
 import { IconButton } from '../../components/IconButton';
 import { cn } from '../../lib/cn';
 import { useActiveTab } from '../../state/tabs';
+import { useUiStore } from '../../state/ui';
 import { newTunnel, openTunnel, startTunnel, stopTunnel, useTunnels } from './state';
 import { openTunnelGuide, TunnelSteps } from './TunnelGuide';
 
@@ -32,7 +33,7 @@ export function StatusDot({ status, className }: { status: TunnelStatus; classNa
 function targetLabel(target: string): string {
   try {
     const url = new URL(target);
-    return `${url.hostname === 'localhost' ? '' : url.hostname}:${url.port || (url.protocol === 'https:' ? 443 : 80)}${url.pathname === '/' ? '' : url.pathname}`;
+    return `${url.host}${url.pathname === '/' ? '' : url.pathname}`;
   } catch {
     return target;
   }
@@ -108,10 +109,9 @@ function TunnelItem({ view, selected }: { view: TunnelView; selected: boolean })
         </div>
         <IconButton
           icon={on ? Square : Play}
-          label={on ? 'Desligar' : 'Ligar'}
+          label={status === 'starting' ? 'Cancelar' : on ? 'Desligar' : 'Ligar'}
           size="sm"
           className={cn(!on && 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100')}
-          disabled={status === 'starting'}
           onClick={(e) => {
             e.stopPropagation();
             void (on ? stopTunnel(config.id) : startTunnel(config.id));
@@ -119,6 +119,33 @@ function TunnelItem({ view, selected }: { view: TunnelView; selected: boolean })
         />
       </div>
     </li>
+  );
+}
+
+/** Barra de status: lembra que há porta exposta na internet. */
+export function TunnelStatusIndicator() {
+  // Filtra fora do seletor: um array novo a cada leitura faria a tela renderizar sem parar.
+  const views = useTunnels((s) => s.views);
+  const active = views.filter((v) => v.status === 'running' || v.status === 'starting');
+  if (active.length === 0) return null;
+  const only = active.length === 1 ? active[0] : undefined;
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        useUiStore.getState().showSection('tunnels');
+        if (only) openTunnel(only.config.id);
+      }}
+      title={active.map((v) => `${v.config.name}: ${v.publicUrl ?? 'ligando…'}`).join('\n')}
+      className="flex items-center gap-1.5 text-success hover:underline"
+    >
+      <StatusDot status="running" className="size-1.5 shadow-none" />
+      {active.every((v) => v.status === 'starting')
+        ? 'ligando túnel…'
+        : active.length === 1
+          ? '1 túnel ligado'
+          : `${active.length} túneis ligados`}
+    </button>
   );
 }
 

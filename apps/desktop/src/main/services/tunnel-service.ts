@@ -9,6 +9,7 @@ import {
   DEFAULT_CAPTURE_BODY,
   describeCloudflaredFailure,
   joinUrl,
+  Mutex,
   newId,
   normalizeTarget,
   QuickTunnel,
@@ -52,6 +53,10 @@ export class TunnelService {
   private configs: TunnelConfig[] = [];
   private readonly runtimes = new Map<string, Runtime>();
   private notifyTimer: NodeJS.Timeout | undefined;
+  /** Gravações do tunnels.json em fila (campos alterados em sequência). */
+  private readonly writes = new Mutex();
+  /** Download em andamento (dois cliques não baixam duas vezes no mesmo arquivo). */
+  private installing: Promise<CloudflaredInfo> | null = null;
 
   constructor(
     private readonly dataDir: string,
@@ -76,12 +81,16 @@ export class TunnelService {
       captureBody: DEFAULT_CAPTURE_BODY,
       webhookPath: '',
       ...c,
+      // Arquivo editado à mão: destino inválido volta ao padrão.
+      target: normalizeTarget(c.target) ?? 'http://localhost:3000',
     }));
   }
 
-  private async persist(): Promise<void> {
-    await mkdir(this.dataDir, { recursive: true });
-    await writeJsonAtomic(this.file, this.configs);
+  private persist(): Promise<void> {
+    return this.writes.run(async () => {
+      await mkdir(this.dataDir, { recursive: true });
+      await writeJsonAtomic(this.file, this.configs);
+    });
   }
 
   private runtime(id: string): Runtime {
@@ -149,11 +158,27 @@ export class TunnelService {
   }
 
   /** Baixa o cloudflared oficial (GitHub da Cloudflare) para %APPDATA%/Rota/bin. */
-  async install(onProgress: (received: number, total: number | null) => void): Promise<CloudflaredInfo> {
+  install(onProgress: (received: number, total: number | null) => void): Promise<CloudflaredInfo> {
+    this.installing ??= this.download(onProgress).finally(() => {
+      this.installing = null;
+    });
+    return this.installing;
+  }
+
+  private async download(
+    onProgress: (received: number, total: number | null) => void,
+  ): Promise<CloudflaredInfo> {
     const target = this.appBinary;
     const partial = `${target}.part`;
     await mkdir(join(this.dataDir, 'bin'), { recursive: true });
-    const response = await fetch(cloudflaredDownloadUrl());
+    let response: Response;
+    try {
+      response = await fetch(cloudflaredDownloadUrl());
+    } catch {
+      throw new Error(
+        'Não foi possível baixar o cloudflared. Verifique a conexão com a internet (ou um proxy/firewall bloqueando o GitHub).',
+      );
+    }
     if (!response.ok || !response.body)
       throw new Error(`Não foi possível baixar o cloudflared (HTTP ${response.status}).`);
     const total = Number(response.headers.get('content-length')) || null;
@@ -179,7 +204,8 @@ export class TunnelService {
       await rename(partial, target);
     } catch (error) {
       await rm(partial, { force: true });
-      throw error;
+      if (error instanceof Error && error.message.startsWith('O arquivo baixado')) throw error;
+      throw new Error('O download do cloudflared foi interrompido. Tente de novo.');
     }
     onProgress(received, total);
     return this.binary();
@@ -189,7 +215,9 @@ export class TunnelService {
   // Configurações
 
   async create(patch: Partial<TunnelConfig> = {}): Promise<string> {
-    const target = normalizeTarget(patch.target ?? '3000') ?? 'http://localhost:3000';
+    const target = normalizeTarget(patch.target ?? '3000');
+    if (!target)
+      throw new Error('Destino inválido. Use uma porta (3000) ou um endereço (http://localhost:8080).');
     const config: TunnelConfig = {
       id: newId(),
       name: patch.name?.trim() || `API ${new URL(target).host}`,
@@ -235,10 +263,12 @@ export class TunnelService {
   // -------------------------------------------------------------------------
   // Ligar e desligar
 
-  async start(id: string): Promise<void> {
+  /** true = ligado; false = cancelado no meio (Desligar durante o "Ligando…"). */
+  async start(id: string): Promise<boolean> {
     this.config(id);
     const rt = this.runtime(id);
-    if (rt.status === 'running' || rt.status === 'starting') return;
+    if (rt.status === 'running') return true;
+    if (rt.status === 'starting') return false;
     const binary = this.binary();
     if (!binary.path) throw new Error('Baixe o cloudflared antes de ligar o túnel.');
 
@@ -266,8 +296,12 @@ export class TunnelService {
           this.notify();
         },
       });
+      // Cancelado enquanto ligava.
+      if (rt.status !== 'starting') return false;
       rt.status = 'running';
     } catch (error) {
+      // Cancelado pelo usuário (Desligar/Excluir durante o "Ligando…"): stop() já limpou tudo.
+      if (rt.status !== 'starting') return false;
       rt.tunnel?.stop();
       rt.tunnel = null;
       await rt.inspector.stop();
@@ -278,6 +312,7 @@ export class TunnelService {
       throw error;
     }
     this.notify();
+    return true;
   }
 
   async stop(id: string): Promise<void> {
@@ -322,14 +357,20 @@ export class TunnelService {
     if (!publicUrl) throw new Error('Ligue o túnel antes de testar.');
     // O caminho vem da tela (pode ainda não ter sido salvo).
     const url = joinUrl(publicUrl, path ?? config.webhookPath);
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'user-agent': 'Rota (teste do túnel)' },
-      body: JSON.stringify({ teste: 'Rota', enviadoEm: new Date().toISOString() }),
-      signal: AbortSignal.timeout(20_000),
-    });
-    await response.arrayBuffer();
-    return { status: response.status, url };
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'user-agent': 'Rota (teste do túnel)' },
+        body: JSON.stringify({ teste: 'Rota', enviadoEm: new Date().toISOString() }),
+        signal: AbortSignal.timeout(20_000),
+      });
+      await response.arrayBuffer();
+      return { status: response.status, url };
+    } catch {
+      throw new Error(
+        'A URL pública não respondeu. Um túnel recém-ligado pode levar alguns segundos para funcionar: tente de novo.',
+      );
+    }
   }
 
   clear(id: string): void {

@@ -18,6 +18,12 @@ beforeAll(async () => {
     req.on('data', (c) => (body += c));
     req.on('end', () => {
       received.push({ method: req.method ?? '', url: req.url ?? '', host: req.headers.host ?? '', body });
+      if (req.url?.includes('cai')) {
+        res.writeHead(200, { 'content-type': 'text/plain' });
+        res.write('parte');
+        setTimeout(() => res.socket?.destroy(), 20);
+        return;
+      }
       res.setHeader('set-cookie', ['a=1', 'b=2']);
       res.setHeader('content-type', 'application/json');
       res.statusCode = req.url?.includes('falha') ? 500 : 201;
@@ -103,6 +109,18 @@ describe('TunnelInspector', () => {
     expect(inspector.list()[0]).toMatchObject({
       error: expect.stringContaining('127.0.0.1:1'),
       requestBody: { data: 'oi' },
+    });
+  });
+
+  it('registra quando a API cai no meio da resposta', async () => {
+    const { inspector, base } = await start(() => config());
+    await fetch(`${base}/cai`)
+      .then((r) => r.text())
+      .catch(() => null);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(inspector.list()[0]).toMatchObject({
+      path: '/cai',
+      error: expect.stringContaining('interrompida'),
     });
   });
 
