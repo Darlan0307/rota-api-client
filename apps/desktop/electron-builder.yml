@@ -1,7 +1,7 @@
 # Empacotamento para Windows (instalador NSIS).
 appId: dev.rota.app
 productName: Rota
-copyright: Copyright © 2026
+copyright: Copyright © 2026 Darlan0307
 directories:
   output: release
   buildResources: build

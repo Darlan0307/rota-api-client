@@ -2,6 +2,7 @@
   "name": "@rota/desktop",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "main": "./out/main/index.js",
   "scripts": {
@@ -55,5 +56,5 @@
   },
   "productName": "Rota",
   "description": "Cliente de API desktop com integração ao Claude (MCP)",
-  "author": "Rota"
+  "author": "Darlan0307"
 }

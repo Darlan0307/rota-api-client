@@ -1,91 +1,142 @@
 # Rota
 
-Cliente de API desktop pessoal (estilo Postman) para Windows, com integração ao Claude via MCP.
+Cliente de API para desktop (Windows), no estilo do Postman, que roda offline e se integra ao Claude via MCP.
 
-## Instalar
+![Requisição e resposta](docs/screenshots/requisicao-e-resposta.png)
 
-### 1. Gerar o instalador (se ainda não existir)
+## Por que existe
+
+Eu usava Postman e Insomnia no dia a dia e sempre esbarrava nas mesmas coisas: login obrigatório, sincronização na nuvem que eu não queria, coleções presas num formato que não dá para versionar direito e nenhuma forma simples de deixar uma IA mexer nas minhas requisições sem entregar meus tokens.
+
+O Rota resolve isso para o meu fluxo:
+
+- Tudo fica local, em arquivos JSON legíveis (um por requisição), que podem morar dentro do repositório do projeto e gerar diffs limpos no Git.
+- Variáveis secretas ficam cifradas no Windows Credential Manager; no arquivo versionado vai só o nome.
+- Importa o que já existe no Postman (coleções, ambientes e globais) e exporta de volta no mesmo formato.
+- O Claude consegue listar, criar, editar e enviar requisições pelo MCP, mas ações destrutivas pedem confirmação no app e valores secretos nunca chegam até ele.
+
+## Funcionalidades
+
+- **Requisições HTTP** com params, headers, body (JSON, texto, form-data com arquivos, urlencoded), auth (Bearer, Basic, API Key) herdada de pasta ou coleção, e várias abas abertas.
+- **Variáveis no padrão do Postman** (global, coleção e ambiente), com destaque e tooltip do valor resolvido, e **variáveis secretas** cifradas fora do workspace.
+- **Scripts de pré-requisição e pós-resposta** compatíveis com o subconjunto mais usado de `pm.*` (`pm.test`, `pm.expect`, `pm.environment`, `pm.response`...), rodando num sandbox QuickJS sem acesso a arquivos ou rede.
+- **Resposta** formatada, em texto puro ou em **tabela** (ordenar, filtrar, exportar CSV). Clique num campo e salve o valor numa variável.
+- **Exemplos e contrato**: salve uma resposta boa como exemplo; nas próximas, o app avisa se um campo sumiu ou mudou de tipo. Também dá para comparar com um envio anterior.
+- **Dados de teste brasileiros**: `{{$cpf}}`, `{{$cnpj}}`, `{{$nomeCompleto}}`, `{{$cep}}`, `{{$celular}}`, `{{$placa}}`... geram um valor novo a cada envio (CPF e CNPJ com dígitos válidos).
+- **Importação** de Postman (v2.0/v2.1) e OpenAPI 3 / Swagger 2.0 (JSON ou YAML), com prévia e relatório do que não foi suportado.
+- **Exportação** para Postman e Markdown, e **backup completo** (todas as coleções, ambientes e globais) num só clique.
+- **Histórico**, **busca global** (Ctrl+P), **gerar código** (cURL, fetch, axios), **colar cURL** na URL e **lixeira** com restauração. Excluir, mover ou renomear tem "Desfazer" (Ctrl+Z).
+- **Teste de carga** simples: total de requisições ou duração, concorrência, percentis e gráficos.
+- **Túneis para webhooks**: cria uma URL `https://….trycloudflare.com` (via cloudflared) que entrega as chamadas na porta da sua API local e registra cada chamada para inspecionar e reenviar.
+- **Workspaces de projeto**: abra qualquer pasta como workspace e versione as coleções junto com o código. Alterações feitas por fora (Git, MCP) aparecem na hora.
+- **Servidor MCP** embutido no próprio executável, com configuração automática do Claude Desktop e comando pronto para o Claude Code.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Resposta em tabela](docs/screenshots/resposta-em-tabela.png) <br> Resposta em tabela, com ordenação e exportação CSV | ![Scripts e testes](docs/screenshots/scripts-e-testes.png) <br> Scripts `pm.*` e resultado dos testes |
+| ![Ambiente e variáveis secretas](docs/screenshots/ambiente-e-variaveis-secretas.png) <br> Ambientes com variáveis secretas | ![Dados de teste](docs/screenshots/dados-de-teste.png) <br> Dados de teste gerados a cada envio |
+| ![Importação do Postman](docs/screenshots/importacao-postman.png) <br> Prévia da importação do Postman | ![Busca global](docs/screenshots/busca-global.png) <br> Busca global (Ctrl+P) |
+| ![Teste de carga](docs/screenshots/teste-de-carga.png) <br> Teste de carga | ![Túnel para webhooks](docs/screenshots/tunel-para-webhooks.png) <br> Túnel recebendo webhooks |
+
+## Tecnologias
+
+- **Electron 44** + **electron-vite**, **React 19**, **Tailwind CSS 4**, **Zustand**, **Radix UI** e **Monaco Editor**
+- **TypeScript** em modo strict, num monorepo com **pnpm workspaces**
+- **undici** para as requisições HTTP (no processo principal, sem CORS)
+- **QuickJS** (WebAssembly) + **chai** para o sandbox de scripts
+- **@napi-rs/keyring** para o Windows Credential Manager
+- **chokidar** para observar os arquivos do workspace
+- **@modelcontextprotocol/sdk** para o servidor MCP
+- **Vitest** para testes, **Biome** para lint e formatação, **electron-builder** para o instalador
+
+## Rodando localmente
+
+Requisitos: **Windows 10/11**, **Node.js 22+** e **pnpm 10+** (`corepack enable` instala a versão certa do pnpm).
 
 ```sh
+git clone https://github.com/Darlan0307/rota.git
+cd rota
 pnpm install
-pnpm --filter @rota/desktop dist
+pnpm dev
 ```
 
-O instalador fica em `apps/desktop/release/Rota-Setup-<versão>.exe` (cerca de 115 MB).
+`pnpm dev` abre o app em modo de desenvolvimento (F5 recarrega, F12 abre o DevTools). Na primeira abertura o workspace está vazio: importe uma coleção do Postman pelo ícone de download na barra de coleções ou crie uma do zero.
 
-### 2. Instalar
+Outros comandos:
 
-1. Dê dois cliques em `Rota-Setup-<versão>.exe`.
-2. **Aviso do Windows "O Windows protegeu o computador":** aparece porque o instalador não tem assinatura digital paga (é normal para apps pessoais). Clique em **Mais informações** → **Executar assim mesmo**.
-3. Escolha a pasta (a sugerida serve) e clique em **Instalar**. Não pede senha de administrador: o Rota é instalado só para o seu usuário.
-4. Ao terminar, abra pelo atalho **Rota** na **área de trabalho** ou no **Menu Iniciar**.
+```sh
+pnpm test        # testes de todos os pacotes (Vitest)
+pnpm typecheck   # checagem de tipos
+pnpm lint        # lint e formatação (Biome)
+pnpm format      # aplica as correções automáticas do Biome
+pnpm build       # build de produção do app e do servidor MCP
+```
 
-### 3. Primeiro uso
+### Gerar o instalador
 
-- O app abre com um workspace vazio. Para trazer o que você tem no Postman: no Postman, exporte as coleções e os ambientes (**Export**, formato v2.1), e no Rota use **Importar** (ícone de download na barra de coleções).
-- Para usar com o Claude: **Configurações → Claude (MCP)** (detalhes abaixo).
+```sh
+pnpm --filter @rota/desktop dist       # instalador NSIS em apps/desktop/release/Rota-Setup-<versão>.exe
+pnpm --filter @rota/desktop dist:dir   # só o app empacotado, sem instalador (release/win-unpacked)
+```
 
-### Atualizar, desinstalar e onde ficam os dados
+O instalador não tem assinatura digital, então o Windows mostra "O Windows protegeu o computador". Clique em **Mais informações → Executar assim mesmo**. A instalação é por usuário e não pede administrador. Os dados ficam em `%APPDATA%\Rota` e são mantidos ao atualizar ou desinstalar.
 
-- **Atualizar:** rode o instalador da versão nova por cima. Coleções, ambientes, histórico e segredos são mantidos.
-- **Desinstalar:** **Configurações do Windows → Aplicativos → Aplicativos instalados → Rota → Desinstalar**. Seus dados **não** são apagados (ficam em `%APPDATA%\Rota`); apague essa pasta se quiser remover tudo.
-- **Backup antes de formatar o PC:** use **Exportar tudo (backup)** e marque "Incluir valores secretos" (os segredos ficam presos a este Windows e se perdem ao formatar sem isso).
+Fechar a janela encerra tudo (túneis, conexões, vigia de arquivos); nada fica rodando em segundo plano.
 
-### Fechar o app
+### Conectar ao Claude (MCP)
 
-Fechar a janela encerra o Rota por completo: túneis (cloudflared), conexões e processos param, e a memória é liberada. Nada fica rodando em segundo plano nem na bandeja. Se o Rota for fechado à força (Gerenciador de Tarefas, queda), na próxima abertura ele encerra qualquer túnel que tenha sobrado.
+No app, abra **Configurações → Claude (MCP)**:
 
-> Se o Claude Desktop ou o Claude Code estiver usando o Rota via MCP, você pode ver um processo **Rota** no Gerenciador de Tarefas mesmo com o app fechado: é o servidor MCP, iniciado e encerrado pelo próprio Claude (ele some quando você fecha o Claude).
-
-## Conectar ao Claude (MCP)
-
-No app: **Configurações → Claude (MCP)**.
-
-- **Claude Desktop:** botão "Configurar automaticamente" (inclui o Rota em `claude_desktop_config.json`, guarda cópia do arquivo anterior). Reinicie o Claude Desktop depois.
+- **Claude Desktop:** "Configurar automaticamente" inclui o Rota no `claude_desktop_config.json` (guardando uma cópia do arquivo anterior). Reinicie o Claude Desktop depois.
 - **Claude Code:** copie o comando `claude mcp add rota ...` mostrado na tela.
 
-O servidor roda com o próprio `Rota.exe` (modo Node), sem precisar de Node instalado. Ações que alteram ou apagam dados, requisições DELETE/PUT/PATCH e testes de carga pedem confirmação no app — com o app fechado, essas ações são recusadas. Valores secretos nunca são enviados ao Claude.
+O servidor roda com o próprio `Rota.exe` em modo Node, sem precisar de Node instalado. Ações que alteram ou apagam dados, e requisições DELETE/PUT/PATCH, pedem confirmação no app; com o app fechado, elas são recusadas.
 
-## Do dia a dia
+## Variáveis de ambiente
 
-- **Importar:** Postman (coleções v2.1, ambientes, globais) e OpenAPI 3 / Swagger 2.0 (JSON ou YAML).
-- **Exportar:** botão direito na coleção → Postman (v2.1) ou documentação em Markdown; ambientes → Postman. Valores secretos nunca vão para os arquivos.
-- **Exportar tudo (backup):** ícone de arquivo na barra de coleções ou de ambientes. Salva todas as coleções, ambientes e globais numa pasta, no formato do Postman, com um LEIA-ME. Os segredos só vão (em texto puro) se você marcar a opção.
-- **Contrato:** salve uma resposta boa como exemplo; nas próximas, a aba "Contrato" avisa se um campo sumiu ou mudou de tipo.
-- **Comparar:** diff da resposta atual com um exemplo ou um envio anterior.
-- **Claude:** o botão "Claude" na requisição copia pedidos prontos (gerar testes, explicar erro, documentar a coleção).
-- **Dados de teste:** `{{$cpf}}`, `{{$cnpj}}`, `{{$nomeCompleto}}`, `{{$email}}`, `{{$celular}}`, `{{$cep}}`, `{{$placa}}`, `{{$hoje}}`... geram um valor novo a cada envio (CPF/CNPJ válidos). Digite `{{$` num campo ou abra a lista pelo ícone de dado no topo da requisição.
-- **Salvar em variável:** clique num campo do JSON da resposta (ou numa célula da tabela) e use "Salvar em variável". O valor é gravado na hora e, se quiser, o pós-script passa a atualizá-lo a cada envio.
-- **Tabela:** listas da resposta viram tabela com ordenação, filtro e exportação para CSV.
-- **Desfazer:** excluir, mover, renomear ou duplicar mostra "Desfazer" (ou Ctrl+Z fora de campos de texto).
-- **Túneis (webhooks):** ícone de webhook na barra lateral. Cria uma URL `https://….trycloudflare.com` que entrega as chamadas na porta da sua API (3000, 8080…), mostra cada chamada (pedido e resposta) e permite reenviar ou abrir como requisição. Um túnel por API; o botão "Como usar" tem o passo a passo.
+O app não precisa de nenhuma variável para rodar. Existe uma opcional, útil em desenvolvimento:
 
-### Criar uma coleção a partir de uma documentação
+| Variável | Para que serve |
+|---|---|
+| `ROTA_DATA_DIR` | Pasta de dados alternativa (padrão: `%APPDATA%\Rota`). Permite testar sem mexer nas suas coleções reais. |
 
-Com o MCP configurado, anexe a documentação (JSON, OpenAPI, PDF convertido...) numa conversa com o Claude e use o prompt **colecao_a_partir_de_documentacao** (ou peça "crie a coleção desta documentação no Rota"). O Claude monta tudo com `criar_colecao_completa`: pastas, requisições com `{{baseUrl}}`, exemplos de resposta e auth com variáveis secretas vazias para você preencher no app. Se o arquivo for OpenAPI, ele pode usar `importar_arquivo` direto.
+Ela é lida do ambiente do processo, não de um arquivo `.env`. No PowerShell:
 
-## Desenvolvimento
-
-Requisitos: Node 22+ e pnpm 10+.
-
-```sh
-pnpm dev            # abre o app em modo desenvolvimento (F5 recarrega, F12 abre o DevTools)
-pnpm test           # testes (Vitest) de todos os pacotes
-pnpm typecheck      # checagem de tipos (TypeScript strict)
-pnpm lint           # lint + formatação (Biome)
-pnpm format         # aplica correções automáticas do Biome
-pnpm build          # build de produção (app + servidor MCP em apps/desktop/out)
-pnpm --filter @rota/desktop dist:dir   # app empacotado sem instalador (release/win-unpacked)
-pnpm --filter @rota/desktop dist   # instalador NSIS
-pnpm --filter @rota/desktop icon   # regenera build/icon.ico e icon.png a partir de icon.svg
+```powershell
+$env:ROTA_DATA_DIR = "C:\temp\rota-dev"; pnpm dev
 ```
 
-Para testar o MCP empacotado: `node apps/mcp/scripts/smoke-packaged.mjs <caminho do Rota.exe> <pasta de dados de teste>`.
+O [`.env.example`](.env.example) documenta a mesma variável.
 
 ## Estrutura
 
-- `packages/core` — lógica compartilhada entre o app e o servidor MCP (workspace, variáveis, HTTP, scripts, importação, histórico, lixeira, teste de carga, ponte com o app).
-- `apps/desktop` — app Electron + React + Tailwind.
-- `apps/mcp` — servidor MCP (empacotado com esbuild em `apps/desktop/out/mcp`).
-- `docs/DECISOES.md` — decisões de produto e técnicas.
-- `PLANO.md` — plano original do projeto.
+```
+apps/
+  desktop/        app Electron
+    src/main/       processo principal: IPC, serviços (requisições, túneis, MCP, workspace)
+    src/preload/    ponte mínima entre main e renderer
+    src/renderer/   interface React (features/, layout/, components/, state/)
+  mcp/            servidor MCP (empacotado com esbuild dentro do app)
+packages/
+  core/           lógica compartilhada entre app e MCP: modelo, armazenamento,
+                  variáveis, HTTP, scripts, importação/exportação, histórico,
+                  lixeira, teste de carga e túneis
+docs/
+  DECISOES.md     decisões técnicas e de produto, com o motivo de cada uma
+  screenshots/
+```
+
+O app e o servidor MCP usam o mesmo `@rota/core`, então o Claude faz exatamente o que o app faria.
+
+## Próximos passos
+
+- Rodar uma coleção inteira em sequência (como o Collection Runner do Postman)
+- Suporte a WebSocket e GraphQL
+- Assinatura digital e atualização automática do instalador
+- Versões para macOS e Linux (caminhos e comunicação entre processos já tratam os três sistemas; faltam o empacotamento, o cofre de segredos e o download do cloudflared de cada um)
+
+## Licença
+
+[MIT](LICENSE)
