@@ -33,6 +33,12 @@ Registro das decisões tomadas com o dono do projeto. Atualizar a cada fase.
 | D5 | Codegen e parser de cURL | Implementação própria. |
 | D6 | Importação Postman | Mapeador próprio validado com zod. |
 | D7 | Lint/format | Biome. |
+| D8 | Scripts em cascata | Coleção e pastas também têm pré/pós-script; ordem coleção → pastas → requisição. Pré-script pode alterar a requisição; alterações de variáveis são gravadas (secretas no cofre). |
+| D9 | Servidor MCP | Empacotado com esbuild em `apps/desktop/out/mcp/index.mjs` e executado pelo próprio `Rota.exe` com `ELECTRON_RUN_AS_NODE=1` (não exige Node instalado; lê o bundle de dentro do asar). Ferramentas em português; usa o mesmo workspace aberto no app. |
+| D10 | Confirmação no app | Pedida pela ponte (D1) para: editar, excluir, mover, DELETE/PUT/PATCH, teste de carga e esvaziar a lixeira. Tempo limite de ~2 min. |
+| D11 | Lixeira | Itens excluídos vão para `%APPDATA%/Rota/workspaces/<hash>/trash` (fora do workspace/Git), com segredos guardados à parte. |
+| D12 | Instalador | electron-builder + NSIS, por usuário (sem admin), atalhos na área de trabalho e no Menu Iniciar. Bibliotecas usadas só pelo renderer ficam em devDependencies (já vão no bundle do Vite), o que reduz o asar de ~180 MB para ~44 MB. O binário nativo do keyring fica fora do asar. Sem assinatura de código (o Windows SmartScreen pode avisar na primeira execução). |
+| D13 | Nome e paleta | Nome "Rota"; paleta padrão "Índigo noturno" (alternativa "Azul profundo"), ambas validadas em WCAG AA nos testes. |
 
 ## Formato de dados (implementado na Fase 2)
 
@@ -60,9 +66,12 @@ Registro das decisões tomadas com o dono do projeto. Atualizar a cada fase.
 ├─ settings.json              # timeout padrão, proxy, workspace atual, recentes
 ├─ workspace/                 # workspace padrão
 ├─ electron/                  # dados do Chromium (cache, localStorage)
+├─ bridge.json                # pipe + token da execução atual (ponte MCP ↔ app)
 └─ workspaces/<hash do caminho>/
    ├─ state.json              # ambiente ativo
-   └─ secrets.json            # valores secretos cifrados
+   ├─ secrets.json            # valores secretos cifrados
+   ├─ history.jsonl           # histórico (até 500, segredos mascarados)
+   └─ trash/                  # lixeira
 ```
 
 A variável de ambiente `ROTA_DATA_DIR` substitui `%APPDATA%/Rota` (usada em testes).

@@ -109,6 +109,27 @@ export interface LoadTestInput {
   config: LoadTestConfig;
 }
 
+/** Como o Claude inicia o servidor MCP do Rota. */
+export interface McpLaunchConfig {
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+}
+
+export interface McpSetupInfo {
+  config: McpLaunchConfig;
+  /** Trecho para claude_desktop_config.json. */
+  desktopSnippet: string;
+  /** Comando para o Claude Code. */
+  claudeCodeCommand: string;
+  claudeDesktop: {
+    path: string;
+    status: 'missing' | 'not-installed' | 'installed' | 'outdated' | 'invalid';
+  };
+  /** Rodando pelo código-fonte (pnpm dev): o caminho muda se o projeto mudar de lugar. */
+  development: boolean;
+}
+
 export interface McpConfirmRequest {
   id: string;
   title: string;
@@ -170,6 +191,9 @@ export interface IpcContract {
   /** Resposta do usuário a uma confirmação pedida pelo Claude (MCP). */
   // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
   'mcp:respond': { args: [id: string, approved: boolean]; result: void };
+  'mcp:setup': { args: []; result: McpSetupInfo };
+  /** Inclui o Rota no Claude Desktop (com cópia de segurança do arquivo). */
+  'mcp:installClaudeDesktop': { args: []; result: { backupPath: string | null } };
   // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
   'loadtest:cancel': { args: [runId: string]; result: void };
 
@@ -237,6 +261,8 @@ export const IPC_CHANNELS = [
   'loadtest:start',
   'loadtest:cancel',
   'mcp:respond',
+  'mcp:setup',
+  'mcp:installClaudeDesktop',
   'trash:list',
   'trash:restore',
   'trash:remove',

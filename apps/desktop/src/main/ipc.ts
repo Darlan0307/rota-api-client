@@ -14,6 +14,15 @@ import { app, BrowserWindow, dialog, type IpcMainInvokeEvent, ipcMain, shell } f
 import { IPC_ERROR_PREFIX, type IpcArgs, type IpcChannel, type IpcResult } from '../shared/ipc';
 import type { LoadTestService } from './services/loadtest-service';
 import type { McpBridge } from './services/mcp-bridge';
+import {
+  claudeCodeCommand,
+  claudeDesktopConfigPath,
+  claudeDesktopSnippet,
+  claudeDesktopStatus,
+  installInClaudeDesktop,
+  mcpLaunchConfig,
+  readIfExists,
+} from './services/mcp-setup';
 import type { RequestService } from './services/request-service';
 import type { SettingsService } from './services/settings-service';
 import type { WorkspaceService } from './services/workspace-service';
@@ -44,6 +53,20 @@ export interface Services {
 
 export function registerIpcHandlers({ workspace, requests, settings, loadTests, mcp }: Services): void {
   handle('mcp:respond', (_e, id, approved) => mcp.respond(id, approved));
+
+  const launchConfig = () => mcpLaunchConfig(process.execPath, app.getAppPath(), process.env.ROTA_DATA_DIR);
+  handle('mcp:setup', async () => {
+    const config = launchConfig();
+    const path = claudeDesktopConfigPath();
+    return {
+      config,
+      desktopSnippet: claudeDesktopSnippet(config),
+      claudeCodeCommand: claudeCodeCommand(config),
+      claudeDesktop: { path, status: claudeDesktopStatus(await readIfExists(path), config) },
+      development: !app.isPackaged,
+    };
+  });
+  handle('mcp:installClaudeDesktop', () => installInClaudeDesktop(claudeDesktopConfigPath(), launchConfig()));
 
   handle('app:getInfo', () => ({
     name: app.getName(),

@@ -2,6 +2,7 @@ import { createElement, Fragment } from 'react';
 import { registerOverlay } from '../layout/DialogHost';
 import { registerWelcomeExtensions } from '../layout/MainArea';
 import { registerSearchContent } from '../layout/SearchDialog';
+import { registerMcpSettings } from '../layout/SettingsDialog';
 import { registerSidebarExtensions } from '../layout/Sidebar';
 import { registerWorkspaceMenu } from '../layout/TitleBar';
 import { CodegenButton, CodegenDialog } from './codegen/CodegenDialog';
@@ -11,6 +12,7 @@ import { HistoryActions, HistoryPanel } from './history/HistoryPanel';
 import { ImportDialog, openImportDialog } from './import/ImportDialog';
 import { LoadTestButton } from './loadtest/LoadTestView';
 import { McpConfirmDialog, subscribeMcpEvents } from './mcp/McpConfirmDialog';
+import { McpSettings } from './mcp/McpSettings';
 import { registerRequestEditorExtensions } from './request/RequestEditor';
 import { scriptResultSections } from './scripts/ScriptResults';
 import { ScriptsEditor } from './scripts/ScriptsEditor';
@@ -71,4 +73,7 @@ export function registerFeatures(): void {
   // Fase 8: confirmações e avisos do Claude (MCP).
   registerOverlay(McpConfirmDialog);
   subscribeMcpEvents();
+
+  // Fase 9: configuração do Claude Desktop / Claude Code.
+  registerMcpSettings(() => createElement(McpSettings));
 }
