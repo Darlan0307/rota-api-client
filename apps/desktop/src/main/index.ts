@@ -4,6 +4,7 @@ import { app, BrowserWindow, Menu, shell } from 'electron';
 import { APP_NAME, TITLE_BAR_HEIGHT } from '../shared/constants';
 import type { WorkspaceState } from '../shared/ipc';
 import { registerIpcHandlers } from './ipc';
+import { DatabaseService } from './services/database-service';
 import { LoadTestService } from './services/loadtest-service';
 import { McpBridge } from './services/mcp-bridge';
 import { RequestService } from './services/request-service';
@@ -125,13 +126,18 @@ if (!app.requestSingleInstanceLock()) {
       // Outra instância (ou um processo antigo) segurando o pipe: o app segue sem a ponte.
       console.error('Ponte com o MCP indisponível:', error);
     });
-    const tunnelSecrets = new EncryptedFileSecretStore(join(appDataDir(), 'tunnel-secrets.json'), () =>
+    const machineSecrets = new EncryptedFileSecretStore(join(appDataDir(), 'app-secrets.json'), () =>
       keyringMasterKey(),
     );
-    const tunnels = new TunnelService(appDataDir(), tunnelSecrets, (views) => {
+    const tunnels = new TunnelService(appDataDir(), machineSecrets, (views) => {
       for (const win of BrowserWindow.getAllWindows()) win.webContents.send('tunnel:changed', views);
     });
     await tunnels.load();
+    // Senhas de banco ficam no mesmo arquivo cifrado da máquina, em escopos próprios.
+    const databases = new DatabaseService(appDataDir(), machineSecrets, (state) => {
+      for (const win of BrowserWindow.getAllWindows()) win.webContents.send('db:changed', state);
+    });
+    await databases.load();
 
     // Fechar o app encerra tudo: túneis (cloudflared), ponte com o Claude e o
     // vigia de arquivos. Depois sai de vez (app.exit), sem processo sobrando.
@@ -141,12 +147,17 @@ if (!app.requestSingleInstanceLock()) {
       quitting = true;
       event.preventDefault();
       for (const win of BrowserWindow.getAllWindows()) win.hide();
-      const cleanup = Promise.allSettled([tunnels.stopAll(), mcp.stop(), workspace.close()]);
+      const cleanup = Promise.allSettled([
+        tunnels.stopAll(),
+        databases.closeAll(),
+        mcp.stop(),
+        workspace.close(),
+      ]);
       // Limite de segurança: algo travado não pode segurar o processo aberto.
       const limit = new Promise((resolve) => setTimeout(resolve, 3000));
       void Promise.race([cleanup, limit]).then(() => app.exit(0));
     });
-    registerIpcHandlers({ workspace, requests, settings, loadTests, mcp, tunnels });
+    registerIpcHandlers({ workspace, requests, settings, loadTests, mcp, tunnels, databases });
     createMainWindow();
 
     app.on('activate', () => {

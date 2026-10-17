@@ -43,6 +43,7 @@ function config(database: string, patch: Partial<DbConnectionConfig> = {}): DbCo
     port: Number(port),
     database,
     user: 'SYSDBA',
+    credentialId: null,
     charset: 'auto',
     environment: 'teste',
     readOnly: true,

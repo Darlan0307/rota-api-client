@@ -14,6 +14,7 @@ const KIND_LABEL: Record<Tab['kind'], string> = {
   example: 'Este exemplo',
   loadtest: 'Este teste',
   tunnel: 'Este túnel',
+  database: 'Esta conexão',
 };
 
 /**

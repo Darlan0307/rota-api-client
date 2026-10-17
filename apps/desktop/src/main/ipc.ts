@@ -19,6 +19,7 @@ import {
 } from '@rota/core';
 import { app, BrowserWindow, dialog, type IpcMainInvokeEvent, ipcMain, shell } from 'electron';
 import { IPC_ERROR_PREFIX, type IpcArgs, type IpcChannel, type IpcResult } from '../shared/ipc';
+import type { DatabaseService } from './services/database-service';
 import type { LoadTestService } from './services/loadtest-service';
 import type { McpBridge } from './services/mcp-bridge';
 import {
@@ -58,6 +59,7 @@ export interface Services {
   settings: SettingsService;
   loadTests: LoadTestService;
   tunnels: TunnelService;
+  databases: DatabaseService;
 }
 
 export function registerIpcHandlers({
@@ -67,7 +69,21 @@ export function registerIpcHandlers({
   loadTests,
   mcp,
   tunnels,
+  databases,
 }: Services): void {
+  handle('db:state', () => databases.state());
+  handle('db:saveConnection', (_e, input, password) => databases.saveConnection(input, password));
+  handle('db:duplicateConnection', (_e, id) => databases.duplicateConnection(id));
+  handle('db:removeConnection', (_e, id) => databases.removeConnection(id));
+  handle('db:saveCredential', (_e, input, password) => databases.saveCredential(input, password));
+  handle('db:removeCredential', (_e, id) => databases.removeCredential(id));
+  handle('db:test', (_e, input, password) => databases.test(input, password));
+  handle('db:connect', (_e, id) => databases.connect(id));
+  handle('db:disconnect', (_e, id) => databases.disconnect(id));
+  handle('db:schema', (_e, id) => databases.schema(id));
+  handle('db:run', (_e, id, sql, limit) => databases.run(id, sql, limit));
+  handle('db:cancel', (_e, id) => databases.cancel(id));
+
   handle('tunnel:list', () => tunnels.views());
   handle('tunnel:binary', () => tunnels.binary());
   handle('tunnel:install', (event) =>

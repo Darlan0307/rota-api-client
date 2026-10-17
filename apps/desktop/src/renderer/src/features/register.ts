@@ -10,6 +10,10 @@ import { AskClaudeButton } from './claude/AskClaude';
 import { CodegenButton, CodegenDialog } from './codegen/CodegenDialog';
 import { compareSections } from './compare/ResponseCompare';
 import { handleUrlPaste } from './curl/paste-curl';
+import { ConnectionDialog } from './databases/ConnectionDialog';
+import { CredentialsDialog } from './databases/CredentialsDialog';
+import { DatabasesActions, DatabasesPanel } from './databases/DatabasesPanel';
+import { subscribeDatabaseEvents } from './databases/state';
 import { DynamicVariablesButton, DynamicVariablesDialog } from './dynamic/DynamicVariablesDialog';
 import { SaveExampleButton } from './examples/ExampleTabView';
 import { HistoryActions, HistoryPanel } from './history/HistoryPanel';
@@ -97,6 +101,15 @@ export function registerFeatures(): void {
   registerOverlay(TunnelGuideDialog);
   registerOverlay(WebhookSimulatorDialog);
   subscribeTunnelEvents();
+
+  // Bancos de dados (Firebird).
+  registerSidebarExtensions({
+    databases: (filter) => createElement(DatabasesPanel, { filter }),
+    databasesActions: () => createElement(DatabasesActions),
+  });
+  registerOverlay(ConnectionDialog);
+  registerOverlay(CredentialsDialog);
+  subscribeDatabaseEvents();
 
   // Backup completo no formato do Postman.
   registerOverlay(BackupDialog);

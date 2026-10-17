@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { monaco, ROTA_THEME } from '../lib/monaco';
 import { DYNAMIC_SUGGESTIONS, useVariableNames, useVariableResolver } from '../lib/variables';
 
-export type EditorLanguage = 'json' | 'javascript' | 'xml' | 'html' | 'plaintext' | 'css';
+export type EditorLanguage = 'json' | 'javascript' | 'xml' | 'html' | 'plaintext' | 'css' | 'sql';
 
 // ---------------------------------------------------------------------------
 // Autocompletar {{variáveis}} nos editores com `variables` (body)

@@ -1,4 +1,13 @@
-import { FolderTree, Globe, History, type LucideIcon, Settings, Trash2, Webhook } from 'lucide-react';
+import {
+  Database,
+  FolderTree,
+  Globe,
+  History,
+  type LucideIcon,
+  Settings,
+  Trash2,
+  Webhook,
+} from 'lucide-react';
 import { Tooltip } from '../components/Tooltip';
 import { cn } from '../lib/cn';
 import { type SidebarSection, useUiStore } from '../state/ui';
@@ -8,6 +17,7 @@ export const SECTIONS: { id: SidebarSection; label: string; icon: LucideIcon }[]
   { id: 'environments', label: 'Ambientes', icon: Globe },
   { id: 'history', label: 'Histórico', icon: History },
   { id: 'tunnels', label: 'Túneis (webhooks)', icon: Webhook },
+  { id: 'databases', label: 'Bancos de dados', icon: Database },
   { id: 'trash', label: 'Lixeira', icon: Trash2 },
 ];
 

@@ -15,6 +15,8 @@ export interface SidebarExtensions {
   trashActions?: () => ReactNode;
   tunnels?: (filter: string) => ReactNode;
   tunnelsActions?: () => ReactNode;
+  databases?: (filter: string) => ReactNode;
+  databasesActions?: () => ReactNode;
   onImport?: () => void;
   /** Exportar tudo (backup). */
   onBackup?: () => void;
@@ -35,6 +37,7 @@ export function Sidebar() {
     history: '',
     trash: '',
     tunnels: '',
+    databases: '',
   });
   const filter = filters[section];
 
@@ -75,6 +78,7 @@ export function Sidebar() {
         {section === 'history' && extensions.history?.(filter)}
         {section === 'trash' && extensions.trash?.(filter)}
         {section === 'tunnels' && extensions.tunnels?.(filter)}
+        {section === 'databases' && extensions.databases?.(filter)}
       </div>
     </aside>
   );
@@ -112,5 +116,6 @@ function SectionActions({ section }: { section: SidebarSection }) {
   if (section === 'history') return <>{extensions.historyActions?.()}</>;
   if (section === 'trash') return <>{extensions.trashActions?.()}</>;
   if (section === 'tunnels') return <>{extensions.tunnelsActions?.()}</>;
+  if (section === 'databases') return <>{extensions.databasesActions?.()}</>;
   return null;
 }

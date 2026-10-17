@@ -110,6 +110,11 @@ export interface TunnelTab extends TabCommon {
   kind: 'tunnel';
 }
 
+/** Banco de dados (itemId = id da conexão; consulta e resultado ficam na própria aba). */
+export interface DatabaseTab extends TabCommon {
+  kind: 'database';
+}
+
 export type Tab =
   | RequestTab
   | VariablesTab
@@ -117,7 +122,8 @@ export type Tab =
   | FolderTab
   | ExampleTab
   | LoadTestTab
-  | TunnelTab;
+  | TunnelTab
+  | DatabaseTab;
 
 /** Localiza um exemplo e a requisição dona. */
 export function findExample(snapshot: WorkspaceSnapshot, id: string) {
@@ -191,6 +197,7 @@ export function isDirty(tab: Tab): boolean {
     case 'example':
     case 'loadtest':
     case 'tunnel':
+    case 'database':
       return false;
   }
 }
@@ -231,6 +238,7 @@ function withIncoming(tab: Tab, value: unknown): Tab {
     }
     case 'loadtest':
     case 'tunnel':
+    case 'database':
       return tab;
   }
 }
@@ -267,6 +275,7 @@ function describeChanges(tab: Tab, incoming: unknown): FieldChange[] {
     case 'example':
     case 'loadtest':
     case 'tunnel':
+    case 'database':
       return [];
   }
 }
@@ -310,6 +319,7 @@ function draftMatches(tab: Tab, incoming: unknown): boolean {
     case 'example':
     case 'loadtest':
     case 'tunnel':
+    case 'database':
       return true;
   }
 }
@@ -332,6 +342,8 @@ interface TabsState {
   openLoadTest(source: RequestTab): void;
   /** Abre (ou ativa) a aba de um túnel. */
   openTunnel(id: string, title: string): void;
+  /** Abre (ou ativa) a aba de uma conexão de banco. */
+  openDatabase(id: string, title: string): void;
   openNewRequest(options?: {
     parentId?: string | null;
     data?: Partial<RequestData>;
@@ -484,6 +496,16 @@ export const useTabs = create<TabsState>()((set, get) => ({
     set((s) => ({ tabs: [...s.tabs, tab], activeId: tab.id }));
   },
 
+  openDatabase(id, title) {
+    const existing = get().tabs.find((t) => t.kind === 'database' && t.itemId === id);
+    if (existing) {
+      set({ activeId: existing.id });
+      return;
+    }
+    const tab: DatabaseTab = { id: tabId(), kind: 'database', title, itemId: id, conflict: null };
+    set((s) => ({ tabs: [...s.tabs, tab], activeId: tab.id }));
+  },
+
   openNewRequest(options = {}) {
     const data = newRequestData(options.data);
     const tab: RequestTab = {
@@ -589,7 +611,8 @@ export const useTabs = create<TabsState>()((set, get) => ({
         if (
           (tab.kind === 'request' && tab.itemId === null) ||
           tab.kind === 'loadtest' ||
-          tab.kind === 'tunnel'
+          tab.kind === 'tunnel' ||
+          tab.kind === 'database'
         ) {
           tabs.push(tab);
           continue;

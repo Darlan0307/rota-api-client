@@ -11,6 +11,12 @@ import type {
   AppSettings,
   Auth,
   CodegenTarget,
+  DbConnectionConfig,
+  DbCredential,
+  DbQueryResult,
+  DbSchema,
+  DbServerInfo,
+  DbState,
   FolderInspection,
   HistoryEntry,
   HistorySummary,
@@ -277,6 +283,31 @@ export interface IpcContract {
     args: [id: string, input: { body: string; path: string; eventId?: string }];
     result: TunnelExchangeSummary;
   };
+
+  'db:state': { args: []; result: DbState };
+  /** Cria ou atualiza; password undefined mantém a senha salva, null apaga. */
+  'db:saveConnection': {
+    args: [input: Partial<Omit<DbConnectionConfig, 'engine'>>, password?: string | null];
+    result: string;
+  };
+  'db:duplicateConnection': { args: [id: string]; result: string };
+  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
+  'db:removeConnection': { args: [id: string]; result: void };
+  'db:saveCredential': { args: [input: Partial<DbCredential>, password?: string | null]; result: string };
+  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
+  'db:removeCredential': { args: [id: string]; result: void };
+  /** Testa os dados da tela (sem salvar); sem senha, usa a salva. */
+  'db:test': {
+    args: [input: Partial<Omit<DbConnectionConfig, 'engine'>>, password?: string];
+    result: DbServerInfo;
+  };
+  'db:connect': { args: [id: string]; result: DbServerInfo };
+  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
+  'db:disconnect': { args: [id: string]; result: void };
+  'db:schema': { args: [id: string]; result: DbSchema };
+  'db:run': { args: [id: string, sql: string, limit?: number]; result: DbQueryResult };
+  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
+  'db:cancel': { args: [id: string]; result: void };
 }
 
 export interface IpcEvents {
@@ -293,6 +324,7 @@ export interface IpcEvents {
   /** Túneis mudaram (status, URL, chamadas recebidas). */
   'tunnel:changed': TunnelView[];
   'tunnel:download': { received: number; total: number | null };
+  'db:changed': DbState;
 }
 
 export type IpcChannel = keyof IpcContract;
@@ -354,6 +386,18 @@ export const IPC_CHANNELS = [
   'tunnel:clear',
   'tunnel:setWebhookSecret',
   'tunnel:simulate',
+  'db:state',
+  'db:saveConnection',
+  'db:duplicateConnection',
+  'db:removeConnection',
+  'db:saveCredential',
+  'db:removeCredential',
+  'db:test',
+  'db:connect',
+  'db:disconnect',
+  'db:schema',
+  'db:run',
+  'db:cancel',
 ] as const satisfies readonly IpcChannel[];
 
 export const IPC_EVENTS = [
@@ -366,6 +410,7 @@ export const IPC_EVENTS = [
   'mcp:notice',
   'tunnel:changed',
   'tunnel:download',
+  'db:changed',
 ] as const satisfies readonly IpcEvent[];
 
 // Garante em tempo de compilação que as listas cobrem todo o contrato.

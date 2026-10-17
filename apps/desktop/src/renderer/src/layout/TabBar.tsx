@@ -1,6 +1,7 @@
 import {
   Bookmark,
   Columns2,
+  Database,
   Folder,
   Gauge,
   Globe,
@@ -148,6 +149,8 @@ function TabIcon({ tab }: { tab: Tab }) {
       return <Gauge className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
     case 'tunnel':
       return <Webhook className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
+    case 'database':
+      return <Database className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
     case 'example':
       return <Bookmark className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
     default:

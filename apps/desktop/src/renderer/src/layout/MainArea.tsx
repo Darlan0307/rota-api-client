@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Kbd } from '../components/Kbd';
 import { Logo } from '../components/Logo';
 import { ContainerTabView } from '../features/collection/ContainerTabView';
+import { DatabaseTabView } from '../features/databases/DatabaseView';
 import { ExampleTabView } from '../features/examples/ExampleTabView';
 import { LoadTestView } from '../features/loadtest/LoadTestView';
 import { RequestEditor } from '../features/request/RequestEditor';
@@ -38,6 +39,7 @@ export function MainArea() {
         {tab?.kind === 'example' && <ExampleTabView key={tab.id} tab={tab} />}
         {tab?.kind === 'loadtest' && <LoadTestView key={tab.id} tab={tab} />}
         {tab?.kind === 'tunnel' && <TunnelTabView key={tab.id} tab={tab} />}
+        {tab?.kind === 'database' && <DatabaseTabView key={tab.id} tab={tab} />}
         {(tab?.kind === 'collection' || tab?.kind === 'folder') && (
           <ContainerTabView key={tab.id} tab={tab} />
         )}

@@ -19,11 +19,52 @@ export interface DbConnectionConfig {
   port: number;
   /** Alias (ex.: LOJA) ou caminho do arquivo no servidor (ex.: C:\Dados\LOJA.FDB). */
   database: string;
+  /** Usado quando a conexão não usa uma credencial salva. */
   user: string;
+  /** Credencial salva (usuário e senha reaproveitados entre conexões). */
+  credentialId: string | null;
   charset: FirebirdCharset;
   environment: DbEnvironment;
   readOnly: boolean;
 }
+
+/** Usuário e senha reaproveitados por várias conexões (ex.: SYSDBA padrão dos clientes). */
+export interface DbCredential {
+  id: string;
+  name: string;
+  user: string;
+}
+
+export type DbConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+
+export interface DbConnectionView {
+  config: DbConnectionConfig;
+  /** Há senha salva (da conexão ou da credencial usada). */
+  hasPassword: boolean;
+  status: DbConnectionStatus;
+  info: DbServerInfo | null;
+  error: string | null;
+  /** Uma consulta está rodando (pode ser cancelada). */
+  running: boolean;
+}
+
+export interface DbCredentialView extends DbCredential {
+  hasPassword: boolean;
+  /** Quantas conexões usam esta credencial. */
+  usedBy: number;
+}
+
+export interface DbState {
+  connections: DbConnectionView[];
+  credentials: DbCredentialView[];
+}
+
+/** Rótulos dos ambientes, na ordem de exibição. */
+export const DB_ENVIRONMENTS: readonly { id: DbEnvironment; label: string }[] = [
+  { id: 'local', label: 'Local' },
+  { id: 'teste', label: 'Teste' },
+  { id: 'producao', label: 'Produção' },
+];
 
 export interface DbColumn {
   name: string;
