@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { DEFAULT_PALETTE, isPaletteId, type PaletteId } from '../theme/palettes';
 
-export type SidebarSection = 'collections' | 'environments' | 'history' | 'trash';
+export type SidebarSection = 'collections' | 'environments' | 'history' | 'trash' | 'tunnels';
 export type PaneLayout = 'horizontal' | 'vertical';
 export type SettingsSection = 'appearance' | 'requests' | 'network' | 'mcp' | 'about';
 

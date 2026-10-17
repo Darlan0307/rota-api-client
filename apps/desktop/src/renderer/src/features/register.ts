@@ -22,6 +22,9 @@ import { scriptResultSections } from './scripts/ScriptResults';
 import { ScriptsEditor } from './scripts/ScriptsEditor';
 import { SearchPalette } from './search/SearchPalette';
 import { TrashActions, TrashPanel } from './trash/TrashPanel';
+import { subscribeTunnelEvents } from './tunnels/state';
+import { TunnelGuideDialog } from './tunnels/TunnelGuide';
+import { TunnelsActions, TunnelsPanel } from './tunnels/TunnelsPanel';
 import { NewWorkspaceDialog, openFolderAsWorkspace, WorkspaceMenu } from './workspaces/WorkspaceMenu';
 
 /**
@@ -87,4 +90,12 @@ export function registerFeatures(): void {
   // Fase 11: dados de teste, salvar em variável, tabela e desfazer.
   registerOverlay(DynamicVariablesDialog);
   registerOverlay(SaveToVariableDialog);
+
+  // Fase 12: túneis públicos (cloudflared) para receber webhooks.
+  registerSidebarExtensions({
+    tunnels: (filter) => createElement(TunnelsPanel, { filter }),
+    tunnelsActions: () => createElement(TunnelsActions),
+  });
+  registerOverlay(TunnelGuideDialog);
+  subscribeTunnelEvents();
 }

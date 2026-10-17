@@ -105,7 +105,19 @@ export interface LoadTestTab extends TabCommon {
   error: string | null;
 }
 
-export type Tab = RequestTab | VariablesTab | CollectionTab | FolderTab | ExampleTab | LoadTestTab;
+/** Túnel público (itemId = id do túnel; o estado vem do processo principal). */
+export interface TunnelTab extends TabCommon {
+  kind: 'tunnel';
+}
+
+export type Tab =
+  | RequestTab
+  | VariablesTab
+  | CollectionTab
+  | FolderTab
+  | ExampleTab
+  | LoadTestTab
+  | TunnelTab;
 
 /** Localiza um exemplo e a requisição dona. */
 export function findExample(snapshot: WorkspaceSnapshot, id: string) {
@@ -178,6 +190,7 @@ export function isDirty(tab: Tab): boolean {
       return !deepEqual(tab.draft, tab.base);
     case 'example':
     case 'loadtest':
+    case 'tunnel':
       return false;
   }
 }
@@ -217,6 +230,7 @@ function withIncoming(tab: Tab, value: unknown): Tab {
       return { ...tab, base: v, draft: v, conflict: null };
     }
     case 'loadtest':
+    case 'tunnel':
       return tab;
   }
 }
@@ -252,6 +266,7 @@ function describeChanges(tab: Tab, incoming: unknown): FieldChange[] {
     }
     case 'example':
     case 'loadtest':
+    case 'tunnel':
       return [];
   }
 }
@@ -294,6 +309,7 @@ function draftMatches(tab: Tab, incoming: unknown): boolean {
       return deepEqual(tab.draft, incoming);
     case 'example':
     case 'loadtest':
+    case 'tunnel':
       return true;
   }
 }
@@ -314,6 +330,8 @@ interface TabsState {
   ): void;
   openGlobals(snapshot: WorkspaceSnapshot): void;
   openLoadTest(source: RequestTab): void;
+  /** Abre (ou ativa) a aba de um túnel. */
+  openTunnel(id: string, title: string): void;
   openNewRequest(options?: {
     parentId?: string | null;
     data?: Partial<RequestData>;
@@ -456,6 +474,16 @@ export const useTabs = create<TabsState>()((set, get) => ({
     set((s) => ({ tabs: [...s.tabs, tab], activeId: tab.id }));
   },
 
+  openTunnel(id, title) {
+    const existing = get().tabs.find((t) => t.kind === 'tunnel' && t.itemId === id);
+    if (existing) {
+      set({ activeId: existing.id });
+      return;
+    }
+    const tab: TunnelTab = { id: tabId(), kind: 'tunnel', title, itemId: id, conflict: null };
+    set((s) => ({ tabs: [...s.tabs, tab], activeId: tab.id }));
+  },
+
   openNewRequest(options = {}) {
     const data = newRequestData(options.data);
     const tab: RequestTab = {
@@ -558,7 +586,11 @@ export const useTabs = create<TabsState>()((set, get) => ({
     set((s) => {
       const tabs: Tab[] = [];
       for (const tab of s.tabs) {
-        if ((tab.kind === 'request' && tab.itemId === null) || tab.kind === 'loadtest') {
+        if (
+          (tab.kind === 'request' && tab.itemId === null) ||
+          tab.kind === 'loadtest' ||
+          tab.kind === 'tunnel'
+        ) {
           tabs.push(tab);
           continue;
         }

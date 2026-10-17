@@ -8,6 +8,7 @@ import { LoadTestService } from './services/loadtest-service';
 import { McpBridge } from './services/mcp-bridge';
 import { RequestService } from './services/request-service';
 import { SettingsService } from './services/settings-service';
+import { TunnelService } from './services/tunnel-service';
 import { WorkspaceService } from './services/workspace-service';
 
 // Cores iniciais da janela (antes do renderer aplicar a paleta), evitando
@@ -126,7 +127,13 @@ if (!app.requestSingleInstanceLock()) {
       console.error('Ponte com o MCP indisponível:', error);
     });
     app.on('will-quit', () => void mcp.stop());
-    registerIpcHandlers({ workspace, requests, settings, loadTests, mcp });
+    const tunnels = new TunnelService(appDataDir(), (views) => {
+      for (const win of BrowserWindow.getAllWindows()) win.webContents.send('tunnel:changed', views);
+    });
+    await tunnels.load();
+    // Fechar o app derruba os túneis (nada fica exposto sem o app aberto).
+    app.on('will-quit', () => tunnels.stopAll());
+    registerIpcHandlers({ workspace, requests, settings, loadTests, mcp, tunnels });
     createMainWindow();
 
     app.on('activate', () => {

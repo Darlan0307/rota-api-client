@@ -135,6 +135,7 @@ export async function saveTab(tabId: string): Promise<boolean> {
     }
     case 'example':
     case 'loadtest':
+    case 'tunnel':
       return true;
   }
 }

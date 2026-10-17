@@ -7,6 +7,7 @@ import { ExampleTabView } from '../features/examples/ExampleTabView';
 import { LoadTestView } from '../features/loadtest/LoadTestView';
 import { RequestEditor } from '../features/request/RequestEditor';
 import { newCollection, newEnvironment } from '../features/sidebar/item-actions';
+import { TunnelTabView } from '../features/tunnels/TunnelView';
 import { VariablesTabView } from '../features/variables/VariablesTabView';
 import { useActiveTab, useTabs } from '../state/tabs';
 import { TabBar } from './TabBar';
@@ -35,6 +36,7 @@ export function MainArea() {
         )}
         {tab?.kind === 'example' && <ExampleTabView key={tab.id} tab={tab} />}
         {tab?.kind === 'loadtest' && <LoadTestView key={tab.id} tab={tab} />}
+        {tab?.kind === 'tunnel' && <TunnelTabView key={tab.id} tab={tab} />}
         {(tab?.kind === 'collection' || tab?.kind === 'folder') && (
           <ContainerTabView key={tab.id} tab={tab} />
         )}

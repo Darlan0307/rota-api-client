@@ -47,6 +47,8 @@ export { watchWorkspace } from './storage/watcher';
 export type { ImportedChild, ImportedCollection, OpenWorkspaceOptions } from './storage/workspace-store';
 export { relativeToWorkspace, WorkspaceError, WorkspaceStore } from './storage/workspace-store';
 export { Trash, type TrashEntry } from './trash/trash';
+export * from './tunnel/cloudflared';
+export * from './tunnel/inspector';
 export { readJson, readJsonIfExists, stringifyJson, writeFileAtomic, writeJsonAtomic } from './util/fs';
 export { newId } from './util/ids';
 export { Mutex } from './util/mutex';

@@ -40,6 +40,7 @@ export type { AppSettings } from './settings';
 export type { FolderInspection } from './storage/project';
 export type { ItemKind, VariableTarget } from './storage/workspace-store';
 export type { TrashEntry } from './trash/trash';
+export * from './tunnel/types';
 export { contrastRatio, relativeLuminance, WCAG } from './util/contrast';
 export * from './util/diff';
 export * from './util/json-path';

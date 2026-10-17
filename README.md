@@ -31,6 +31,7 @@ O servidor roda com o próprio `Rota.exe` (modo Node), sem precisar de Node inst
 - **Salvar em variável:** clique num campo do JSON da resposta (ou numa célula da tabela) e use "Salvar em variável". O valor é gravado na hora e, se quiser, o pós-script passa a atualizá-lo a cada envio.
 - **Tabela:** listas da resposta viram tabela com ordenação, filtro e exportação para CSV.
 - **Desfazer:** excluir, mover, renomear ou duplicar mostra "Desfazer" (ou Ctrl+Z fora de campos de texto).
+- **Túneis (webhooks):** ícone de webhook na barra lateral. Cria uma URL `https://….trycloudflare.com` que entrega as chamadas na porta da sua API (3000, 8080…), mostra cada chamada (pedido e resposta) e permite reenviar ou abrir como requisição. Um túnel por API; o botão "Como usar" tem o passo a passo.
 
 ### Criar uma coleção a partir de uma documentação
 

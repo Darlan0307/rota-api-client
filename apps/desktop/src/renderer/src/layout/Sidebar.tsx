@@ -13,6 +13,8 @@ export interface SidebarExtensions {
   trash?: (filter: string) => ReactNode;
   historyActions?: () => ReactNode;
   trashActions?: () => ReactNode;
+  tunnels?: (filter: string) => ReactNode;
+  tunnelsActions?: () => ReactNode;
   onImport?: () => void;
 }
 
@@ -30,6 +32,7 @@ export function Sidebar() {
     environments: '',
     history: '',
     trash: '',
+    tunnels: '',
   });
   const filter = filters[section];
 
@@ -69,6 +72,7 @@ export function Sidebar() {
         {section === 'environments' && <EnvironmentsPanel filter={filter} />}
         {section === 'history' && extensions.history?.(filter)}
         {section === 'trash' && extensions.trash?.(filter)}
+        {section === 'tunnels' && extensions.tunnels?.(filter)}
       </div>
     </aside>
   );
@@ -95,5 +99,6 @@ function SectionActions({ section }: { section: SidebarSection }) {
   }
   if (section === 'history') return <>{extensions.historyActions?.()}</>;
   if (section === 'trash') return <>{extensions.trashActions?.()}</>;
+  if (section === 'tunnels') return <>{extensions.tunnelsActions?.()}</>;
   return null;
 }

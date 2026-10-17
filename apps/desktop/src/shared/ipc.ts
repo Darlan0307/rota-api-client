@@ -25,6 +25,10 @@ import type {
   RunResult,
   Scripts,
   TrashEntry,
+  TunnelConfig,
+  TunnelExchange,
+  TunnelExchangeSummary,
+  TunnelView,
   VariableInput,
   VariableTarget,
   WorkspaceSnapshot,
@@ -145,6 +149,13 @@ export interface SaveExampleInput {
   response: HttpResponse;
 }
 
+export interface CloudflaredInfo {
+  installed: boolean;
+  path: string | null;
+  /** "app": baixado pelo Rota; "path": já instalado no Windows. */
+  source: 'app' | 'path' | null;
+}
+
 export interface IpcContract {
   'app:getInfo': { args: []; result: AppInfo };
   // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno; `void` aceita handlers sem `return`
@@ -224,6 +235,27 @@ export interface IpcContract {
   // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
   'workspace:forgetRecent': { args: [path: string]; result: void };
   'examples:save': { args: [input: SaveExampleInput]; result: string };
+
+  'tunnel:list': { args: []; result: TunnelView[] };
+  'tunnel:binary': { args: []; result: CloudflaredInfo };
+  /** Baixa o cloudflared; o progresso chega por 'tunnel:download'. */
+  'tunnel:install': { args: []; result: CloudflaredInfo };
+  'tunnel:create': { args: [patch?: Partial<TunnelConfig>]; result: string };
+  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
+  'tunnel:update': { args: [id: string, patch: Partial<Omit<TunnelConfig, 'id'>>]; result: void };
+  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
+  'tunnel:remove': { args: [id: string]; result: void };
+  /** Resolve quando a URL pública já responde (até ~45 s). */
+  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
+  'tunnel:start': { args: [id: string]; result: void };
+  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
+  'tunnel:stop': { args: [id: string]; result: void };
+  'tunnel:exchange': { args: [id: string, exchangeId: string]; result: TunnelExchange | null };
+  /** POST de teste pela URL pública (ponta a ponta). */
+  'tunnel:test': { args: [id: string, path?: string]; result: { status: number; url: string } };
+  'tunnel:replay': { args: [id: string, exchangeId: string]; result: TunnelExchangeSummary };
+  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
+  'tunnel:clear': { args: [id: string]; result: void };
 }
 
 export interface IpcEvents {
@@ -237,6 +269,9 @@ export interface IpcEvents {
   'mcp:confirm-timeout': { id: string };
   /** O Claude alterou algo (aviso discreto). */
   'mcp:notice': { message: string };
+  /** Túneis mudaram (status, URL, chamadas recebidas). */
+  'tunnel:changed': TunnelView[];
+  'tunnel:download': { received: number; total: number | null };
 }
 
 export type IpcChannel = keyof IpcContract;
@@ -283,6 +318,18 @@ export const IPC_CHANNELS = [
   'workspace:open',
   'workspace:recent',
   'workspace:forgetRecent',
+  'tunnel:list',
+  'tunnel:binary',
+  'tunnel:install',
+  'tunnel:create',
+  'tunnel:update',
+  'tunnel:remove',
+  'tunnel:start',
+  'tunnel:stop',
+  'tunnel:exchange',
+  'tunnel:replay',
+  'tunnel:test',
+  'tunnel:clear',
 ] as const satisfies readonly IpcChannel[];
 
 export const IPC_EVENTS = [
@@ -293,6 +340,8 @@ export const IPC_EVENTS = [
   'mcp:confirm',
   'mcp:confirm-timeout',
   'mcp:notice',
+  'tunnel:changed',
+  'tunnel:download',
 ] as const satisfies readonly IpcEvent[];
 
 // Garante em tempo de compilação que as listas cobrem todo o contrato.

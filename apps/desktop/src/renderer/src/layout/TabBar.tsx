@@ -8,6 +8,7 @@ import {
   PanelLeftOpen,
   Plus,
   Rows2,
+  Webhook,
   X,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -145,6 +146,8 @@ function TabIcon({ tab }: { tab: Tab }) {
       return <Folder className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
     case 'loadtest':
       return <Gauge className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
+    case 'tunnel':
+      return <Webhook className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
     case 'example':
       return <Bookmark className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
     default:

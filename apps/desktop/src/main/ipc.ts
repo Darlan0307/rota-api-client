@@ -30,6 +30,7 @@ import {
 } from './services/mcp-setup';
 import type { RequestService } from './services/request-service';
 import type { SettingsService } from './services/settings-service';
+import type { TunnelService } from './services/tunnel-service';
 import type { WorkspaceService } from './services/workspace-service';
 
 type Handler<C extends IpcChannel> = (
@@ -54,9 +55,32 @@ export interface Services {
   requests: RequestService;
   settings: SettingsService;
   loadTests: LoadTestService;
+  tunnels: TunnelService;
 }
 
-export function registerIpcHandlers({ workspace, requests, settings, loadTests, mcp }: Services): void {
+export function registerIpcHandlers({
+  workspace,
+  requests,
+  settings,
+  loadTests,
+  mcp,
+  tunnels,
+}: Services): void {
+  handle('tunnel:list', () => tunnels.views());
+  handle('tunnel:binary', () => tunnels.binary());
+  handle('tunnel:install', (event) =>
+    tunnels.install((received, total) => event.sender.send('tunnel:download', { received, total })),
+  );
+  handle('tunnel:create', (_e, patch) => tunnels.create(patch));
+  handle('tunnel:update', (_e, id, patch) => tunnels.update(id, patch));
+  handle('tunnel:remove', (_e, id) => tunnels.remove(id));
+  handle('tunnel:start', (_e, id) => tunnels.start(id));
+  handle('tunnel:stop', (_e, id) => tunnels.stop(id));
+  handle('tunnel:exchange', (_e, id, exchangeId) => tunnels.exchange(id, exchangeId));
+  handle('tunnel:replay', (_e, id, exchangeId) => tunnels.replay(id, exchangeId));
+  handle('tunnel:clear', (_e, id) => tunnels.clear(id));
+  handle('tunnel:test', (_e, id, path) => tunnels.test(id, path));
+
   handle('mcp:respond', (_e, id, approved) => mcp.respond(id, approved));
 
   const launchConfig = () => mcpLaunchConfig(process.execPath, app.getAppPath(), process.env.ROTA_DATA_DIR);
