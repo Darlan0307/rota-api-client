@@ -1,7 +1,7 @@
-import { lookup } from 'node:dns';
+import { type LookupAddress, lookup } from 'node:dns';
 import { openAsBlob } from 'node:fs';
 import { STATUS_CODES } from 'node:http';
-import { isIP, connect as netConnect, type Socket } from 'node:net';
+import { isIP, type LookupFunction, connect as netConnect, type Socket } from 'node:net';
 import { basename } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { connect as tlsConnect } from 'node:tls';
@@ -186,16 +186,24 @@ function timedConnector(verifySsl: boolean, timings: Partial<ResponseTimings>): 
     const port = Number(opts.port) || (opts.protocol === 'https:' ? 443 : 80);
     const dnsStart = performance.now();
 
-    lookup(hostname, (dnsError, address) => {
+    lookup(hostname, { all: true }, (dnsError, addresses) => {
       if (dnsError) return finish(dnsError);
       timings.dns = round(performance.now() - dnsStart);
       const tcpStart = performance.now();
+      // Todos os endereços resolvidos vão para o connect, que tenta um a um
+      // (IPv6 e IPv4): no Windows "localhost" resolve primeiro para ::1, e uma
+      // API local escutando só em 127.0.0.1 recusaria a conexão.
+      const target = {
+        host: hostname,
+        port,
+        autoSelectFamily: true,
+        lookup: resolved(addresses),
+      };
 
       if (opts.protocol === 'https:') {
         const servername = opts.servername ?? (isIP(hostname) ? undefined : hostname);
         const socket = tlsConnect({
-          host: address,
-          port,
+          ...target,
           ...(servername ? { servername } : {}),
           rejectUnauthorized: verifySsl,
           ALPNProtocols: ['http/1.1'],
@@ -211,7 +219,7 @@ function timedConnector(verifySsl: boolean, timings: Partial<ResponseTimings>): 
         });
         socket.once('error', (err) => finish(err));
       } else {
-        const socket = netConnect({ host: address, port });
+        const socket = netConnect(target);
         socket.once('connect', () => {
           timings.tcp = round(performance.now() - tcpStart);
           finish(null, socket);
@@ -219,6 +227,14 @@ function timedConnector(verifySsl: boolean, timings: Partial<ResponseTimings>): 
         socket.once('error', (err) => finish(err));
       }
     });
+  };
+}
+
+/** Função de lookup que devolve endereços já resolvidos (o DNS foi medido antes). */
+function resolved(addresses: LookupAddress[]): LookupFunction {
+  return (_hostname, options, callback) => {
+    if (options.all) callback(null, addresses);
+    else callback(null, addresses[0]?.address ?? '', addresses[0]?.family);
   };
 }
 

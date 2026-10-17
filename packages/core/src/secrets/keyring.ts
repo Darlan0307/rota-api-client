@@ -14,9 +14,10 @@ export function keyringMasterKey(service = APP_DATA_FOLDER): Buffer {
   const entry = new Entry(service, KEYRING_ACCOUNT);
   const existing = entry.getPassword();
   if (existing) return Buffer.from(existing, 'base64');
-  const key = randomBytes(32);
-  entry.setPassword(key.toString('base64'));
-  return key;
+  entry.setPassword(randomBytes(32).toString('base64'));
+  // Relê o que ficou gravado: se o app e o MCP criarem a chave ao mesmo tempo,
+  // ambos passam a usar a mesma (a última gravada), em vez de cada um a sua.
+  return Buffer.from(entry.getPassword() ?? '', 'base64');
 }
 
 /** Store padrão usado pelo app e pelo MCP: um arquivo de segredos por workspace. */

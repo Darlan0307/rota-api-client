@@ -64,17 +64,23 @@ export class WorkspaceService {
 
   /** Abre um workspace (null = workspace padrão em %APPDATA%). */
   async open(root: string | null): Promise<WorkspaceState> {
-    await this.close();
-    this.root = root ?? defaultWorkspaceDir();
-    const secrets = createSecretStore(workspaceLocalDir(this.root));
-    this.store = await WorkspaceStore.open(this.root, {
-      secrets,
-      defaultName: root ? basename(this.root) : 'Workspace padrão',
+    // Abre o novo antes de fechar o atual: se falhar (pasta inacessível,
+    // sem permissão...), o workspace que estava aberto continua funcionando.
+    const path = root ?? defaultWorkspaceDir();
+    const localDir = workspaceLocalDir(path);
+    const store = await WorkspaceStore.open(path, {
+      secrets: createSecretStore(localDir),
+      defaultName: root ? basename(path) : 'Workspace padrão',
     });
-    this.local = await loadWorkspaceState(this.root);
-    this.historyStore = new HistoryStore(workspaceLocalDir(this.root));
-    this.trashStore = new Trash(join(workspaceLocalDir(this.root), 'trash'), this.store);
-    this.watcher = watchWorkspace(this.root, () => void this.reloadFromDisk());
+    const local = await loadWorkspaceState(path);
+
+    await this.close();
+    this.root = path;
+    this.store = store;
+    this.local = local;
+    this.historyStore = new HistoryStore(localDir);
+    this.trashStore = new Trash(join(localDir, 'trash'), store);
+    this.watcher = watchWorkspace(path, () => void this.reloadFromDisk());
     return this.state();
   }
 

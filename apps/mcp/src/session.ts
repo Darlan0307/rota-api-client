@@ -67,6 +67,11 @@ export class McpSession {
     return this.storeInstance;
   }
 
+  /** Valores secretos do workspace aberto (para mascarar as saídas). */
+  secretValues(): string[] {
+    return this.storeInstance?.allSecretValues() ?? [];
+  }
+
   get rootPath(): string {
     if (!this.root) throw new ToolError('Nenhum workspace aberto.');
     return this.root;

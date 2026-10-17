@@ -49,15 +49,38 @@ function result(data: unknown): ToolResult {
   };
 }
 
-/** Converte exceções em resultado de erro legível para o Claude (sem derrubar o servidor). */
-function handler<A>(fn: (args: A) => Promise<unknown>): (args: A) => Promise<ToolResult> {
+/** Troca valores secretos em todas as strings de um resultado (antes de virar JSON). */
+export function maskDeep(value: unknown, secrets: readonly string[]): unknown {
+  if (secrets.length === 0) return value;
+  if (typeof value === 'string') return maskSecretValues(value, secrets);
+  if (Array.isArray(value)) return value.map((v) => maskDeep(v, secrets));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [maskSecretValues(k, secrets), maskDeep(v, secrets)]),
+    );
+  }
+  return value;
+}
+
+/**
+ * Converte exceções em resultado de erro legível para o Claude (sem derrubar o
+ * servidor) e mascara qualquer valor secreto do workspace na saída — inclusive
+ * os que um script tenha copiado para variáveis comuns, nomes de teste etc.
+ */
+function handler<A>(
+  fn: (args: A) => Promise<unknown>,
+  secrets: () => Promise<string[]>,
+): (args: A) => Promise<ToolResult> {
+  const known = () => secrets().catch(() => [] as string[]);
   return async (args: A) => {
     try {
-      return result(await fn(args));
+      const data = await fn(args);
+      return result(maskDeep(data, await known()));
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       return {
         isError: true,
-        content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
+        content: [{ type: 'text', text: maskSecretValues(message, await known()) }],
       };
     }
   };
@@ -233,7 +256,7 @@ export function registerTools(server: McpServer, session: McpSession): void {
       name,
       { description, inputSchema, annotations: { readOnlyHint: readOnly } },
       // biome-ignore lint/suspicious/noExplicitAny: o SDK tipa os argumentos a partir do schema
-      handler(fn) as any,
+      handler(fn, async () => session.secretValues()) as any,
     );
 
   // ---- Workspaces ----------------------------------------------------------
@@ -678,30 +701,28 @@ export function registerTools(server: McpServer, session: McpSession): void {
       }
       const environmentId = await session.activeEnvironmentId();
       const settings = await loadAppSettings(session.dataDir);
-      if (DESTRUCTIVE_METHODS.has(data.method)) {
-        const preview = prepareForDisplay(data, {
-          store,
-          requestId,
-          parentId: paiId,
-          environmentId,
-          defaultTimeoutMs: settings.defaultTimeoutMs,
-        });
-        await session.confirm({
-          title: `Enviar ${data.method}`,
-          description: `O Claude quer enviar ${data.method} ${preview.url}.`,
-          details: [
-            `Requisição: ${name}`,
-            `Ambiente: ${store.snapshot().environments.find((e) => e.id === environmentId)?.name ?? 'nenhum'}`,
-          ],
-          danger: data.method === 'DELETE',
-        });
-      }
       const { result: run, secretValues } = await runRequest(data, {
         store,
         requestId,
         parentId: paiId,
         environmentId,
         requestName: name,
+        // Confere o método final, depois dos pré-scripts (que podem trocá-lo).
+        beforeSend: async (final) => {
+          if (!DESTRUCTIVE_METHODS.has(final.method)) return;
+          await session.confirm({
+            title: `Enviar ${final.method}`,
+            description: `O Claude quer enviar ${final.method} ${final.url}.`,
+            details: [
+              `Requisição: ${name}`,
+              `Ambiente: ${store.snapshot().environments.find((e) => e.id === environmentId)?.name ?? 'nenhum'}`,
+              ...(final.method !== data.method
+                ? [`Atenção: o método salvo é ${data.method}; um pré-script o mudou para ${final.method}.`]
+                : []),
+            ],
+            danger: final.method === 'DELETE',
+          });
+        },
         settings: {
           defaultTimeoutMs: settings.defaultTimeoutMs,
           proxy: settings.proxy,

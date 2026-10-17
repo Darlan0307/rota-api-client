@@ -96,6 +96,11 @@ describe('executeRequest', () => {
     expect(res.timings.total).toBeGreaterThanOrEqual(res.timings.ttfb);
   });
 
+  it('alcança "localhost" mesmo com o servidor só em IPv4 (localhost resolve ::1 primeiro no Windows)', async () => {
+    const res = await executeRequest(req('/json', { url: `${base.replace('127.0.0.1', 'localhost')}/json` }));
+    expect(res.status).toBe(200);
+  });
+
   it('descomprime gzip', async () => {
     const res = await executeRequest(req('/gzip'));
     expect(res.body.data).toBe('olá comprimido');

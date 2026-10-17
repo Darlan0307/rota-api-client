@@ -31,7 +31,7 @@ pnpm typecheck      # checagem de tipos (TypeScript strict)
 pnpm lint           # lint + formatação (Biome)
 pnpm format         # aplica correções automáticas do Biome
 pnpm build          # build de produção (app + servidor MCP em apps/desktop/out)
-pnpm --filter @rota/desktop pack   # app empacotado sem instalador (release/win-unpacked)
+pnpm --filter @rota/desktop dist:dir   # app empacotado sem instalador (release/win-unpacked)
 pnpm --filter @rota/desktop dist   # instalador NSIS
 pnpm --filter @rota/desktop icon   # regenera build/icon.ico e icon.png a partir de icon.svg
 ```

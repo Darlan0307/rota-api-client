@@ -327,7 +327,12 @@ interface TabsState {
   move(id: string, toIndex: number): void;
   update<T extends Tab>(id: string, change: (tab: T) => T): void;
   /** Após salvar: o rascunho vira a nova base. */
-  markSaved(id: string, patch?: { itemId?: string; parentId?: string | null; title?: string }): void;
+  /** `saved`: conteúdo efetivamente gravado (o rascunho pode ter mudado durante o salvamento). */
+  markSaved(
+    id: string,
+    patch?: { itemId?: string; parentId?: string | null; title?: string },
+    saved?: RequestData,
+  ): void;
   resolveConflict(id: string, choice: 'reload' | 'keep'): void;
   reconcile(snapshot: WorkspaceSnapshot): void;
   loadForWorkspace(root: string, snapshot: WorkspaceSnapshot): void;
@@ -515,14 +520,14 @@ export const useTabs = create<TabsState>()((set, get) => ({
     set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? change(t as never) : t)) }));
   },
 
-  markSaved(id, patch = {}) {
+  markSaved(id, patch = {}, savedData) {
     set((s) => ({
       tabs: s.tabs.map((t) => {
         if (t.id !== id) return t;
         const saved = { ...t, ...patch, conflict: null } as Tab;
         switch (saved.kind) {
           case 'request':
-            return { ...saved, base: structuredClone(saved.draft) };
+            return { ...saved, base: structuredClone(savedData ?? saved.draft) };
           default:
             return saved; // bases de variáveis/coleção chegam pelo snapshot
         }
@@ -618,6 +623,31 @@ function loadPersisted(root: string): PersistedTabs {
   }
 }
 
+/**
+ * Versão da aba que pode ir para o localStorage (texto puro no disco): sem
+ * respostas e sem valores secretos revelados ou digitados. Um segredo digitado
+ * e não salvo é perdido ao reiniciar — preferível a deixá-lo exposto.
+ */
+export function forStorage(tab: Tab): Tab {
+  switch (tab.kind) {
+    case 'request':
+      return { ...tab, run: null };
+    case 'loadtest':
+      return { ...tab, stats: null, result: null, runId: null, status: 'idle' };
+    case 'environment':
+    case 'globals':
+      return { ...tab, draft: tab.draft.map(withoutSecretValue) };
+    case 'collection':
+      return { ...tab, draft: { ...tab.draft, variables: tab.draft.variables.map(withoutSecretValue) } };
+    default:
+      return tab;
+  }
+}
+
+function withoutSecretValue(draft: VariableDraft): VariableDraft {
+  return draft.type === 'secret' ? { ...draft, value: undefined, secretDirty: false } : draft;
+}
+
 let saveTimer: number | undefined;
 useTabs.subscribe((state) => {
   if (!state.workspaceRoot) return;
@@ -625,15 +655,7 @@ useTabs.subscribe((state) => {
   saveTimer = window.setTimeout(() => {
     try {
       // Respostas não são persistidas (podem ser grandes e conter dados sensíveis).
-      const tabs = state.tabs
-        .filter((t) => t.kind !== 'loadtest' || t.status !== 'running')
-        .map((t) =>
-          t.kind === 'request'
-            ? { ...t, run: null }
-            : t.kind === 'loadtest'
-              ? { ...t, stats: null, result: null, runId: null, status: 'idle' as const }
-              : t,
-        );
+      const tabs = state.tabs.filter((t) => t.kind !== 'loadtest' || t.status !== 'running').map(forStorage);
       localStorage.setItem(
         STORAGE_PREFIX + state.workspaceRoot,
         JSON.stringify({ tabs, activeId: state.activeId }),

@@ -87,9 +87,10 @@ export async function saveTab(tabId: string): Promise<boolean> {
         return false;
       }
       if (!isDirty(tab) && !tab.conflict) return true;
-      const ok = await runCommand({ type: 'updateRequest', id: tab.itemId, data: tab.draft });
+      const data = tab.draft;
+      const ok = await runCommand({ type: 'updateRequest', id: tab.itemId, data });
       if (!ok) return false;
-      tabs.markSaved(tabId);
+      tabs.markSaved(tabId, {}, data);
       return true;
     }
     case 'environment': {
@@ -142,9 +143,10 @@ export async function saveTab(tabId: string): Promise<boolean> {
 export async function saveRequestAs(tabId: string, parentId: string, name: string): Promise<boolean> {
   const tab = getTab(tabId);
   if (tab?.kind !== 'request') return false;
-  const result = await runCommand({ type: 'createRequest', parentId, name, data: tab.draft });
+  const data = tab.draft;
+  const result = await runCommand({ type: 'createRequest', parentId, name, data });
   if (!result?.id) return false;
-  useTabs.getState().markSaved(tabId, { itemId: result.id, parentId, title: name });
+  useTabs.getState().markSaved(tabId, { itemId: result.id, parentId, title: name }, data);
   toast.success(`"${name}" salva.`);
   return true;
 }

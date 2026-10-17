@@ -196,6 +196,14 @@ export class WorkspaceStore {
     return layers;
   }
 
+  /**
+   * Todos os valores secretos guardados para este workspace (inclusive os da
+   * lixeira). Para mascarar qualquer saída que vá para fora, como o MCP.
+   */
+  allSecretValues(): string[] {
+    return this.secrets.allValues();
+  }
+
   /** Valor de uma variável secreta (botão "revelar" na UI). */
   revealSecret(target: VariableTarget, key: string): string | undefined {
     return this.secrets.get(secretScopeOf(target), key);

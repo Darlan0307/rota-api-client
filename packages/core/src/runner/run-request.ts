@@ -42,6 +42,13 @@ export interface RunContext {
   /** Executa scripts de pré-requisição e pós-resposta (padrão: true). */
   runScripts?: boolean;
   scriptTimeoutMs?: number;
+  /**
+   * Chamado depois dos pré-scripts e antes do envio, com a requisição final
+   * (segredos mascarados). Se lançar, nada é enviado e o erro é repassado a
+   * quem chamou runRequest — usado pelo MCP para confirmar DELETE/PUT/PATCH
+   * mesmo quando um pré-script mudou o método.
+   */
+  beforeSend?: (request: PreparedRequest) => Promise<void>;
 }
 
 /** De qual script veio um teste/log (coleção, pasta ou a própria requisição). */
@@ -240,7 +247,8 @@ async function persistChanges(
  * Executa uma requisição como o app faria: roda os scripts de pré-requisição
  * (coleção → pastas → requisição), resolve variáveis e auth herdada, envia,
  * roda os scripts de pós-resposta e grava as variáveis alteradas por eles.
- * Nunca lança — erros vêm em `error` / `scriptErrors`.
+ * Não lança — erros vêm em `error` / `scriptErrors` —, exceto quando
+ * `beforeSend` recusa o envio.
  */
 export async function runRequest(original: RequestData, ctx: RunContext): Promise<RunOutcome> {
   const startedAt = new Date().toISOString();
@@ -292,6 +300,7 @@ export async function runRequest(original: RequestData, ctx: RunContext): Promis
   let masked: PreparedRequest | null = null;
   let response: HttpResponse | null = null;
   let runError: RunError | null = null;
+  let refused: unknown;
   const requestName = ctx.requestName ?? 'Requisição';
 
   try {
@@ -308,6 +317,14 @@ export async function runRequest(original: RequestData, ctx: RunContext): Promis
       ...(ctx.settings.userAgent ? { userAgent: ctx.settings.userAgent } : {}),
     };
     masked = prepareRequest(data, { ...prepareOpts, maskSecrets: true });
+    if (ctx.beforeSend) {
+      try {
+        await ctx.beforeSend(masked);
+      } catch (error) {
+        refused = error;
+        throw error;
+      }
+    }
     const prepared = prepareRequest(data, prepareOpts);
     const execOptions: ExecuteOptions = {
       ...(ctx.signal ? { signal: ctx.signal } : {}),
@@ -338,6 +355,8 @@ export async function runRequest(original: RequestData, ctx: RunContext): Promis
       });
     }
   }
+
+  if (refused !== undefined) throw refused;
 
   const secretValues = [...new Set([...state.scope().secretValues(), ...state.secretValues()])];
   if (runError) {

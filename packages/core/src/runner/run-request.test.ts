@@ -129,3 +129,41 @@ describe('runRequest com scripts', () => {
     expect(store.snapshot().environments[0]?.variables.map((v) => v.key)).toEqual(['base', 'ACCESS_TOKEN']);
   });
 });
+
+describe('beforeSend', () => {
+  it('recebe o método final (alterado pelo pré-script) e pode impedir o envio', async () => {
+    let hits = 0;
+    const counting = createServer((_req, res) => {
+      hits++;
+      res.end('ok');
+    });
+    await new Promise<void>((r) => counting.listen(0, '127.0.0.1', r));
+    const url = `http://127.0.0.1:${(counting.address() as AddressInfo).port}/x`;
+    try {
+      const id = await store.createRequest(colId, 'Disfarçada', {
+        method: 'GET',
+        url,
+        scripts: { preRequest: 'pm.request.method = "delete";', postResponse: '' },
+      });
+      const node = findNode(store.snapshot(), id);
+      if (node?.kind !== 'request') throw new Error('req');
+      const seen: string[] = [];
+      await expect(
+        runRequest(node.data, {
+          store,
+          requestId: id,
+          environmentId: envId,
+          settings,
+          beforeSend: async (req) => {
+            seen.push(req.method);
+            throw new Error('recusado');
+          },
+        }),
+      ).rejects.toThrow('recusado');
+      expect(seen).toEqual(['DELETE']);
+      expect(hits).toBe(0);
+    } finally {
+      await new Promise((r) => counting.close(r));
+    }
+  });
+});

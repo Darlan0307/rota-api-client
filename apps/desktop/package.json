@@ -11,7 +11,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "icon": "electron build/make-icon.mjs",
-    "pack": "pnpm build && electron-builder --win --dir",
+    "dist:dir": "pnpm build && electron-builder --win --dir",
     "dist": "pnpm build && electron-builder --win"
   },
   "dependencies": {

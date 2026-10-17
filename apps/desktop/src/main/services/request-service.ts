@@ -17,6 +17,8 @@ export class RequestService {
   async send(input: SendRequestInput): Promise<RunResult> {
     const controller = new AbortController();
     this.running.set(input.runId, controller);
+    // Captura antes do envio: o usuário pode trocar de workspace enquanto espera.
+    const history = this.workspace.history;
     try {
       const settings = this.settings.get();
       const { result, secretValues } = await runRequest(input.data, {
@@ -35,7 +37,7 @@ export class RequestService {
 
       // Cancelamentos não vão para o histórico.
       if (result.error?.code !== 'aborted') {
-        await this.workspace.history
+        await history
           .add(
             {
               name: input.name,

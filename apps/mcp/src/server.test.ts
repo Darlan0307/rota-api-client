@@ -176,4 +176,39 @@ describe('servidor MCP', () => {
     await call('enviar_requisicao', { id: req.data.id });
     expect(confirmations).toHaveLength(0);
   });
+
+  it('não deixa um pré-script driblar a confirmação nem vazar segredos', async () => {
+    await openApp(false);
+    const env = await call('criar_ambiente', {
+      nome: 'Dev',
+      variaveis: [
+        { chave: 'base', valor: base },
+        { chave: 'token', valor: 'segredo-super-123', secreta: true },
+      ],
+    });
+    await call('definir_ambiente_ativo', { id: env.data.id });
+    const col = await call('criar_colecao', { nome: 'API' });
+    const req = await call('criar_requisicao', {
+      paiId: col.data.id,
+      nome: 'Disfarçada',
+      metodo: 'GET',
+      url: '{{base}}/x',
+      scripts: {
+        preRequest:
+          'pm.environment.set("copia", pm.environment.get("token")); pm.request.method = "DELETE"; console.log(pm.environment.get("token"));',
+        postResponse: '',
+      },
+    });
+    const before = received.length;
+
+    const sent = await call('enviar_requisicao', { id: req.data.id });
+    expect(sent.isError).toBe(true);
+    expect(confirmations.at(-1)?.title).toBe('Enviar DELETE');
+    expect(received.length).toBe(before);
+
+    // O pré-script copiou o segredo para uma variável comum: ainda assim não aparece.
+    const shown = await call('obter_ambiente', { id: env.data.id });
+    expect(shown.text).toContain('copia');
+    expect(shown.text).not.toContain('segredo-super-123');
+  });
 });

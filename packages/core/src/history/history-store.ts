@@ -209,7 +209,13 @@ function buildEntry(
       // Scripts podem imprimir tokens no console: mascarados também.
       ...(result.console ? { console: result.console.map((c) => ({ ...c, message: mask(c.message) })) } : {}),
       ...(result.tests
-        ? { tests: result.tests.map((t) => (t.message ? { ...t, message: mask(t.message) } : t)) }
+        ? {
+            tests: result.tests.map((t) => ({
+              ...t,
+              name: mask(t.name),
+              ...(t.message ? { message: mask(t.message) } : {}),
+            })),
+          }
         : {}),
       ...(result.scriptErrors
         ? { scriptErrors: result.scriptErrors.map((e) => ({ ...e, message: mask(e.message) })) }
