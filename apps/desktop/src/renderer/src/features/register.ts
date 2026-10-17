@@ -3,6 +3,7 @@ import { registerOverlay } from '../layout/DialogHost';
 import { registerWelcomeExtensions } from '../layout/MainArea';
 import { registerSearchContent } from '../layout/SearchDialog';
 import { registerSidebarExtensions } from '../layout/Sidebar';
+import { registerWorkspaceMenu } from '../layout/TitleBar';
 import { CodegenButton, CodegenDialog } from './codegen/CodegenDialog';
 import { handleUrlPaste } from './curl/paste-curl';
 import { SaveExampleButton } from './examples/ExampleTabView';
@@ -12,6 +13,8 @@ import { registerRequestEditorExtensions } from './request/RequestEditor';
 import { scriptResultSections } from './scripts/ScriptResults';
 import { ScriptsEditor } from './scripts/ScriptsEditor';
 import { SearchPalette } from './search/SearchPalette';
+import { TrashActions, TrashPanel } from './trash/TrashPanel';
+import { NewWorkspaceDialog, openFolderAsWorkspace, WorkspaceMenu } from './workspaces/WorkspaceMenu';
 
 /**
  * Registra as funcionalidades que se conectam ao layout por pontos de
@@ -47,4 +50,13 @@ export function registerFeatures(): void {
       }),
     responseSections: scriptResultSections,
   });
+
+  // Fase 6: lixeira e workspaces de projeto.
+  registerSidebarExtensions({
+    trash: (filter) => createElement(TrashPanel, { filter }),
+    trashActions: () => createElement(TrashActions),
+  });
+  registerWorkspaceMenu(() => createElement(WorkspaceMenu));
+  registerOverlay(NewWorkspaceDialog);
+  registerWelcomeExtensions({ onOpenFolder: () => void openFolderAsWorkspace() });
 }

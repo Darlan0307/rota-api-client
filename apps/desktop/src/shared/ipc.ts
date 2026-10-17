@@ -11,6 +11,7 @@ import type {
   AppSettings,
   Auth,
   CodegenTarget,
+  FolderInspection,
   HistoryEntry,
   HistorySummary,
   HttpResponse,
@@ -20,6 +21,7 @@ import type {
   RequestData,
   RunResult,
   Scripts,
+  TrashEntry,
   VariableInput,
   VariableTarget,
   WorkspaceSnapshot,
@@ -142,6 +144,25 @@ export interface IpcContract {
   'history:clear': { args: []; result: void };
 
   'codegen:generate': { args: [input: CodegenInput]; result: string };
+
+  'trash:list': { args: []; result: TrashEntry[] };
+  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
+  'trash:restore': { args: [id: string]; result: void };
+  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
+  'trash:remove': { args: [id: string]; result: void };
+  'trash:empty': { args: []; result: number };
+
+  /** Escolhe uma pasta para abrir como workspace (null = cancelado). */
+  'workspace:pickFolder': { args: []; result: string | null };
+  'workspace:inspectFolder': { args: [path: string]; result: FolderInspection };
+  /** Abre um workspace (null = padrão), preparando .gitignore/README se pedido. */
+  'workspace:open': {
+    args: [path: string | null, prepare?: { gitignore: boolean; readme: boolean }];
+    result: WorkspaceState;
+  };
+  'workspace:recent': { args: []; result: { current: string | null; recent: string[] } };
+  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
+  'workspace:forgetRecent': { args: [path: string]; result: void };
   'examples:save': { args: [input: SaveExampleInput]; result: string };
 }
 
@@ -149,6 +170,7 @@ export interface IpcEvents {
   'workspace:changed': WorkspaceState;
   /** O histórico ganhou/perdeu entradas. */
   'history:changed': null;
+  'trash:changed': null;
 }
 
 export type IpcChannel = keyof IpcContract;
@@ -178,9 +200,22 @@ export const IPC_CHANNELS = [
   'history:clear',
   'codegen:generate',
   'examples:save',
+  'trash:list',
+  'trash:restore',
+  'trash:remove',
+  'trash:empty',
+  'workspace:pickFolder',
+  'workspace:inspectFolder',
+  'workspace:open',
+  'workspace:recent',
+  'workspace:forgetRecent',
 ] as const satisfies readonly IpcChannel[];
 
-export const IPC_EVENTS = ['workspace:changed', 'history:changed'] as const satisfies readonly IpcEvent[];
+export const IPC_EVENTS = [
+  'workspace:changed',
+  'history:changed',
+  'trash:changed',
+] as const satisfies readonly IpcEvent[];
 
 // Garante em tempo de compilação que as listas cobrem todo o contrato.
 type MissingChannels = Exclude<IpcChannel, (typeof IPC_CHANNELS)[number]>;

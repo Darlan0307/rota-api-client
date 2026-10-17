@@ -65,6 +65,23 @@ type ContainerEntry = Extract<Entry, { kind: 'collection' | 'folder' }>;
 
 export type ItemKind = Entry['kind'];
 
+/** Descrição de um item para a lixeira (onde está, onde voltar, quais segredos guardar). */
+export interface ItemDescription {
+  kind: ItemKind;
+  id: string;
+  name: string;
+  /** Arquivos/pastas do item no disco (requisição: arquivo + pasta de exemplos). */
+  paths: string[];
+  /** Pai (pasta/coleção; para exemplos, a requisição). */
+  parentId?: string | undefined;
+  /** Posição entre os irmãos (para voltar ao mesmo lugar). */
+  index?: number | undefined;
+  /** Nomes dos ancestrais, da coleção até o pai. */
+  breadcrumb: string[];
+  /** Variáveis secretas cujos valores precisam ir junto. */
+  secretKeys: string[];
+}
+
 /** Estrutura de uma coleção a ser gravada de uma vez (importação). */
 export interface ImportedCollection {
   name: string;
@@ -458,6 +475,138 @@ export class WorkspaceStore {
         }
         case 'example':
           throw new WorkspaceError('Exemplos não podem ser duplicados.');
+      }
+    });
+  }
+
+  /** Tudo o que a lixeira precisa saber para guardar e depois restaurar um item. */
+  describeItem(id: string): ItemDescription | undefined {
+    const entry = this.entries.get(id);
+    if (!entry) return undefined;
+    const breadcrumb = (parentId: string | undefined): string[] => {
+      const names: string[] = [];
+      let current = parentId ? this.entries.get(parentId) : undefined;
+      while (current) {
+        names.unshift(current.file.name);
+        current =
+          current.kind === 'folder' || current.kind === 'request'
+            ? this.entries.get(current.parentId)
+            : current.kind === 'example'
+              ? this.entries.get(current.requestId)
+              : undefined;
+      }
+      return names;
+    };
+    const secretKeys = (vars: readonly { key: string; type: string }[]) =>
+      vars.filter((v) => v.type === 'secret').map((v) => v.key);
+
+    switch (entry.kind) {
+      case 'collection':
+        return {
+          kind: 'collection',
+          id,
+          name: entry.file.name,
+          paths: [entry.dir],
+          index: this.collectionOrder().indexOf(id),
+          breadcrumb: [],
+          secretKeys: secretKeys(entry.file.variables),
+        };
+      case 'folder':
+      case 'request': {
+        const parent = this.container(entry.parentId);
+        const paths = entry.kind === 'folder' ? [entry.dir] : [entry.path, examplesDirOf(entry.path)];
+        return {
+          kind: entry.kind,
+          id,
+          name: entry.file.name,
+          paths,
+          parentId: entry.parentId,
+          index: this.childOrder(parent).indexOf(id),
+          breadcrumb: breadcrumb(entry.parentId),
+          secretKeys: [],
+        };
+      }
+      case 'environment':
+        return {
+          kind: 'environment',
+          id,
+          name: entry.file.name,
+          paths: [entry.path],
+          breadcrumb: [],
+          secretKeys: secretKeys(entry.file.variables),
+        };
+      case 'example':
+        return {
+          kind: 'example',
+          id,
+          name: entry.file.name,
+          paths: [entry.path],
+          parentId: entry.requestId,
+          breadcrumb: breadcrumb(entry.requestId),
+          secretKeys: [],
+        };
+    }
+  }
+
+  /**
+   * Devolve ao workspace um item guardado pela lixeira. `sources` são as cópias
+   * (na mesma ordem de `describeItem().paths`; caminhos inexistentes são ignorados).
+   */
+  restoreItem(
+    item: Omit<ItemDescription, 'paths' | 'breadcrumb' | 'secretKeys'>,
+    sources: string[],
+  ): Promise<void> {
+    return this.mutate(async () => {
+      const [main, extra] = sources;
+      if (!main || !(await exists(main)))
+        throw new WorkspaceError('Os arquivos deste item não estão mais na lixeira.');
+
+      switch (item.kind) {
+        case 'collection': {
+          const base = join(this.root, COLLECTIONS_DIR);
+          const dest = join(base, uniqueSlug(item.name, await listDirs(base)));
+          await cp(main, dest, { recursive: true });
+          const order = this.collectionOrder().filter((c) => c !== item.id);
+          order.splice(clampIndex(item.index, order.length), 0, item.id);
+          await this.writeManifest({ ...this.manifest, order });
+          break;
+        }
+        case 'folder':
+        case 'request': {
+          const parent = item.parentId ? this.entries.get(item.parentId) : undefined;
+          if (!parent || (parent.kind !== 'collection' && parent.kind !== 'folder')) {
+            throw new WorkspaceError(
+              'A pasta ou coleção de origem não existe mais. Restaure-a primeiro (ela também pode estar na lixeira).',
+            );
+          }
+          if (item.kind === 'folder') {
+            await cp(main, join(parent.dir, uniqueSlug(item.name, await listDirs(parent.dir))), {
+              recursive: true,
+            });
+          } else {
+            const dest = await this.requestPath(parent.dir, item.name);
+            await cp(main, dest);
+            if (extra && (await exists(extra))) await cp(extra, examplesDirOf(dest), { recursive: true });
+          }
+          await this.insertInOrder(parent, item.id, item.index);
+          break;
+        }
+        case 'environment': {
+          const dir = join(this.root, ENVIRONMENTS_DIR);
+          await mkdir(dir, { recursive: true });
+          await cp(main, await uniqueFilePath(dir, item.name, ENVIRONMENT_EXT));
+          break;
+        }
+        case 'example': {
+          const request = item.parentId ? this.entries.get(item.parentId) : undefined;
+          if (request?.kind !== 'request') {
+            throw new WorkspaceError('A requisição deste exemplo não existe mais. Restaure-a primeiro.');
+          }
+          const dir = examplesDirOf(request.path);
+          await mkdir(dir, { recursive: true });
+          await cp(main, await uniqueFilePath(dir, item.name, EXAMPLE_EXT));
+          break;
+        }
       }
     });
   }

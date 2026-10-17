@@ -1,4 +1,4 @@
-import { basename } from 'node:path';
+import { basename, join } from 'node:path';
 import {
   createSecretStore,
   defaultWorkspaceDir,
@@ -7,6 +7,7 @@ import {
   loadWorkspaceState,
   normalizeWorkspacePath,
   saveWorkspaceState,
+  Trash,
   type VariableTarget,
   WorkspaceStore,
   type WorkspaceWatcher,
@@ -25,8 +26,22 @@ export class WorkspaceService {
   private local: LocalState = { activeEnvironmentId: null };
   private root = '';
   private historyStore: HistoryStore | undefined;
+  private trashStore: Trash | undefined;
 
-  constructor(private readonly notify: (state: WorkspaceState) => void) {}
+  constructor(
+    private readonly notify: (state: WorkspaceState) => void,
+    private readonly notifyTrash: () => void = () => undefined,
+  ) {}
+
+  /** Lixeira do workspace aberto (fica em %APPDATA%, fora do Git). */
+  get trash(): Trash {
+    if (!this.trashStore) throw new Error('Nenhum workspace aberto.');
+    return this.trashStore;
+  }
+
+  get rootPath(): string {
+    return this.root;
+  }
 
   get current(): WorkspaceStore {
     if (!this.store) throw new Error('Nenhum workspace aberto.');
@@ -58,6 +73,7 @@ export class WorkspaceService {
     });
     this.local = await loadWorkspaceState(this.root);
     this.historyStore = new HistoryStore(workspaceLocalDir(this.root));
+    this.trashStore = new Trash(join(workspaceLocalDir(this.root), 'trash'), this.store);
     this.watcher = watchWorkspace(this.root, () => void this.reloadFromDisk());
     return this.state();
   }
@@ -141,7 +157,9 @@ export class WorkspaceService {
         id = await store.duplicate(command.id);
         break;
       case 'remove':
-        await store.remove(command.id);
+        // Excluir sempre passa pela lixeira (pode ser restaurado).
+        await this.trash.moveToTrash(command.id);
+        this.notifyTrash();
         break;
       case 'reorderCollections':
         await store.reorderCollections(command.order);

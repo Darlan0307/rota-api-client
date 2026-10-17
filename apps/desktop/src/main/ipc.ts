@@ -2,10 +2,13 @@ import { readFile } from 'node:fs/promises';
 import {
   generateCode,
   importPostmanFiles,
+  inspectFolder,
   maskSecretValues,
   prepareForDisplay,
+  prepareProjectFolder,
   previewPostmanFiles,
   variableScopeFor,
+  withRecentWorkspace,
 } from '@rota/core';
 import { app, BrowserWindow, dialog, type IpcMainInvokeEvent, ipcMain, shell } from 'electron';
 import { IPC_ERROR_PREFIX, type IpcArgs, type IpcChannel, type IpcResult } from '../shared/ipc';
@@ -126,6 +129,58 @@ export function registerIpcHandlers({ workspace, requests, settings }: Services)
       reveal: input.reveal,
     });
     return generateCode(prepared, input.target);
+  });
+
+  // Lixeira
+  const trashChanged = (sender: Electron.WebContents) => sender.send('trash:changed', null);
+  handle('trash:list', () => workspace.trash.list());
+  handle('trash:restore', async (event, id) => {
+    await workspace.trash.restore(id);
+    workspace.emit();
+    trashChanged(event.sender);
+  });
+  handle('trash:remove', async (event, id) => {
+    await workspace.trash.remove(id);
+    trashChanged(event.sender);
+  });
+  handle('trash:empty', async (event) => {
+    const count = await workspace.trash.empty();
+    trashChanged(event.sender);
+    return count;
+  });
+
+  // Workspaces de projeto
+  handle('workspace:pickFolder', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const options: Electron.OpenDialogOptions = {
+      title: 'Abrir pasta como workspace',
+      buttonLabel: 'Abrir',
+      properties: ['openDirectory', 'createDirectory'],
+    };
+    const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+    return result.canceled ? null : (result.filePaths[0] ?? null);
+  });
+  handle('workspace:inspectFolder', (_e, path) => inspectFolder(path));
+  handle('workspace:open', async (event, path, prepare) => {
+    if (path && prepare) await prepareProjectFolder(path, prepare);
+    const state = await workspace.open(path);
+    const current = settings.get();
+    await settings.update({
+      currentWorkspace: path,
+      ...(path ? { recentWorkspaces: withRecentWorkspace(current, path).recentWorkspaces } : {}),
+    });
+    trashChanged(event.sender);
+    event.sender.send('history:changed', null);
+    workspace.emit();
+    return state;
+  });
+  handle('workspace:recent', () => ({
+    current: settings.get().currentWorkspace,
+    recent: settings.get().recentWorkspaces,
+  }));
+  handle('workspace:forgetRecent', async (_e, path) => {
+    const current = settings.get();
+    await settings.update({ recentWorkspaces: current.recentWorkspaces.filter((p) => p !== path) });
   });
 
   // Exemplos: o arquivo é versionado, então valores secretos são mascarados antes de gravar.

@@ -103,7 +103,9 @@ if (!app.requestSingleInstanceLock()) {
     installMenu();
 
     const settings = new SettingsService();
-    const workspace = new WorkspaceService(broadcast);
+    const workspace = new WorkspaceService(broadcast, () => {
+      for (const win of BrowserWindow.getAllWindows()) win.webContents.send('trash:changed', null);
+    });
     const requests = new RequestService(workspace, settings, `${APP_NAME}/${app.getVersion()}`, () => {
       for (const win of BrowserWindow.getAllWindows()) win.webContents.send('history:changed', null);
     });

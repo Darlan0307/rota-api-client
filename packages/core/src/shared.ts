@@ -31,7 +31,9 @@ export type {
 export type { ConsoleEntry, TestResult, TestStatus } from './scripts/sandbox';
 export * from './search/search';
 export type { AppSettings } from './settings';
+export type { FolderInspection } from './storage/project';
 export type { ItemKind, VariableTarget } from './storage/workspace-store';
+export type { TrashEntry } from './trash/trash';
 export { contrastRatio, relativeLuminance, WCAG } from './util/contrast';
 export * from './util/diff';
 export { slugify, uniqueSlug } from './util/slug';

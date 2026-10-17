@@ -74,12 +74,10 @@ export async function deleteItem(
     environment: 'o ambiente',
   }[node.kind];
   const extra =
-    node.kind === 'collection' || node.kind === 'folder'
-      ? ' Tudo o que estiver dentro também será excluído.'
-      : '';
+    node.kind === 'collection' || node.kind === 'folder' ? ' Tudo o que estiver dentro vai junto.' : '';
   const choice = await confirmDialog({
     title: `Excluir ${what} "${node.name}"?`,
-    description: `Os arquivos serão apagados do disco.${extra}`,
+    description: `O item vai para a lixeira e pode ser restaurado depois.${extra}`,
     confirmLabel: 'Excluir',
     danger: true,
   });

@@ -258,7 +258,7 @@ function Toaster() {
           {t.kind === 'success' && <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />}
           {t.kind === 'error' && <XCircle className="mt-0.5 size-4 shrink-0 text-danger" />}
           {t.kind === 'info' && <Info className="mt-0.5 size-4 shrink-0 text-primary" />}
-          <p className="flex-1 leading-snug text-fg">{t.message}</p>
+          <p className="min-w-0 flex-1 break-words leading-snug text-fg">{t.message}</p>
           <button
             type="button"
             aria-label="Fechar aviso"
