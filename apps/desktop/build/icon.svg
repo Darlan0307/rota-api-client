@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>Rota</title>
+  <!-- Proposta de ícone: duas paradas ligadas por um caminho (uma "rota"). Paleta Índigo noturno. -->
+  <rect width="256" height="256" rx="60" fill="#1C1E33"/>
+  <path d="M80 180 C80 118 176 138 176 76" fill="none" stroke="#8B7CF6" stroke-width="22" stroke-linecap="round"/>
+  <circle cx="80" cy="180" r="22" fill="#8B7CF6"/>
+  <circle cx="176" cy="76" r="22" fill="#E7E8F3"/>
+</svg>

@@ -1,0 +1,54 @@
+# Decisões do projeto
+
+Registro das decisões tomadas com o dono do projeto. Atualizar a cada fase.
+
+## Respostas às perguntas iniciais (16/10/2026)
+
+| # | Tema | Decisão |
+|---|------|---------|
+| 1 | Nome do app | Nome provisório **Rota** (centralizado em `apps/desktop/src/shared/constants.ts`). Aguardando confirmação. |
+| 2 | Idioma | Interface só em **português**, sem i18n. |
+| 3 | Valor inicial × atual (Postman) | **Não** teremos essa separação: cada variável tem um único valor. |
+| 4 | Tema | Só **tema escuro**. |
+| 5 | Lixeira de workspace de projeto | Fica em `%APPDATA%` (repositório limpo). |
+| 6 | Scripts | Por requisição. Prioridade: script pós-resposta (ex.: login salva o token no ambiente). Scripts em pasta/coleção ficam fora da v1. |
+| 7 | Conflito de edição externa | Mostrar aviso **com detalhamento** do que mudou (diff legível) e deixar o usuário decidir: recarregar ou manter a versão local. |
+| 8 | Importação do Postman | Somente **v2.1**. Exemplos reais em `./ex-export` (fora do Git, podem conter segredos). |
+| 9 | Git | Repositório iniciado; um commit ao fim de cada fase. |
+
+## Sugestões aprovadas
+
+- **Breakdown de tempo** da resposta (DNS, TCP, TLS, TTFB, download) — Fase 2.
+- **Configurações de requisição**: verificação SSL, proxy, timeout, seguir redirecionamentos — Fase 2.
+- **`.gitignore`/README opcionais** ao abrir uma pasta como workspace de projeto (com confirmação) — Fase 6.
+
+## Decisões técnicas
+
+| Id | Tema | Escolha |
+|----|------|---------|
+| D1 | Ponte MCP ↔ app | Named pipe + token em `%APPDATA%`, JSON-RPC. App fechado: leituras/criações direto pelo core; ações destrutivas recusadas. |
+| D2 | Secrets | `@napi-rs/keyring` (Windows Credential Manager), funciona no app e no MCP. |
+| D3 | Sandbox de scripts | QuickJS (WASM) com `chai` embutido e timeout. |
+| D4 | IPC | Contrato tipado próprio em `apps/desktop/src/shared/ipc.ts`. |
+| D5 | Codegen e parser de cURL | Implementação própria. |
+| D6 | Importação Postman | Mapeador próprio validado com zod. |
+| D7 | Lint/format | Biome. |
+
+## Formato de dados (proposto, a implementar na Fase 2)
+
+```
+<workspace>/
+├─ apiclient.workspace.json
+├─ globals.json
+├─ environments/<slug>.env.json
+└─ collections/<slug>/
+   ├─ _collection.json        # auth, variáveis, ordem dos filhos
+   ├─ <pasta>/_folder.json
+   ├─ <slug>.req.json
+   └─ <slug>.examples/<exemplo>.json
+```
+
+- Nome de arquivo = slug do nome (`@rota/core` → `slugify`/`uniqueSlug`); `id` estável dentro do JSON.
+- Ordem dos itens em `order: [ids]` no arquivo do pai.
+- Secrets: só o nome no arquivo (`"type": "secret"`); valor no Credential Manager.
+- Histórico, ambiente ativo e estado da UI ficam em `%APPDATA%`, fora do workspace.
