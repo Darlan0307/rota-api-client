@@ -35,3 +35,7 @@ ex-export/
 *.postman_environment.json
 *.postman_globals.json
 Rota-backup-*/
+
+# Anotações pessoais (guias, dados de clientes): nunca versionar
+notas-locais/
+*.local.md
