@@ -26,7 +26,7 @@ import { draftsFromViews, emptyDraft, type VariableDraft, variablesDirty } from 
 // Tipos
 
 export type RequestSection = 'params' | 'auth' | 'headers' | 'body' | 'scripts' | 'settings';
-export type ResponseSection = 'body' | 'headers' | 'tests' | 'console' | 'timeline';
+export type ResponseSection = 'body' | 'headers' | 'tests' | 'console' | 'timeline' | 'contract' | 'compare';
 
 export interface RunState {
   runId: string;

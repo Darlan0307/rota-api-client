@@ -2,6 +2,7 @@ import { LoaderCircle } from 'lucide-react';
 import { useEffect } from 'react';
 import { Group, Panel, usePanelRef } from 'react-resizable-panels';
 import { TooltipProvider } from './components/Tooltip';
+import { duplicateSelected, renameSelected } from './features/sidebar/item-actions';
 import { ActivityBar } from './layout/ActivityBar';
 import { DialogHost } from './layout/DialogHost';
 import { MainArea } from './layout/MainArea';
@@ -128,5 +129,12 @@ function useGlobalHotkeys() {
     'mod+tab': () => useTabs.getState().activateRelative(1),
     'mod+shift+tab': () => useTabs.getState().activateRelative(-1),
     'mod+,': () => useUiStore.getState().openSettings(),
+    // No editor de código, Ctrl+D/Ctrl+E mantêm o comportamento do Monaco.
+    'mod+e': () => (inCodeEditor() ? false : renameSelected()),
+    'mod+d': () => (inCodeEditor() ? false : duplicateSelected()),
   });
+}
+
+function inCodeEditor(): boolean {
+  return Boolean(document.activeElement?.closest('.monaco-editor'));
 }

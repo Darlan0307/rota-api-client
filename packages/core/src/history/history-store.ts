@@ -34,6 +34,8 @@ export interface HistoryEntry extends HistorySummary {
 
 export interface HistoryQuery {
   query?: string;
+  /** Só envios desta requisição salva. */
+  requestId?: string;
   limit?: number;
   offset?: number;
 }
@@ -89,6 +91,7 @@ export class HistoryStore {
     const q = options.query?.trim().toLowerCase() ?? '';
     const filtered = [...entries]
       .reverse()
+      .filter((e) => !options.requestId || e.requestId === options.requestId)
       .filter(
         (e) =>
           !q || `${e.name} ${e.method} ${e.url} ${e.status ?? ''} ${e.error ?? ''}`.toLowerCase().includes(q),

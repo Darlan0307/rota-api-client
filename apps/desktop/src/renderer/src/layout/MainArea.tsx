@@ -77,7 +77,7 @@ function WelcomeScreen() {
           {welcome.onImport && (
             <WelcomeAction
               icon={<Download className="size-4" />}
-              label="Importar do Postman"
+              label="Importar (Postman ou OpenAPI)"
               onClick={welcome.onImport}
             />
           )}
@@ -97,6 +97,8 @@ function WelcomeScreen() {
           <Shortcut label="Fechar aba" keys="Ctrl+W" />
           <Shortcut label="Nova aba" keys="Ctrl+T" />
           <Shortcut label="Recolher sidebar" keys="Ctrl+B" />
+          <Shortcut label="Renomear item" keys="Ctrl+E" />
+          <Shortcut label="Duplicar item" keys="Ctrl+D" />
         </div>
       </div>
     </div>

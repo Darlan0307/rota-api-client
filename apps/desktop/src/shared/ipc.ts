@@ -174,7 +174,8 @@ export interface IpcContract {
   'import:run': { args: [paths: string[], secretKeys: Record<string, string[]>]; result: ImportReport };
 
   'history:list': {
-    args: [query: string, limit: number];
+    /** requestId: só os envios dessa requisição. */
+    args: [query: string, limit: number, requestId?: string];
     result: { items: HistorySummary[]; total: number };
   };
   'history:get': { args: [id: string]; result: HistoryEntry | null };
@@ -184,6 +185,11 @@ export interface IpcContract {
   'history:clear': { args: []; result: void };
 
   'codegen:generate': { args: [input: CodegenInput]; result: string };
+
+  /** Exporta uma coleção (Postman v2.1 ou documentação Markdown). Devolve o arquivo salvo (null = cancelado). */
+  'export:collection': { args: [id: string, format: 'postman' | 'markdown']; result: string | null };
+  /** Exporta um ambiente (ou as globais, com id null) no formato do Postman. */
+  'export:variables': { args: [id: string | null]; result: string | null };
 
   /** Resolve ao terminar (ou ser cancelado); o progresso chega por 'loadtest:progress'. */
   'loadtest:start': { args: [input: LoadTestInput]; result: LoadTestResult };
@@ -257,6 +263,8 @@ export const IPC_CHANNELS = [
   'history:remove',
   'history:clear',
   'codegen:generate',
+  'export:collection',
+  'export:variables',
   'examples:save',
   'loadtest:start',
   'loadtest:cancel',

@@ -5,7 +5,9 @@ import { registerSearchContent } from '../layout/SearchDialog';
 import { registerMcpSettings } from '../layout/SettingsDialog';
 import { registerSidebarExtensions } from '../layout/Sidebar';
 import { registerWorkspaceMenu } from '../layout/TitleBar';
+import { AskClaudeButton } from './claude/AskClaude';
 import { CodegenButton, CodegenDialog } from './codegen/CodegenDialog';
+import { compareSections } from './compare/ResponseCompare';
 import { handleUrlPaste } from './curl/paste-curl';
 import { SaveExampleButton } from './examples/ExampleTabView';
 import { HistoryActions, HistoryPanel } from './history/HistoryPanel';
@@ -45,6 +47,7 @@ export function registerFeatures(): void {
         null,
         createElement(LoadTestButton, { tab }),
         createElement(CodegenButton, { tabId: tab.id }),
+        createElement(AskClaudeButton, { tab }),
       ),
     responseActions: (tab) => createElement(SaveExampleButton, { tab }),
   });
@@ -58,7 +61,8 @@ export function registerFeatures(): void {
         onChange: (scripts) => onChange({ ...tab.draft, scripts }),
         scopeNote: 'Scripts da coleção e das pastas rodam antes deste.',
       }),
-    responseSections: scriptResultSections,
+    // Fase 10: contrato e comparação de respostas.
+    responseSections: (tab) => [...scriptResultSections(tab), ...compareSections(tab)],
   });
 
   // Fase 6: lixeira e workspaces de projeto.

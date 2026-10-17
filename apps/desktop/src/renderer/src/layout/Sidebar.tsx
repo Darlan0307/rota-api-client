@@ -79,7 +79,12 @@ function SectionActions({ section }: { section: SidebarSection }) {
     return (
       <>
         {extensions.onImport && (
-          <IconButton icon={Download} label="Importar do Postman" size="sm" onClick={extensions.onImport} />
+          <IconButton
+            icon={Download}
+            label="Importar (Postman ou OpenAPI)"
+            size="sm"
+            onClick={extensions.onImport}
+          />
         )}
         <IconButton icon={Plus} label="Nova coleção" size="sm" onClick={() => void newCollection()} />
       </>

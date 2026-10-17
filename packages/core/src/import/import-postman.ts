@@ -1,4 +1,6 @@
+import { parse as parseYaml } from 'yaml';
 import type { WorkspaceStore } from '../storage/workspace-store';
+import { convertOpenApi, detectOpenApi } from './openapi';
 import {
   convertCollection,
   convertEnvironment,
@@ -15,11 +17,15 @@ export interface ImportFileInput {
   content: string;
 }
 
+/** Tipos de arquivo aceitos: exportações do Postman e documentos OpenAPI/Swagger. */
+export type ImportFileKind = PostmanFileKind | 'openapi';
+
 export interface ImportPreview {
   fileName: string;
-  kind: PostmanFileKind;
+  kind: ImportFileKind;
   name: string;
-  version?: '2.1' | '2.0' | undefined;
+  /** Postman: "2.1"/"2.0"; OpenAPI: "3.0", "3.1" ou "2.0" (Swagger). */
+  version?: string | undefined;
   counts: ImportCounts;
   /** Variáveis "comuns" com nome de segredo (sugestão: marcar como secretas). */
   sensitiveKeys: string[];
@@ -28,7 +34,7 @@ export interface ImportPreview {
 
 export interface ImportResultItem {
   fileName: string;
-  kind: PostmanFileKind;
+  kind: ImportFileKind;
   name: string;
   /** Id criado (coleção/ambiente). */
   id?: string | undefined;
@@ -53,6 +59,16 @@ function parse(file: ImportFileInput): unknown {
   try {
     return JSON.parse(text);
   } catch (error) {
+    // Documentos OpenAPI costumam vir em YAML.
+    if (/.ya?ml$/i.test(file.fileName) || !/^s*[[{]/.test(text)) {
+      try {
+        return parseYaml(text, { maxAliasCount: 1000 });
+      } catch (yamlError) {
+        throw new Error(
+          `Arquivo inválido (nem JSON nem YAML): ${yamlError instanceof Error ? yamlError.message : String(yamlError)}`,
+        );
+      }
+    }
     throw new Error(`JSON inválido: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
@@ -62,6 +78,18 @@ export function previewPostmanFiles(files: readonly ImportFileInput[]): ImportPr
   return files.map((file): ImportPreview => {
     try {
       const json = parse(file);
+      const openapi = detectOpenApi(json);
+      if (openapi) {
+        return {
+          fileName: file.fileName,
+          kind: 'openapi',
+          name: openapi.title,
+          version: openapi.version,
+          counts: convertOpenApi(json).counts,
+          // Variáveis de auth já vêm como secretas.
+          sensitiveKeys: [],
+        };
+      }
       const detected = detectPostmanFile(json);
       const base = {
         fileName: file.fileName,
@@ -90,7 +118,7 @@ export function previewPostmanFiles(files: readonly ImportFileInput[]): ImportPr
             counts: EMPTY_COUNTS,
             sensitiveKeys: [],
             error:
-              'Formato não reconhecido. Exporte do Postman uma coleção (v2.1), um ambiente ou as variáveis globais.',
+              'Formato não reconhecido. Use uma exportação do Postman (coleção v2.1, ambiente ou globais) ou um documento OpenAPI 3 / Swagger 2.0.',
           };
       }
     } catch (error) {
@@ -117,6 +145,12 @@ export async function importPostmanFiles(
     const secretKeys = new Set(options.secretKeys?.[file.fileName] ?? []);
     try {
       const json = parse(file);
+      if (detectOpenApi(json)) {
+        const { collection, warnings, counts } = convertOpenApi(json);
+        const id = await store.importCollection(collection);
+        items.push({ fileName: file.fileName, kind: 'openapi', name: collection.name, id, counts, warnings });
+        continue;
+      }
       const detected = detectPostmanFile(json);
       switch (detected.kind) {
         case 'collection': {

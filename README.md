@@ -20,6 +20,18 @@ No app: **Configurações → Claude (MCP)**.
 
 O servidor roda com o próprio `Rota.exe` (modo Node), sem precisar de Node instalado. Ações que alteram ou apagam dados, requisições DELETE/PUT/PATCH e testes de carga pedem confirmação no app — com o app fechado, essas ações são recusadas. Valores secretos nunca são enviados ao Claude.
 
+## Do dia a dia
+
+- **Importar:** Postman (coleções v2.1, ambientes, globais) e OpenAPI 3 / Swagger 2.0 (JSON ou YAML).
+- **Exportar:** botão direito na coleção → Postman (v2.1) ou documentação em Markdown; ambientes → Postman. Valores secretos nunca vão para os arquivos.
+- **Contrato:** salve uma resposta boa como exemplo; nas próximas, a aba "Contrato" avisa se um campo sumiu ou mudou de tipo.
+- **Comparar:** diff da resposta atual com um exemplo ou um envio anterior.
+- **Claude:** o botão "Claude" na requisição copia pedidos prontos (gerar testes, explicar erro, documentar a coleção).
+
+### Criar uma coleção a partir de uma documentação
+
+Com o MCP configurado, anexe a documentação (JSON, OpenAPI, PDF convertido...) numa conversa com o Claude e use o prompt **colecao_a_partir_de_documentacao** (ou peça "crie a coleção desta documentação no Rota"). O Claude monta tudo com `criar_colecao_completa`: pastas, requisições com `{{baseUrl}}`, exemplos de resposta e auth com variáveis secretas vazias para você preencher no app. Se o arquivo for OpenAPI, ele pode usar `importar_arquivo` direto.
+
 ## Desenvolvimento
 
 Requisitos: Node 22+ e pnpm 10+.

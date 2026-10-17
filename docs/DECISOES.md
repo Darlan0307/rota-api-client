@@ -38,6 +38,12 @@ Registro das decisões tomadas com o dono do projeto. Atualizar a cada fase.
 | D10 | Confirmação no app | Pedida pela ponte (D1) para: editar, excluir, mover, DELETE/PUT/PATCH, teste de carga e esvaziar a lixeira. Tempo limite de ~2 min. |
 | D11 | Lixeira | Itens excluídos vão para `%APPDATA%/Rota/workspaces/<hash>/trash` (fora do workspace/Git), com segredos guardados à parte. |
 | D12 | Instalador | electron-builder + NSIS, por usuário (sem admin), atalhos na área de trabalho e no Menu Iniciar. Bibliotecas usadas só pelo renderer ficam em devDependencies (já vão no bundle do Vite), o que reduz o asar de ~180 MB para ~44 MB. O binário nativo do keyring fica fora do asar. Sem assinatura de código (o Windows SmartScreen pode avisar na primeira execução). |
+| D14 | Duplicar | Não copia os exemplos salvos (nem dentro de pastas/coleções duplicadas). O MCP pode pedir `incluirExemplos`. |
+| D15 | Contrato da resposta | Compara a estrutura (campos e tipos) da resposta com o exemplo salvo mais recente de mesmo status; só JSON. Campos ausentes em algum item do exemplo são opcionais. Roda no renderer (os exemplos já estão no snapshot) e também no `enviar_requisicao` do MCP. |
+| D16 | Comparar respostas | Diff (Monaco) entre a resposta atual e um exemplo ou envio anterior da mesma requisição; JSON formatado e, por padrão, com campos em ordem alfabética; headers voláteis (date, etag...) ignorados. |
+| D17 | OpenAPI/Swagger | Importação de OpenAPI 3.0/3.1 e Swagger 2.0 (JSON ou YAML): pasta por tag, `{{baseUrl}}`, parâmetros de caminho como variáveis da coleção, corpo e respostas de exemplo gerados dos exemplos ou do schema, segurança → auth da coleção com variáveis secretas vazias. |
+| D18 | Exportação | Coleções e ambientes para Postman v2.1 e coleção para Markdown. Valores secretos nunca são exportados. |
+| D19 | Claude no app | O app não chama a IA: o botão "Claude" copia um pedido pronto para colar no Claude Desktop/Code, que usa o MCP. O MCP ganhou `criar_colecao_completa` (coleção inteira numa chamada, ou em partes com `adicionarEm`), `importar_arquivo`, `gerar_documentacao` e prompts (`colecao_a_partir_de_documentacao`, `gerar_testes`, `explicar_erro`, `documentar_colecao`). |
 | D13 | Nome e paleta | Nome "Rota"; paleta padrão "Índigo noturno" (alternativa "Azul profundo"), ambas validadas em WCAG AA nos testes. |
 
 ## Formato de dados (implementado na Fase 2)
@@ -78,4 +84,6 @@ A variável de ambiente `ROTA_DATA_DIR` substitui `%APPDATA%/Rota` (usada em tes
 
 ## Atalhos
 
-Ctrl+Enter enviar · Ctrl+S salvar · Ctrl+P buscar · Ctrl+W fechar aba · Ctrl+T nova aba · Ctrl+B recolher sidebar · Ctrl+Tab próxima aba · Ctrl+, configurações · F2 renomear item · Del excluir item.
+Ctrl+Enter enviar · Ctrl+S salvar · Ctrl+P buscar · Ctrl+W fechar aba · Ctrl+T nova aba · Ctrl+B recolher sidebar · Ctrl+Tab próxima aba · Ctrl+, configurações · Ctrl+E (ou F2) renomear item · Ctrl+D duplicar item · Del excluir item.
+
+Ctrl+E e Ctrl+D agem sobre o item focado na sidebar ou, se o foco estiver em outro lugar, sobre o item da aba ativa. Dentro do editor de código (Monaco) as teclas mantêm o comportamento do editor.

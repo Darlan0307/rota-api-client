@@ -1,7 +1,10 @@
 import { useEffect, useRef } from 'react';
 
-/** Atalho no formato "mod+enter", "mod+shift+p" ("mod" = Ctrl). */
-export type HotkeyMap = Record<string, (event: KeyboardEvent) => void>;
+/**
+ * Atalho no formato "mod+enter", "mod+shift+p" ("mod" = Ctrl). O handler pode
+ * devolver `false` para não tratar o evento (a tecla segue o comportamento normal).
+ */
+export type HotkeyMap = Record<string, (event: KeyboardEvent) => unknown>;
 
 function normalize(event: KeyboardEvent): string {
   const parts: string[] = [];
@@ -23,9 +26,8 @@ export function useHotkeys(map: HotkeyMap): void {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       const handler = ref.current[normalize(event)];
-      if (!handler) return;
+      if (!handler || handler(event) === false) return;
       event.preventDefault();
-      handler(event);
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);

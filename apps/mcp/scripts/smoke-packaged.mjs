@@ -1,4 +1,5 @@
 // Teste rápido do MCP empacotado: node apps/mcp/scripts/smoke-packaged.mjs <Rota.exe> <dataDir>
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -24,4 +25,23 @@ const r2 = await client.callTool({
 console.log('criar_ambiente:', r2.isError ? 'ERRO ' : '', JSON.stringify(r2.content).slice(0, 300));
 const r3 = await client.callTool({ name: 'listar_colecoes', arguments: {} });
 console.log('listar_colecoes:', JSON.stringify(r3.content).slice(0, 200));
+const yaml = join(dataDir, 'smoke-openapi.yaml');
+writeFileSync(
+  yaml,
+  [
+    'openapi: 3.0.0',
+    'info: { title: Smoke API, version: "1" }',
+    'paths:',
+    '  /x:',
+    '    get: { responses: { "200": { description: OK } } }',
+  ].join('\n'),
+);
+const r4 = await client.callTool({ name: 'importar_arquivo', arguments: { caminho: yaml } });
+console.log('importar_arquivo (YAML):', r4.isError ? 'ERRO ' : '', JSON.stringify(r4.content).slice(0, 160));
+const r5 = await client.callTool({
+  name: 'criar_colecao_completa',
+  arguments: { nome: 'Docs', requisicoes: [{ pasta: 'A/B', nome: 'R', url: '{{baseUrl}}/r' }] },
+});
+console.log('criar_colecao_completa:', r5.isError ? 'ERRO ' : '', JSON.stringify(r5.content).slice(0, 160));
+console.log('prompts:', (await client.listPrompts()).prompts.map((p) => p.name).join(', '));
 await client.close();

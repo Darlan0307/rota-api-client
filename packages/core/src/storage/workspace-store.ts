@@ -428,7 +428,12 @@ export class WorkspaceStore {
   }
 
   /** Duplica coleção, pasta, requisição ou ambiente (com novos ids). Retorna o id da cópia. */
-  duplicate(id: string): Promise<string> {
+  /**
+   * Duplica um item logo abaixo do original. Os exemplos salvos das
+   * requisições só são copiados com `includeExamples`.
+   */
+  duplicate(id: string, options: { includeExamples?: boolean } = {}): Promise<string> {
+    const withExamples = options.includeExamples ?? false;
     return this.mutate(async () => {
       const entry = this.entries.get(id);
       if (!entry) throw notFound(id);
@@ -440,7 +445,7 @@ export class WorkspaceStore {
           const newIdValue = newId();
           const path = await this.requestPath(parent.dir, copyName);
           await writeJsonAtomic(path, { ...entry.file, id: newIdValue, name: copyName });
-          await this.copyExamples(entry.path, path);
+          if (withExamples) await this.copyExamples(entry.path, path);
           const order = this.childOrder(parent);
           order.splice(order.indexOf(id) + 1, 0, newIdValue);
           await this.writeOrder(parent, order);
@@ -449,7 +454,7 @@ export class WorkspaceStore {
         case 'folder': {
           const parent = this.container(entry.parentId);
           const dest = join(parent.dir, uniqueSlug(copyName, await listDirs(parent.dir)));
-          const copiedId = await this.copyContainerTree(entry.dir, dest, copyName);
+          const copiedId = await this.copyContainerTree(entry.dir, dest, copyName, withExamples);
           const order = this.childOrder(parent);
           order.splice(order.indexOf(id) + 1, 0, copiedId);
           await this.writeOrder(parent, order);
@@ -458,7 +463,7 @@ export class WorkspaceStore {
         case 'collection': {
           const base = join(this.root, COLLECTIONS_DIR);
           const dest = join(base, uniqueSlug(copyName, await listDirs(base)));
-          const copiedId = await this.copyContainerTree(entry.dir, dest, copyName);
+          const copiedId = await this.copyContainerTree(entry.dir, dest, copyName, withExamples);
           // Copia também os valores secretos das variáveis da coleção.
           for (const v of entry.file.variables) {
             const value =
@@ -1138,8 +1143,16 @@ export class WorkspaceStore {
   }
 
   /** Copia uma pasta/coleção inteira trocando todos os ids. Retorna o id da raiz. */
-  private async copyContainerTree(fromDir: string, toDir: string, rootName: string): Promise<string> {
-    await cp(fromDir, toDir, { recursive: true, filter: (src) => !src.endsWith(TEMP_SUFFIX) });
+  private async copyContainerTree(
+    fromDir: string,
+    toDir: string,
+    rootName: string,
+    withExamples: boolean,
+  ): Promise<string> {
+    await cp(fromDir, toDir, {
+      recursive: true,
+      filter: (src) => !src.endsWith(TEMP_SUFFIX) && (withExamples || !src.endsWith(EXAMPLES_SUFFIX)),
+    });
     const idMap = new Map<string, string>();
     const files: string[] = [];
     await collectJsonFiles(toDir, files);

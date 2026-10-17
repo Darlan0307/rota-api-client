@@ -4,7 +4,11 @@
  */
 
 export { CODEGEN_LABELS, CODEGEN_TARGETS, type CodegenTarget } from './codegen/codegen';
+export * from './contract/reference';
+export * from './contract/shape';
 export { type CurlParseResult, looksLikeCurl, parseCurl } from './curl/parse-curl';
+export * from './export/markdown';
+export * from './export/postman-export';
 export type { HistoryEntry, HistorySummary } from './history/history-store';
 export * from './http/auth';
 export type {
@@ -16,7 +20,7 @@ export type {
 } from './http/execute';
 export type { PreparedBody, PreparedRequest } from './http/prepare';
 export * from './http/url';
-export type { ImportPreview, ImportReport, ImportResultItem } from './import/import-postman';
+export type { ImportFileKind, ImportPreview, ImportReport, ImportResultItem } from './import/import-postman';
 export type { ImportCounts, ImportWarning, PostmanFileKind } from './import/postman';
 export * from './loadtest/config';
 export * from './model/schemas';

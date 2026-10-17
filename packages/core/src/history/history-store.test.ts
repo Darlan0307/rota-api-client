@@ -68,10 +68,15 @@ describe('HistoryStore', () => {
 
   it('filtra, remove e limpa', async () => {
     const h = new HistoryStore(dir);
-    await h.add({ name: 'Listar pedidos', data }, result(200, '', 'http://api/pedidos'), []);
+    await h.add(
+      { name: 'Listar pedidos', requestId: 'r-1', data },
+      result(200, '', 'http://api/pedidos'),
+      [],
+    );
     const { id } = await h.add({ name: 'Login', data }, result(500, '', 'http://api/login'), []);
     expect((await h.list({ query: 'pedidos' })).items.map((i) => i.name)).toEqual(['Listar pedidos']);
     expect((await h.list({ query: '500' })).items.map((i) => i.name)).toEqual(['Login']);
+    expect((await h.list({ requestId: 'r-1' })).items.map((i) => i.name)).toEqual(['Listar pedidos']);
 
     await h.remove(id);
     expect((await new HistoryStore(dir).list()).total).toBe(1);

@@ -8,8 +8,10 @@ import {
 } from '@rota/core/shared';
 import {
   Bookmark,
+  BookText,
   ChevronRight,
   Copy,
+  FileDown,
   FilePlus2,
   Folder,
   FolderOpen,
@@ -20,6 +22,7 @@ import {
   Pencil,
   Plus,
   Settings2,
+  Sparkles,
   SquareArrowOutUpRight,
   Trash2,
 } from 'lucide-react';
@@ -35,9 +38,11 @@ import { confirmDialog } from '../../state/dialogs';
 import { useTabs } from '../../state/tabs';
 import { useUiStore } from '../../state/ui';
 import { useSnapshot } from '../../state/workspace';
+import { claudePrompts, copyPrompt } from '../claude/AskClaude';
 import {
   deleteItem,
   duplicateItem,
+  exportCollection,
   newCollection,
   newFolder,
   newRequest,
@@ -225,9 +230,29 @@ function TreeRow({
           { label: 'Abrir', icon: SquareArrowOutUpRight, onSelect: activate },
           'separator',
         ] satisfies MenuEntry[])),
-    { label: 'Renomear', icon: Pencil, onSelect: () => setRenaming(node.id), shortcut: 'F2' },
-    { label: 'Duplicar', icon: Copy, onSelect: () => void duplicateItem(node.id) },
+    { label: 'Renomear', icon: Pencil, onSelect: () => setRenaming(node.id), shortcut: 'Ctrl+E' },
+    { label: 'Duplicar', icon: Copy, onSelect: () => void duplicateItem(node.id), shortcut: 'Ctrl+D' },
     { label: 'Mostrar no Explorer', icon: FolderOpen, onSelect: () => revealInExplorer(node.id) },
+    ...(node.kind === 'collection'
+      ? ([
+          'separator',
+          {
+            label: 'Exportar para o Postman (v2.1)',
+            icon: FileDown,
+            onSelect: () => void exportCollection(node.id, 'postman'),
+          },
+          {
+            label: 'Exportar documentação (Markdown)',
+            icon: BookText,
+            onSelect: () => void exportCollection(node.id, 'markdown'),
+          },
+          {
+            label: 'Pedir ao Claude para documentar',
+            icon: Sparkles,
+            onSelect: () => void copyPrompt(claudePrompts.document(node.name, node.id)),
+          },
+        ] satisfies MenuEntry[])
+      : []),
     'separator',
     { label: 'Excluir', icon: Trash2, onSelect: () => void deleteItem(node), danger: true, shortcut: 'Del' },
   ];
@@ -255,6 +280,7 @@ function TreeRow({
           }}
           tabIndex={0}
           role="treeitem"
+          data-item-id={node.id}
           aria-expanded={container ? open : undefined}
           aria-selected={selected}
           title={url}

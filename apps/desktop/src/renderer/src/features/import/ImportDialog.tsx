@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   ChevronDown,
+  FileCode2,
   FileJson,
   Globe,
   Layers,
@@ -75,7 +76,7 @@ export function ImportDialog() {
     <Dialog
       open={open}
       onOpenChange={(o) => !o && step !== 'importing' && close()}
-      title="Importar do Postman"
+      title="Importar (Postman ou OpenAPI)"
       className="max-h-[86vh] w-[min(720px,94vw)]"
     >
       <div className="flex min-h-0 flex-1 flex-col">
@@ -119,10 +120,14 @@ function DropZone({ compact = false }: { compact?: boolean }) {
     >
       <Upload className={cn('text-fg-subtle', compact ? 'size-4' : 'size-7')} strokeWidth={1.5} />
       <span className="text-[13px] text-fg">
-        {compact ? 'Adicionar mais arquivos' : 'Arraste os arquivos .json aqui ou clique para selecionar'}
+        {compact
+          ? 'Adicionar mais arquivos'
+          : 'Arraste os arquivos .json/.yaml aqui ou clique para selecionar'}
       </span>
       {!compact && (
-        <span className="text-xs text-fg-muted">Coleções (v2.1), ambientes e variáveis globais</span>
+        <span className="text-xs text-fg-muted">
+          Postman (coleções v2.1, ambientes e globais) ou OpenAPI 3 / Swagger 2.0
+        </span>
       )}
     </button>
   );
@@ -145,6 +150,12 @@ function SelectStep() {
             <span className="text-fg">Globais:</span> em Environments → Globals → Export.
           </li>
         </ul>
+        <p className="mb-1.5 mt-3 font-medium text-fg">OpenAPI / Swagger</p>
+        <p>
+          Cada tag vira uma pasta; a URL base vai para a variável <code className="font-mono">baseUrl</code>,
+          parâmetros de caminho viram variáveis da coleção e as respostas documentadas viram exemplos (base
+          para a verificação de contrato).
+        </p>
         <p className="mt-2">
           Pastas, autenticação, variáveis, scripts e exemplos são preservados. O que não for suportado aparece
           no relatório ao final.
@@ -161,11 +172,12 @@ const KIND: Record<string, { label: string; icon: typeof Library }> = {
   collection: { label: 'Coleção', icon: Library },
   environment: { label: 'Ambiente', icon: Layers },
   globals: { label: 'Variáveis globais', icon: Globe },
+  openapi: { label: 'OpenAPI', icon: FileCode2 },
   unknown: { label: 'Desconhecido', icon: FileJson },
 };
 
 function countsText(kind: string, c: ImportCounts): string {
-  if (kind === 'collection') {
+  if (kind === 'collection' || kind === 'openapi') {
     return [
       `${c.requests} requisições`,
       c.folders ? `${c.folders} pastas` : null,
@@ -330,7 +342,7 @@ function ReportItem({ item }: { item: ImportResultItem }) {
   function openItem() {
     const snapshot = useWorkspace.getState().state?.snapshot;
     if (!snapshot || !item.id) return;
-    if (item.kind === 'collection') {
+    if (item.kind === 'collection' || item.kind === 'openapi') {
       useUiStore.getState().showSection('collections');
       useUiStore.getState().setExpanded(item.id, true);
       useTabs.getState().openItem('collection', item.id, snapshot);

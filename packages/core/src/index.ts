@@ -15,6 +15,7 @@ export type {
   ImportResultItem,
 } from './import/import-postman';
 export { importPostmanFiles, previewPostmanFiles } from './import/import-postman';
+export { convertOpenApi, detectOpenApi } from './import/openapi';
 export type { ImportCounts, ImportWarning, PostmanFileKind } from './import/postman';
 export {
   convertCollection,

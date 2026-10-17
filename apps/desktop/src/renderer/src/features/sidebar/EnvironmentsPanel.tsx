@@ -1,4 +1,15 @@
-import { CheckCircle2, Copy, Globe, Layers, Lock, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
+import {
+  CheckCircle2,
+  Copy,
+  FileDown,
+  Globe,
+  Layers,
+  Lock,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Trash2,
+} from 'lucide-react';
 import { ContextActions, DropdownActions, type MenuEntry } from '../../components/ActionMenu';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
@@ -6,7 +17,13 @@ import { api } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import { useTabs } from '../../state/tabs';
 import { useActiveEnvironmentId, useSnapshot } from '../../state/workspace';
-import { deleteItem, duplicateItem, newEnvironment, renameEnvironment } from './item-actions';
+import {
+  deleteItem,
+  duplicateItem,
+  exportVariables,
+  newEnvironment,
+  renameEnvironment,
+} from './item-actions';
 
 export function EnvironmentsPanel({ filter }: { filter: string }) {
   const snapshot = useSnapshot();
@@ -58,8 +75,23 @@ export function EnvironmentsPanel({ filter }: { filter: string }) {
                 onSelect: () => void api.invoke('workspace:setActiveEnvironment', isActive ? null : env.id),
               },
               'separator',
-              { label: 'Renomear', icon: Pencil, onSelect: () => void renameEnvironment(env.id, env.name) },
-              { label: 'Duplicar', icon: Copy, onSelect: () => void duplicateItem(env.id) },
+              {
+                label: 'Renomear',
+                icon: Pencil,
+                onSelect: () => void renameEnvironment(env.id, env.name),
+                shortcut: 'Ctrl+E',
+              },
+              {
+                label: 'Duplicar',
+                icon: Copy,
+                onSelect: () => void duplicateItem(env.id),
+                shortcut: 'Ctrl+D',
+              },
+              {
+                label: 'Exportar para o Postman',
+                icon: FileDown,
+                onSelect: () => void exportVariables(env.id),
+              },
               'separator',
               {
                 label: 'Excluir',
@@ -74,6 +106,7 @@ export function EnvironmentsPanel({ filter }: { filter: string }) {
                   <div
                     role="button"
                     tabIndex={0}
+                    data-item-id={env.id}
                     onClick={() => useTabs.getState().openItem('environment', env.id, snapshot)}
                     onKeyDown={(e) =>
                       e.key === 'Enter' && useTabs.getState().openItem('environment', env.id, snapshot)

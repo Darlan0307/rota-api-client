@@ -141,6 +141,29 @@ describe('WorkspaceStore: renomear, mover, duplicar, excluir', () => {
     expect(findNode(store.snapshot(), copy)?.name).toBe('Pasta (cópia)');
   });
 
+  it('duplica sem os exemplos salvos, a menos que peça', async () => {
+    const col = await store.createCollection('C');
+    const folder = await store.createFolder(col, 'Pasta');
+    const req = await store.createRequest(folder, 'R');
+    await store.saveExample(req, {
+      name: 'Sucesso',
+      response: { status: 200, statusText: 'OK', headers: [], body: '{}' },
+    });
+    const examplesOf = (id: string) => {
+      const node = findNode(store.snapshot(), id);
+      return node?.kind === 'request' ? node.examples.length : -1;
+    };
+
+    expect(examplesOf(await store.duplicate(req))).toBe(0);
+    expect(examplesOf(await store.duplicate(req, { includeExamples: true }))).toBe(1);
+
+    const folderCopy = await store.duplicate(folder);
+    const copied = findNode(store.snapshot(), folderCopy);
+    if (copied?.kind !== 'folder') throw new Error('pasta');
+    expect(copied.children.map((c) => (c.kind === 'request' ? c.examples.length : -1))).toEqual([0, 0, 0]);
+    expect(examplesOf(req)).toBe(1);
+  });
+
   it('exclui itens e limpa segredos de coleções/ambientes', async () => {
     const col = await store.createCollection('C', {
       variables: [{ key: 'k', type: 'secret', enabled: true, value: 'v' }],

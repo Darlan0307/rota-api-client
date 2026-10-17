@@ -5,12 +5,15 @@ import {
   type ChildNode,
   CODEGEN_TARGETS,
   type CollectionNode,
+  checkContract,
   composeUrl,
+  describeContractIssue,
   diffRequestData,
   effectiveAuth,
   findNode,
   generateCode,
   HttpMethodSchema,
+  type HttpResponse,
   KeyValueSchema,
   loadAppSettings,
   maskSecretValues,
@@ -191,7 +194,7 @@ function truncate(text: string): string {
 // Esquemas reutilizados
 
 const id = z.string().describe('Id do item (obtido em listar_colecoes, buscar ou obter_item)');
-const variableInput = z.object({
+export const variableInput = z.object({
   chave: z.string(),
   valor: z.string().optional().describe('Para variáveis secretas, o valor vai cifrado para o cofre local'),
   secreta: z.boolean().optional(),
@@ -200,7 +203,7 @@ const variableInput = z.object({
 });
 type VariableArg = z.infer<typeof variableInput>;
 
-function toVariableInputs(vars: readonly VariableArg[] = []): VariableInput[] {
+export function toVariableInputs(vars: readonly VariableArg[] = []): VariableInput[] {
   return vars.map((v) => ({
     key: v.chave,
     type: v.secreta ? 'secret' : 'default',
@@ -210,7 +213,7 @@ function toVariableInputs(vars: readonly VariableArg[] = []): VariableInput[] {
   }));
 }
 
-const requestFields = {
+export const requestFields = {
   metodo: HttpMethodSchema.optional(),
   url: z.string().optional().describe('URL sem a query string; aceita {{variaveis}}'),
   query: z.array(KeyValueSchema).optional().describe('Parâmetros de query (inclusive desabilitados)'),
@@ -222,7 +225,7 @@ const requestFields = {
   descricao: z.string().optional(),
 };
 
-function requestPatch(args: Partial<Record<keyof typeof requestFields, unknown>>) {
+export function requestPatch(args: Partial<Record<keyof typeof requestFields, unknown>>) {
   const patch: Record<string, unknown> = {};
   const map: Record<string, string> = {
     metodo: 'method',
@@ -242,10 +245,32 @@ function requestPatch(args: Partial<Record<keyof typeof requestFields, unknown>>
   return patch;
 }
 
+/** Compara a resposta com o exemplo salvo de mesmo status (campos removidos ou com tipo diferente). */
+function contractSummary(
+  store: WorkspaceStore,
+  requestId: string | undefined,
+  response: HttpResponse | null,
+): { contrato?: unknown } {
+  if (!requestId || !response || response.body.encoding !== 'utf8') return {};
+  const node = findNode(store.snapshot(), requestId);
+  if (node?.kind !== 'request') return {};
+  const check = checkContract(node.examples, response.status, response.body.data);
+  if (!check) return {};
+  return {
+    contrato: {
+      exemploDeReferencia: check.example.name,
+      ok: check.report.breaking.length === 0,
+      quebras: check.report.breaking.map(describeContractIssue),
+      camposNovos: check.report.added.map(describeContractIssue),
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 
-export function registerTools(server: McpServer, session: McpSession): void {
-  const tool = <S extends z.ZodRawShape>(
+/** Registra uma ferramenta com tratamento de erros e máscara de segredos. */
+export function toolRegistrar(server: McpServer, session: McpSession) {
+  return <S extends z.ZodRawShape>(
     name: string,
     description: string,
     inputSchema: S,
@@ -258,6 +283,10 @@ export function registerTools(server: McpServer, session: McpSession): void {
       // biome-ignore lint/suspicious/noExplicitAny: o SDK tipa os argumentos a partir do schema
       handler(fn, async () => session.secretValues()) as any,
     );
+}
+
+export function registerTools(server: McpServer, session: McpSession): void {
+  const tool = toolRegistrar(server, session);
 
   // ---- Workspaces ----------------------------------------------------------
 
@@ -388,13 +417,18 @@ export function registerTools(server: McpServer, session: McpSession): void {
     },
   );
 
-  tool('duplicar', 'Duplica uma coleção, pasta, requisição ou ambiente.', { id }, async ({ id }) => {
-    const store = await session.store();
-    const label = itemLabel(store, id);
-    const newId = await store.duplicate(id);
-    await session.notifyChanged(`duplicou ${label}`);
-    return { id: newId };
-  });
+  tool(
+    'duplicar',
+    'Duplica uma coleção, pasta, requisição ou ambiente. Os exemplos salvos só são copiados com incluirExemplos.',
+    { id, incluirExemplos: z.boolean().optional() },
+    async ({ id, incluirExemplos }) => {
+      const store = await session.store();
+      const label = itemLabel(store, id);
+      const newId = await store.duplicate(id, { includeExamples: incluirExemplos ?? false });
+      await session.notifyChanged(`duplicou ${label}`);
+      return { id: newId };
+    },
+  );
 
   // ---- Edição (exige confirmação no app) ----------------------------------
 
@@ -762,6 +796,7 @@ export function registerTools(server: McpServer, session: McpSession): void {
           ? { console: run.console.map((c) => `[${c.level}] ${mask(c.message)}`) }
           : {}),
         ...(run.scriptErrors?.length ? { errosDeScript: run.scriptErrors.map((e) => mask(e.message)) } : {}),
+        ...contractSummary(store, requestId, res),
       };
     },
   );

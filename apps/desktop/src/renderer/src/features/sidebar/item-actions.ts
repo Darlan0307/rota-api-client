@@ -1,6 +1,6 @@
-import { findNode, type TreeNode } from '@rota/core/shared';
+import { ancestorsOf, findNode, type TreeNode } from '@rota/core/shared';
 import { create } from 'zustand';
-import { api, runCommand } from '../../lib/api';
+import { api, errorMessage, runCommand } from '../../lib/api';
 import { confirmDialog, promptDialog } from '../../state/dialogs';
 import { useTabs } from '../../state/tabs';
 import { toast } from '../../state/toasts';
@@ -59,6 +59,42 @@ export async function newRequest(parentId: string): Promise<void> {
   }
 }
 
+/**
+ * Item alvo dos atalhos Ctrl+E / Ctrl+D: o item focado na sidebar ou, se o
+ * foco estiver em outro lugar, o item da aba ativa.
+ */
+export function selectedItemId(): string | null {
+  const focused = document.activeElement?.closest<HTMLElement>('[data-item-id]');
+  if (focused?.dataset.itemId) return focused.dataset.itemId;
+  const tabs = useTabs.getState();
+  const tab = tabs.tabs.find((t) => t.id === tabs.activeId);
+  if (!tab?.itemId) return null;
+  return ['request', 'collection', 'folder', 'environment'].includes(tab.kind) ? tab.itemId : null;
+}
+
+/** Renomeia o item selecionado: inline na árvore (revelando-o) ou, para ambientes, num diálogo. */
+export function renameSelected(): void {
+  const id = selectedItemId();
+  const snap = snapshot();
+  if (!id || !snap) return;
+  const env = snap.environments.find((e) => e.id === id);
+  if (env) {
+    void renameEnvironment(id, env.name);
+    return;
+  }
+  if (!findNode(snap, id)) return;
+  const ui = useUiStore.getState();
+  ui.showSection('collections');
+  ui.expandMany(ancestorsOf(snap, id).map((a) => a.id));
+  // Espera a árvore renderizar o item revelado antes de abrir o campo.
+  requestAnimationFrame(() => useRenaming.getState().set(id));
+}
+
+export function duplicateSelected(): void {
+  const id = selectedItemId();
+  if (id) void duplicateItem(id);
+}
+
 export async function duplicateItem(id: string): Promise<void> {
   const result = await runCommand({ type: 'duplicate', id });
   if (result?.id) toast.success('Item duplicado.');
@@ -106,6 +142,26 @@ export async function newEnvironment(): Promise<void> {
   const result = await runCommand({ type: 'createEnvironment', name });
   const snap = snapshot();
   if (result?.id && snap) useTabs.getState().openItem('environment', result.id, snap);
+}
+
+/** Exporta e avisa onde o arquivo ficou. Valores secretos nunca vão para o arquivo. */
+export async function exportCollection(id: string, format: 'postman' | 'markdown'): Promise<void> {
+  try {
+    const path = await api.invoke('export:collection', id, format);
+    if (path)
+      toast.success(`Exportado para ${path}${format === 'postman' ? ' (sem valores secretos)' : ''}.`);
+  } catch (error) {
+    toast.error(errorMessage(error));
+  }
+}
+
+export async function exportVariables(id: string | null): Promise<void> {
+  try {
+    const path = await api.invoke('export:variables', id);
+    if (path) toast.success(`Exportado para ${path} (sem valores secretos).`);
+  } catch (error) {
+    toast.error(errorMessage(error));
+  }
 }
 
 export function revealInExplorer(id?: string): void {

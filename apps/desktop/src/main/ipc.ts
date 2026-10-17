@@ -1,5 +1,9 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import {
+  collectionToMarkdown,
+  exportCollectionToPostman,
+  exportEnvironmentToPostman,
+  exportGlobalsToPostman,
   generateCode,
   importPostmanFiles,
   inspectFolder,
@@ -7,6 +11,7 @@ import {
   prepareForDisplay,
   prepareProjectFolder,
   previewPostmanFiles,
+  slugify,
   variableScopeFor,
   withRecentWorkspace,
 } from '@rota/core';
@@ -120,10 +125,13 @@ export function registerIpcHandlers({ workspace, requests, settings, loadTests, 
   handle('import:pickFiles', async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const options: Electron.OpenDialogOptions = {
-      title: 'Importar do Postman',
+      title: 'Importar do Postman ou OpenAPI',
       buttonLabel: 'Selecionar',
       properties: ['openFile', 'multiSelections'],
-      filters: [{ name: 'Exportações do Postman (JSON)', extensions: ['json'] }],
+      filters: [
+        { name: 'Postman ou OpenAPI (JSON, YAML)', extensions: ['json', 'yaml', 'yml'] },
+        { name: 'Todos os arquivos', extensions: ['*'] },
+      ],
     };
     const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
     return result.canceled ? [] : result.filePaths;
@@ -136,7 +144,9 @@ export function registerIpcHandlers({ workspace, requests, settings, loadTests, 
   });
 
   // Histórico
-  handle('history:list', (_e, query, limit) => workspace.history.list({ query, limit }));
+  handle('history:list', (_e, query, limit, requestId) =>
+    workspace.history.list({ query, limit, ...(requestId ? { requestId } : {}) }),
+  );
   handle('history:get', async (_e, id) => (await workspace.history.get(id)) ?? null);
   handle('history:remove', async (event, id) => {
     await workspace.history.remove(id);
@@ -158,6 +168,62 @@ export function registerIpcHandlers({ workspace, requests, settings, loadTests, 
       reveal: input.reveal,
     });
     return generateCode(prepared, input.target);
+  });
+
+  // Exportação (valores secretos nunca vão para os arquivos exportados)
+  const saveAs = async (
+    event: Electron.IpcMainInvokeEvent,
+    defaultName: string,
+    ext: 'json' | 'md',
+    content: string,
+  ) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const options: Electron.SaveDialogOptions = {
+      title: 'Exportar',
+      defaultPath: defaultName,
+      filters: [
+        ext === 'json' ? { name: 'JSON', extensions: ['json'] } : { name: 'Markdown', extensions: ['md'] },
+      ],
+    };
+    const result = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
+    if (result.canceled || !result.filePath) return null;
+    await writeFile(result.filePath, content, 'utf8');
+    return result.filePath;
+  };
+  handle('export:collection', (event, id, format) => {
+    const collection = workspace.current.snapshot().collections.find((c) => c.id === id);
+    if (!collection) throw new Error('Coleção não encontrada.');
+    const base = slugify(collection.name) || 'colecao';
+    return format === 'postman'
+      ? saveAs(
+          event,
+          `${base}.postman_collection.json`,
+          'json',
+          `${JSON.stringify(exportCollectionToPostman(collection), null, 2)}
+`,
+        )
+      : saveAs(event, `${base}.md`, 'md', collectionToMarkdown(collection));
+  });
+  handle('export:variables', (event, id) => {
+    const snap = workspace.current.snapshot();
+    if (id === null) {
+      return saveAs(
+        event,
+        'globals.postman_globals.json',
+        'json',
+        `${JSON.stringify(exportGlobalsToPostman(snap.globals), null, 2)}
+`,
+      );
+    }
+    const env = snap.environments.find((e) => e.id === id);
+    if (!env) throw new Error('Ambiente não encontrado.');
+    return saveAs(
+      event,
+      `${slugify(env.name) || 'ambiente'}.postman_environment.json`,
+      'json',
+      `${JSON.stringify(exportEnvironmentToPostman(env), null, 2)}
+`,
+    );
   });
 
   // Teste de carga
