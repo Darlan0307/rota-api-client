@@ -11,6 +11,7 @@ const KIND_LABEL: Record<Tab['kind'], string> = {
   globals: 'As variáveis globais',
   collection: 'Esta coleção',
   folder: 'Esta pasta',
+  example: 'Este exemplo',
 };
 
 /**

@@ -36,6 +36,7 @@ export async function sendRequest(tabId: string): Promise<void> {
       runId,
       requestId: tab.itemId ?? undefined,
       parentId: tab.parentId ?? undefined,
+      name: tab.title,
       data: tab.draft,
     });
     useTabs
@@ -129,6 +130,8 @@ export async function saveTab(tabId: string): Promise<boolean> {
       if (ok) tabs.markSaved(tabId);
       return Boolean(ok);
     }
+    case 'example':
+      return true;
   }
 }
 

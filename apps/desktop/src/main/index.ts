@@ -104,7 +104,9 @@ if (!app.requestSingleInstanceLock()) {
 
     const settings = new SettingsService();
     const workspace = new WorkspaceService(broadcast);
-    const requests = new RequestService(workspace, settings, `${APP_NAME}/${app.getVersion()}`);
+    const requests = new RequestService(workspace, settings, `${APP_NAME}/${app.getVersion()}`, () => {
+      for (const win of BrowserWindow.getAllWindows()) win.webContents.send('history:changed', null);
+    });
     const loaded = await settings.load();
     try {
       await workspace.open(loaded.currentWorkspace);

@@ -24,6 +24,8 @@ export interface PrepareOptions {
   /** Gera a versão "para exibir": segredos viram ••••••. */
   maskSecrets?: boolean;
   userAgent?: string;
+  /** Headers automáticos (User-Agent, Accept...). Padrão: true. */
+  defaultHeaders?: boolean;
 }
 
 const RAW_CONTENT_TYPES: Record<RawLanguage, string> = {
@@ -107,7 +109,9 @@ export function prepareRequest(data: RequestData, options: PrepareOptions): Prep
     ['Accept', '*/*'],
     ['Accept-Encoding', 'gzip, deflate, br'],
   ];
-  for (const [k, v] of defaults) if (!findHeader(headers, k)) headers.push([k, v]);
+  if (options.defaultHeaders !== false) {
+    for (const [k, v] of defaults) if (!findHeader(headers, k)) headers.push([k, v]);
+  }
 
   return {
     method: data.method,

@@ -95,6 +95,27 @@ export function variableScopeFor(
 }
 
 /**
+ * Requisição resolvida para exibir/gerar código (sem enviar). Por padrão os
+ * segredos aparecem como ••••••; `reveal` mostra os valores reais.
+ */
+export function prepareForDisplay(
+  data: RequestData,
+  ctx: Pick<RunContext, 'store' | 'requestId' | 'parentId' | 'environmentId'> & {
+    defaultTimeoutMs: number;
+    reveal?: boolean;
+  },
+): PreparedRequest {
+  const scope = variableScopeFor(ctx.store, ctx);
+  return prepareRequest(data, {
+    scope,
+    auth: effectiveAuth(ctx.store, data, ctx).auth,
+    defaultTimeoutMs: ctx.defaultTimeoutMs,
+    maskSecrets: !ctx.reveal,
+    defaultHeaders: false,
+  });
+}
+
+/**
  * Executa uma requisição como o app faria: resolve variáveis e auth herdada,
  * envia e devolve a resposta. Nunca lança — erros vêm em `error`.
  */

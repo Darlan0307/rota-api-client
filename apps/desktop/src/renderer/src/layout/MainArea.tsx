@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Kbd } from '../components/Kbd';
 import { Logo } from '../components/Logo';
 import { ContainerTabView } from '../features/collection/ContainerTabView';
+import { ExampleTabView } from '../features/examples/ExampleTabView';
 import { RequestEditor } from '../features/request/RequestEditor';
 import { newCollection, newEnvironment } from '../features/sidebar/item-actions';
 import { VariablesTabView } from '../features/variables/VariablesTabView';
@@ -31,6 +32,7 @@ export function MainArea() {
         {(tab?.kind === 'environment' || tab?.kind === 'globals') && (
           <VariablesTabView key={tab.id} tab={tab} />
         )}
+        {tab?.kind === 'example' && <ExampleTabView key={tab.id} tab={tab} />}
         {(tab?.kind === 'collection' || tab?.kind === 'folder') && (
           <ContainerTabView key={tab.id} tab={tab} />
         )}

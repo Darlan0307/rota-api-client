@@ -1,5 +1,7 @@
 /** Ponto de entrada completo (Node): app (processo principal) e servidor MCP. */
 
+export { generateCode, shellQuote } from './codegen/codegen';
+export { type HistoryQuery, HistoryStore } from './history/history-store';
 export type { ExecuteOptions } from './http/execute';
 export { executeRequest, HttpError, isBypassed } from './http/execute';
 export type { PrepareOptions } from './http/prepare';
@@ -22,7 +24,13 @@ export {
 } from './import/postman';
 export * from './paths';
 export type { RunContext, RunOutcome, RunSettings } from './runner/run-request';
-export { authChain, effectiveAuth, runRequest, variableScopeFor } from './runner/run-request';
+export {
+  authChain,
+  effectiveAuth,
+  prepareForDisplay,
+  runRequest,
+  variableScopeFor,
+} from './runner/run-request';
 export { createSecretStore, keyringMasterKey } from './secrets/keyring';
 export * from './secrets/secret-store';
 export * from './settings';

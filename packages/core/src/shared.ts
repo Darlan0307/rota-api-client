@@ -3,6 +3,9 @@
  * (navegador). Tudo que lê disco, rede ou usa `node:*` fica em `index.ts`.
  */
 
+export { CODEGEN_LABELS, CODEGEN_TARGETS, type CodegenTarget } from './codegen/codegen';
+export { type CurlParseResult, looksLikeCurl, parseCurl } from './curl/parse-curl';
+export type { HistoryEntry, HistorySummary } from './history/history-store';
 export * from './http/auth';
 export type {
   HttpErrorCode,
@@ -18,6 +21,7 @@ export type { ImportCounts, ImportWarning, PostmanFileKind } from './import/post
 export * from './model/schemas';
 export * from './model/tree';
 export type { RunError, RunResult } from './runner/run-request';
+export * from './search/search';
 export type { AppSettings } from './settings';
 export type { ItemKind, VariableTarget } from './storage/workspace-store';
 export { contrastRatio, relativeLuminance, WCAG } from './util/contrast';

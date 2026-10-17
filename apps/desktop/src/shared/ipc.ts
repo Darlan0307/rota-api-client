@@ -10,8 +10,13 @@
 import type {
   AppSettings,
   Auth,
+  CodegenTarget,
+  HistoryEntry,
+  HistorySummary,
+  HttpResponse,
   ImportPreview,
   ImportReport,
+  PreparedRequest,
   RequestData,
   RunResult,
   VariableInput,
@@ -69,7 +74,25 @@ export interface SendRequestInput {
   runId: string;
   requestId?: string | undefined;
   parentId?: string | undefined;
+  /** Nome exibido no histórico. */
+  name: string;
   data: RequestData;
+}
+
+export interface CodegenInput {
+  requestId?: string | undefined;
+  parentId?: string | undefined;
+  data: RequestData;
+  target: CodegenTarget;
+  /** Mostra os valores reais das variáveis secretas. */
+  reveal: boolean;
+}
+
+export interface SaveExampleInput {
+  requestId: string;
+  name: string;
+  request: PreparedRequest | null;
+  response: HttpResponse;
 }
 
 export interface IpcContract {
@@ -99,10 +122,25 @@ export interface IpcContract {
   'import:pickFiles': { args: []; result: string[] };
   'import:preview': { args: [paths: string[]]; result: ImportPreview[] };
   'import:run': { args: [paths: string[], secretKeys: Record<string, string[]>]; result: ImportReport };
+
+  'history:list': {
+    args: [query: string, limit: number];
+    result: { items: HistorySummary[]; total: number };
+  };
+  'history:get': { args: [id: string]; result: HistoryEntry | null };
+  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
+  'history:remove': { args: [id: string]; result: void };
+  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
+  'history:clear': { args: []; result: void };
+
+  'codegen:generate': { args: [input: CodegenInput]; result: string };
+  'examples:save': { args: [input: SaveExampleInput]; result: string };
 }
 
 export interface IpcEvents {
   'workspace:changed': WorkspaceState;
+  /** O histórico ganhou/perdeu entradas. */
+  'history:changed': null;
 }
 
 export type IpcChannel = keyof IpcContract;
@@ -126,9 +164,15 @@ export const IPC_CHANNELS = [
   'import:pickFiles',
   'import:preview',
   'import:run',
+  'history:list',
+  'history:get',
+  'history:remove',
+  'history:clear',
+  'codegen:generate',
+  'examples:save',
 ] as const satisfies readonly IpcChannel[];
 
-export const IPC_EVENTS = ['workspace:changed'] as const satisfies readonly IpcEvent[];
+export const IPC_EVENTS = ['workspace:changed', 'history:changed'] as const satisfies readonly IpcEvent[];
 
 // Garante em tempo de compilação que as listas cobrem todo o contrato.
 type MissingChannels = Exclude<IpcChannel, (typeof IPC_CHANNELS)[number]>;

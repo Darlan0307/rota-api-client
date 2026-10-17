@@ -30,6 +30,7 @@ export interface RequestEditorExtensions {
   onUrlPaste?: (tab: RequestTab, event: ClipboardEvent<HTMLInputElement>) => void;
   renderScripts?: (tab: RequestTab, onChange: (data: RequestData) => void) => ReactNode;
   responseSections?: (tab: RequestTab) => ResponseExtraSection[];
+  responseActions?: (tab: RequestTab) => ReactNode;
   headerActions?: (tab: RequestTab) => ReactNode;
 }
 
@@ -66,7 +67,11 @@ export function RequestEditor({ tab }: { tab: RequestTab }) {
             </Panel>
             <ResizeHandle vertical={paneLayout === 'vertical'} />
             <Panel id="response" minSize="20%" defaultSize="50%">
-              <ResponsePane tab={tab} extraSections={extensions.responseSections?.(tab) ?? []} />
+              <ResponsePane
+                tab={tab}
+                extraSections={extensions.responseSections?.(tab) ?? []}
+                actions={extensions.responseActions?.(tab)}
+              />
             </Panel>
           </Group>
         </div>

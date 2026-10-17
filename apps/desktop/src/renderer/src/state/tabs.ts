@@ -4,6 +4,7 @@ import {
   diffLines,
   diffRequestData,
   diffVariables,
+  type ExampleFile,
   type FieldChange,
   findNode,
   type RequestData,
@@ -11,6 +12,7 @@ import {
   type RunResult,
   type VariableView,
   type WorkspaceSnapshot,
+  walkTree,
 } from '@rota/core/shared';
 import { create } from 'zustand';
 import { deepEqual } from '../lib/equal';
@@ -76,7 +78,25 @@ export interface FolderTab extends TabCommon {
   section: 'auth' | 'description';
 }
 
-export type Tab = RequestTab | VariablesTab | CollectionTab | FolderTab;
+/** Exemplo salvo de uma requisição (somente leitura). */
+export interface ExampleTab extends TabCommon {
+  kind: 'example';
+  requestId: string;
+  draft: ExampleFile;
+  base: ExampleFile;
+}
+
+export type Tab = RequestTab | VariablesTab | CollectionTab | FolderTab | ExampleTab;
+
+/** Localiza um exemplo e a requisição dona. */
+export function findExample(snapshot: WorkspaceSnapshot, id: string) {
+  for (const node of walkTree(snapshot.collections)) {
+    if (node.kind !== 'request') continue;
+    const example = node.examples.find((e) => e.id === id);
+    if (example) return { example, request: node };
+  }
+  return undefined;
+}
 export type TabKind = Tab['kind'];
 
 // ---------------------------------------------------------------------------
@@ -93,6 +113,10 @@ function readIncoming(
   if (tab.kind === 'environment') {
     const env = snapshot.environments.find((e) => e.id === tab.itemId);
     return env ? { title: env.name, value: env.variables } : NOT_FOUND;
+  }
+  if (tab.kind === 'example') {
+    const found = findExample(snapshot, tab.itemId);
+    return found ? { title: found.example.name, value: found.example } : NOT_FOUND;
   }
   const node = findNode(snapshot, tab.itemId);
   if (!node || node.kind !== tab.kind) return NOT_FOUND;
@@ -124,6 +148,8 @@ export function isDirty(tab: Tab): boolean {
       );
     case 'folder':
       return !deepEqual(tab.draft, tab.base);
+    case 'example':
+      return false;
   }
 }
 
@@ -156,6 +182,10 @@ function withIncoming(tab: Tab, value: unknown): Tab {
       const v = value as FolderTab['base'];
       return { ...tab, base: v, draft: structuredClone(v), conflict: null };
     }
+    case 'example': {
+      const v = value as ExampleFile;
+      return { ...tab, base: v, draft: v, conflict: null };
+    }
   }
 }
 
@@ -186,6 +216,8 @@ function describeChanges(tab: Tab, incoming: unknown): FieldChange[] {
         ...descriptionChange(tab.base.description, inc.description),
       ];
     }
+    case 'example':
+      return [];
   }
 }
 
@@ -212,6 +244,8 @@ function draftMatches(tab: Tab, incoming: unknown): boolean {
       return !isDirty({ ...tab, base: (probe as CollectionTab).base });
     case 'folder':
       return deepEqual(tab.draft, incoming);
+    case 'example':
+      return true;
   }
 }
 
@@ -225,12 +259,17 @@ interface TabsState {
   workspaceRoot: string | null;
 
   openItem(
-    kind: 'request' | 'collection' | 'folder' | 'environment',
+    kind: 'request' | 'collection' | 'folder' | 'environment' | 'example',
     itemId: string,
     snapshot: WorkspaceSnapshot,
   ): void;
   openGlobals(snapshot: WorkspaceSnapshot): void;
-  openNewRequest(options?: { parentId?: string | null; data?: Partial<RequestData>; title?: string }): string;
+  openNewRequest(options?: {
+    parentId?: string | null;
+    data?: Partial<RequestData>;
+    title?: string;
+    run?: RunState | null;
+  }): string;
   close(id: string): void;
   closeOthers(id: string): void;
   setActive(id: string): void;
@@ -255,7 +294,7 @@ export function newRequestData(partial: Partial<RequestData> = {}): RequestData 
 }
 
 function createTab(
-  kind: 'request' | 'collection' | 'folder' | 'environment' | 'globals',
+  kind: 'request' | 'collection' | 'folder' | 'environment' | 'globals' | 'example',
   itemId: string | null,
   incoming: { title: string; value: unknown },
 ): Tab {
@@ -300,6 +339,10 @@ function createTab(
         },
         incoming.value,
       );
+    case 'example': {
+      const example = incoming.value as ExampleFile;
+      return { ...common, kind, requestId: '', draft: example, base: example };
+    }
   }
 }
 
@@ -322,6 +365,7 @@ export const useTabs = create<TabsState>()((set, get) => ({
       const node = findNode(snapshot, itemId);
       if (node?.kind === 'request') tab.parentId = node.parentId;
     }
+    if (tab.kind === 'example') tab.requestId = findExample(snapshot, itemId)?.request.id ?? '';
     set((s) => ({ tabs: [...s.tabs, tab], activeId: tab.id }));
   },
 
@@ -346,7 +390,7 @@ export const useTabs = create<TabsState>()((set, get) => ({
       conflict: null,
       draft: data,
       base: null,
-      run: null,
+      run: options.run ?? null,
       section: 'params',
       responseSection: 'body',
     };

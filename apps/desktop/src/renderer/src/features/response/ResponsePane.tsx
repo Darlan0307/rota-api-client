@@ -22,9 +22,12 @@ const MAX_PRETTY_BYTES = 5 * 1024 * 1024;
 export function ResponsePane({
   tab,
   extraSections,
+  actions,
 }: {
   tab: RequestTab;
   extraSections?: ResponseExtraSection[];
+  /** Ações extras no cabeçalho da resposta (ex.: salvar como exemplo). */
+  actions?: ReactNode;
 }) {
   const run = tab.run;
   const result = run?.result;
@@ -52,6 +55,7 @@ export function ResponsePane({
           response={result.response}
           sending={sending}
           extraSections={extraSections ?? []}
+          actions={actions}
         />
       ) : null}
     </section>
@@ -138,11 +142,13 @@ function ResponseView({
   response,
   sending,
   extraSections,
+  actions,
 }: {
   tab: RequestTab;
   response: HttpResponse;
   sending: boolean;
   extraSections: ResponseExtraSection[];
+  actions: ReactNode;
 }) {
   const update = useTabs((s) => s.update);
   const section = tab.responseSection;
@@ -205,6 +211,7 @@ function ResponseView({
           ))}
         </div>
         <div className="flex-1" />
+        {actions}
         {sending && <LoaderCircle className="size-3.5 animate-spin text-primary" />}
         <div className="flex items-center gap-3 text-xs">
           <span

@@ -7,6 +7,7 @@ import {
   walkTree,
 } from '@rota/core/shared';
 import {
+  Bookmark,
   ChevronRight,
   Copy,
   FilePlus2,
@@ -29,6 +30,8 @@ import { EmptyState } from '../../components/EmptyState';
 import { MethodBadge } from '../../components/MethodBadge';
 import { runCommand } from '../../lib/api';
 import { cn } from '../../lib/cn';
+import { statusTone } from '../../lib/format';
+import { confirmDialog } from '../../state/dialogs';
 import { useTabs } from '../../state/tabs';
 import { useUiStore } from '../../state/ui';
 import { useSnapshot } from '../../state/workspace';
@@ -279,6 +282,23 @@ function TreeRow({
                 open && 'rotate-90',
               )}
             />
+          ) : node.kind === 'request' && node.examples.length > 0 ? (
+            <button
+              type="button"
+              aria-label={expanded ? 'Ocultar exemplos' : 'Mostrar exemplos'}
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpanded(node.id, !expanded);
+              }}
+              className="flex size-3.5 shrink-0 items-center justify-center"
+            >
+              <ChevronRight
+                className={cn(
+                  'size-3.5 text-fg-subtle transition-transform duration-150',
+                  expanded && 'rotate-90',
+                )}
+              />
+            </button>
           ) : (
             <span className="w-3.5 shrink-0" />
           )}
@@ -320,6 +340,14 @@ function TreeRow({
         </div>
       </ContextActions>
 
+      {node.kind === 'request' && expanded && node.examples.length > 0 && (
+        <ul>
+          {node.examples.map((ex) => (
+            <ExampleRow key={ex.id} id={ex.id} name={ex.name} status={ex.response.status} depth={depth + 1} />
+          ))}
+        </ul>
+      )}
+
       {open && (
         <ul>
           {node.children.length === 0 ? (
@@ -354,6 +382,68 @@ function TreeRow({
       )}
     </li>
   );
+}
+
+function ExampleRow({
+  id,
+  name,
+  status,
+  depth,
+}: {
+  id: string;
+  name: string;
+  status: number;
+  depth: number;
+}) {
+  const snapshot = useSnapshot();
+  const selected = useTabs((s) => s.tabs.find((t) => t.id === s.activeId)?.itemId === id);
+  const tone = statusTone(status);
+  const open = () => useTabs.getState().openItem('example', id, snapshot);
+  const entries: MenuEntry[] = [
+    { label: 'Abrir', icon: SquareArrowOutUpRight, onSelect: open },
+    'separator',
+    { label: 'Excluir exemplo', icon: Trash2, danger: true, onSelect: () => void deleteExample(id, name) },
+  ];
+  return (
+    <li>
+      <ContextActions entries={entries}>
+        <div
+          role="treeitem"
+          tabIndex={0}
+          aria-selected={selected}
+          onClick={open}
+          onKeyDown={(e) => e.key === 'Enter' && open()}
+          style={{ paddingLeft: `${depth * 14 + 26}px` }}
+          className={cn(
+            'flex h-7 cursor-pointer items-center gap-1.5 rounded-md pr-2 text-xs transition-colors',
+            selected ? 'bg-primary-soft text-fg' : 'text-fg-muted hover:bg-surface-2 hover:text-fg',
+          )}
+        >
+          <Bookmark className="size-3 shrink-0 text-fg-subtle" strokeWidth={1.75} />
+          <span className="min-w-0 flex-1 truncate">{name}</span>
+          <span
+            className={cn(
+              'font-mono text-2xs',
+              tone === 'success' && 'text-success',
+              tone === 'warning' && 'text-warning',
+              tone === 'danger' && 'text-danger',
+            )}
+          >
+            {status}
+          </span>
+        </div>
+      </ContextActions>
+    </li>
+  );
+}
+
+async function deleteExample(id: string, name: string) {
+  const choice = await confirmDialog({
+    title: `Excluir o exemplo "${name}"?`,
+    confirmLabel: 'Excluir',
+    danger: true,
+  });
+  if (choice === 'confirm') await runCommand({ type: 'remove', id });
 }
 
 function RenameInput({ node, onDone }: { node: TreeNode; onDone: () => void }) {

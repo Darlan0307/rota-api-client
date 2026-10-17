@@ -1,5 +1,12 @@
 import { readFile } from 'node:fs/promises';
-import { importPostmanFiles, previewPostmanFiles } from '@rota/core';
+import {
+  generateCode,
+  importPostmanFiles,
+  maskSecretValues,
+  prepareForDisplay,
+  previewPostmanFiles,
+  variableScopeFor,
+} from '@rota/core';
 import { app, BrowserWindow, dialog, type IpcMainInvokeEvent, ipcMain, shell } from 'electron';
 import { IPC_ERROR_PREFIX, type IpcArgs, type IpcChannel, type IpcResult } from '../shared/ipc';
 import type { RequestService } from './services/request-service';
@@ -94,5 +101,70 @@ export function registerIpcHandlers({ workspace, requests, settings }: Services)
     const report = await importPostmanFiles(workspace.current, await readFiles(paths), { secretKeys });
     workspace.emit();
     return report;
+  });
+
+  // Histórico
+  handle('history:list', (_e, query, limit) => workspace.history.list({ query, limit }));
+  handle('history:get', async (_e, id) => (await workspace.history.get(id)) ?? null);
+  handle('history:remove', async (event, id) => {
+    await workspace.history.remove(id);
+    event.sender.send('history:changed', null);
+  });
+  handle('history:clear', async (event) => {
+    await workspace.history.clear();
+    event.sender.send('history:changed', null);
+  });
+
+  // Gerar código (segredos mascarados, a menos que o usuário peça para revelar)
+  handle('codegen:generate', (_e, input) => {
+    const prepared = prepareForDisplay(input.data, {
+      store: workspace.current,
+      requestId: input.requestId,
+      parentId: input.parentId,
+      environmentId: workspace.activeEnvironmentId,
+      defaultTimeoutMs: settings.get().defaultTimeoutMs,
+      reveal: input.reveal,
+    });
+    return generateCode(prepared, input.target);
+  });
+
+  // Exemplos: o arquivo é versionado, então valores secretos são mascarados antes de gravar.
+  handle('examples:save', async (_e, input) => {
+    const store = workspace.current;
+    const secrets = variableScopeFor(store, {
+      requestId: input.requestId,
+      environmentId: workspace.activeEnvironmentId,
+    }).secretValues();
+    const mask = (text: string) => maskSecretValues(text, secrets);
+    const res = input.response;
+    const body =
+      res.body.encoding === 'utf8' ? mask(res.body.data) : '(resposta binária não salva no exemplo)';
+    const id = await store.saveExample(input.requestId, {
+      name: input.name,
+      ...(input.request
+        ? {
+            request: {
+              method: input.request.method,
+              url: mask(input.request.url),
+              headers: input.request.headers.map(([key, value]) => ({
+                key,
+                value: mask(value),
+                enabled: true,
+              })),
+              ...(input.request.body.kind === 'text' ? { body: mask(input.request.body.text) } : {}),
+            },
+          }
+        : {}),
+      response: {
+        status: res.status,
+        statusText: res.statusText,
+        headers: res.headers.map(([key, value]) => ({ key, value: mask(value), enabled: true })),
+        body,
+        timeMs: res.timings.total,
+      },
+      savedAt: new Date().toISOString(),
+    });
+    workspace.emit();
+    return id;
   });
 }

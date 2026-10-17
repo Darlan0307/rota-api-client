@@ -2,6 +2,7 @@ import { basename } from 'node:path';
 import {
   createSecretStore,
   defaultWorkspaceDir,
+  HistoryStore,
   type WorkspaceState as LocalState,
   loadWorkspaceState,
   normalizeWorkspacePath,
@@ -23,12 +24,23 @@ export class WorkspaceService {
   private watcher: WorkspaceWatcher | undefined;
   private local: LocalState = { activeEnvironmentId: null };
   private root = '';
+  private historyStore: HistoryStore | undefined;
 
   constructor(private readonly notify: (state: WorkspaceState) => void) {}
 
   get current(): WorkspaceStore {
     if (!this.store) throw new Error('Nenhum workspace aberto.');
     return this.store;
+  }
+
+  /** Histórico de envios do workspace aberto (fica em %APPDATA%, fora do Git). */
+  get history(): HistoryStore {
+    if (!this.historyStore) throw new Error('Nenhum workspace aberto.');
+    return this.historyStore;
+  }
+
+  get localDir(): string {
+    return workspaceLocalDir(this.root);
   }
 
   get isDefault(): boolean {
@@ -45,6 +57,7 @@ export class WorkspaceService {
       defaultName: root ? basename(this.root) : 'Workspace padrão',
     });
     this.local = await loadWorkspaceState(this.root);
+    this.historyStore = new HistoryStore(workspaceLocalDir(this.root));
     this.watcher = watchWorkspace(this.root, () => void this.reloadFromDisk());
     return this.state();
   }
