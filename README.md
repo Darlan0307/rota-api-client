@@ -56,8 +56,8 @@ O Rota resolve isso para o meu fluxo:
 Requisitos: **Windows 10/11**, **Node.js 22+** e **pnpm 10+** (`corepack enable` instala a versão certa do pnpm).
 
 ```sh
-git clone https://github.com/Darlan0307/rota.git
-cd rota
+git clone https://github.com/Darlan0307/rota-api-client.git
+cd rota-api-client
 pnpm install
 pnpm dev
 ```
