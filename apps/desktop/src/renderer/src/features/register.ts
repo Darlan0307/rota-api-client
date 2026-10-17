@@ -10,6 +10,7 @@ import { SaveExampleButton } from './examples/ExampleTabView';
 import { HistoryActions, HistoryPanel } from './history/HistoryPanel';
 import { ImportDialog, openImportDialog } from './import/ImportDialog';
 import { LoadTestButton } from './loadtest/LoadTestView';
+import { McpConfirmDialog, subscribeMcpEvents } from './mcp/McpConfirmDialog';
 import { registerRequestEditorExtensions } from './request/RequestEditor';
 import { scriptResultSections } from './scripts/ScriptResults';
 import { ScriptsEditor } from './scripts/ScriptsEditor';
@@ -66,4 +67,8 @@ export function registerFeatures(): void {
   registerWorkspaceMenu(() => createElement(WorkspaceMenu));
   registerOverlay(NewWorkspaceDialog);
   registerWelcomeExtensions({ onOpenFolder: () => void openFolderAsWorkspace() });
+
+  // Fase 8: confirmações e avisos do Claude (MCP).
+  registerOverlay(McpConfirmDialog);
+  subscribeMcpEvents();
 }

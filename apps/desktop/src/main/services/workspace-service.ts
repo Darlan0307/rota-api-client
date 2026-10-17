@@ -178,6 +178,13 @@ export class WorkspaceService {
     return id ? { id } : {};
   }
 
+  /** Relê o estado local (ambiente ativo), alterado pelo MCP. */
+  async reloadLocalState(): Promise<void> {
+    if (!this.store) return;
+    this.local = await loadWorkspaceState(this.root);
+    this.emit();
+  }
+
   /** Chamado pelo watcher quando algo muda fora do app (editor, git, MCP). */
   private async reloadFromDisk(): Promise<void> {
     if (!this.store) return;

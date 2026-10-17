@@ -5,6 +5,7 @@ import { APP_NAME, TITLE_BAR_HEIGHT } from '../shared/constants';
 import type { WorkspaceState } from '../shared/ipc';
 import { registerIpcHandlers } from './ipc';
 import { LoadTestService } from './services/loadtest-service';
+import { McpBridge } from './services/mcp-bridge';
 import { RequestService } from './services/request-service';
 import { SettingsService } from './services/settings-service';
 import { WorkspaceService } from './services/workspace-service';
@@ -119,7 +120,13 @@ if (!app.requestSingleInstanceLock()) {
       await workspace.open(null);
     }
     const loadTests = new LoadTestService(workspace, settings, `${APP_NAME}/${app.getVersion()}`);
-    registerIpcHandlers({ workspace, requests, settings, loadTests });
+    const mcp = new McpBridge(workspace);
+    await mcp.start().catch((error: unknown) => {
+      // Outra instância (ou um processo antigo) segurando o pipe: o app segue sem a ponte.
+      console.error('Ponte com o MCP indisponível:', error);
+    });
+    app.on('will-quit', () => void mcp.stop());
+    registerIpcHandlers({ workspace, requests, settings, loadTests, mcp });
     createMainWindow();
 
     app.on('activate', () => {

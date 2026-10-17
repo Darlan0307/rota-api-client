@@ -109,6 +109,14 @@ export interface LoadTestInput {
   config: LoadTestConfig;
 }
 
+export interface McpConfirmRequest {
+  id: string;
+  title: string;
+  description: string;
+  details: string[];
+  danger: boolean;
+}
+
 export interface SaveExampleInput {
   requestId: string;
   name: string;
@@ -158,6 +166,10 @@ export interface IpcContract {
 
   /** Resolve ao terminar (ou ser cancelado); o progresso chega por 'loadtest:progress'. */
   'loadtest:start': { args: [input: LoadTestInput]; result: LoadTestResult };
+
+  /** Resposta do usuário a uma confirmação pedida pelo Claude (MCP). */
+  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
+  'mcp:respond': { args: [id: string, approved: boolean]; result: void };
   // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
   'loadtest:cancel': { args: [runId: string]; result: void };
 
@@ -188,6 +200,11 @@ export interface IpcEvents {
   'history:changed': null;
   'trash:changed': null;
   'loadtest:progress': { runId: string; stats: LoadTestStats };
+  /** O Claude pede confirmação para uma ação destrutiva. */
+  'mcp:confirm': McpConfirmRequest;
+  'mcp:confirm-timeout': { id: string };
+  /** O Claude alterou algo (aviso discreto). */
+  'mcp:notice': { message: string };
 }
 
 export type IpcChannel = keyof IpcContract;
@@ -219,6 +236,7 @@ export const IPC_CHANNELS = [
   'examples:save',
   'loadtest:start',
   'loadtest:cancel',
+  'mcp:respond',
   'trash:list',
   'trash:restore',
   'trash:remove',
@@ -235,6 +253,9 @@ export const IPC_EVENTS = [
   'history:changed',
   'trash:changed',
   'loadtest:progress',
+  'mcp:confirm',
+  'mcp:confirm-timeout',
+  'mcp:notice',
 ] as const satisfies readonly IpcEvent[];
 
 // Garante em tempo de compilação que as listas cobrem todo o contrato.

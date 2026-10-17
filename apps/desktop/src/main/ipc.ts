@@ -13,6 +13,7 @@ import {
 import { app, BrowserWindow, dialog, type IpcMainInvokeEvent, ipcMain, shell } from 'electron';
 import { IPC_ERROR_PREFIX, type IpcArgs, type IpcChannel, type IpcResult } from '../shared/ipc';
 import type { LoadTestService } from './services/loadtest-service';
+import type { McpBridge } from './services/mcp-bridge';
 import type { RequestService } from './services/request-service';
 import type { SettingsService } from './services/settings-service';
 import type { WorkspaceService } from './services/workspace-service';
@@ -34,13 +35,16 @@ function handle<C extends IpcChannel>(channel: C, handler: Handler<C>): void {
 }
 
 export interface Services {
+  mcp: McpBridge;
   workspace: WorkspaceService;
   requests: RequestService;
   settings: SettingsService;
   loadTests: LoadTestService;
 }
 
-export function registerIpcHandlers({ workspace, requests, settings, loadTests }: Services): void {
+export function registerIpcHandlers({ workspace, requests, settings, loadTests, mcp }: Services): void {
+  handle('mcp:respond', (_e, id, approved) => mcp.respond(id, approved));
+
   handle('app:getInfo', () => ({
     name: app.getName(),
     version: app.getVersion(),

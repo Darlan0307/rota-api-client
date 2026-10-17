@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "pnpm --filter @rota/desktop dev",
-    "build": "pnpm -r build",
+    "build": "pnpm --filter @rota/desktop build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "lint": "biome check .",

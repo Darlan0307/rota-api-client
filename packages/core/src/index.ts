@@ -1,5 +1,6 @@
 /** Ponto de entrada completo (Node): app (processo principal) e servidor MCP. */
 
+export * from './bridge/bridge';
 export { generateCode, shellQuote } from './codegen/codegen';
 export { type HistoryQuery, HistoryStore } from './history/history-store';
 export type { ExecuteOptions } from './http/execute';
