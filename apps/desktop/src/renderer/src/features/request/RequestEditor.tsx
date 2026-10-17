@@ -1,19 +1,21 @@
 import * as Dropdown from '@radix-ui/react-dropdown-menu';
 import { ancestorsOf, applyUrlText, composeUrl, HTTP_METHODS, type RequestData } from '@rota/core/shared';
 import { ChevronDown, ChevronRight, Construction, LoaderCircle, Save, Send, X } from 'lucide-react';
-import type { ClipboardEvent, ReactNode } from 'react';
+import { type ClipboardEvent, type ReactNode, useRef } from 'react';
 import { Group, Panel, useDefaultLayout } from 'react-resizable-panels';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { Field, Switch, TextArea, TextInput } from '../../components/form';
 import { Kbd } from '../../components/Kbd';
 import { KeyValueTable } from '../../components/KeyValueTable';
+import { TabStrip } from '../../components/TabStrip';
 import { Tooltip } from '../../components/Tooltip';
 import { VariableInput } from '../../components/VariableInput';
 import { ResizeHandle } from '../../layout/ResizeHandle';
 import { useInheritedAuth } from '../../lib/auth';
 import { cn } from '../../lib/cn';
 import { methodTextClass } from '../../lib/http-method';
+import { useElementWidth } from '../../lib/use-element-width';
 import { VariableContextProvider } from '../../lib/variables';
 import { cancelRequest, saveTab, sendRequest } from '../../state/actions';
 import { isDirty, type RequestSection, type RequestTab, useTabs } from '../../state/tabs';
@@ -39,8 +41,17 @@ export function registerRequestEditorExtensions(ext: RequestEditorExtensions): v
   extensions = { ...extensions, ...ext };
 }
 
+/** Abaixo desta largura, requisição e resposta ficam empilhadas mesmo no modo lado a lado. */
+const SIDE_BY_SIDE_MIN_WIDTH = 900;
+
 export function RequestEditor({ tab }: { tab: RequestTab }) {
-  const paneLayout = useUiStore((s) => s.paneLayout);
+  const preferredLayout = useUiStore((s) => s.paneLayout);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const width = useElementWidth(containerRef);
+  const paneLayout =
+    preferredLayout === 'horizontal' && width > 0 && width < SIDE_BY_SIDE_MIN_WIDTH
+      ? 'vertical'
+      : preferredLayout;
   const layout = useDefaultLayout({ id: `request-response-${paneLayout}`, storage: localStorage });
   const update = useTabs((s) => s.update);
 
@@ -50,7 +61,7 @@ export function RequestEditor({ tab }: { tab: RequestTab }) {
 
   return (
     <VariableContextProvider itemId={tab.itemId ?? tab.parentId}>
-      <div className="flex h-full min-h-0 flex-col">
+      <div ref={containerRef} className="flex h-full min-h-0 flex-col">
         <ConflictBanner tab={tab} />
         <RequestHeader tab={tab} />
         <UrlBar tab={tab} onChange={patch} />
@@ -250,10 +261,7 @@ function RequestSections({
 
   return (
     <section className="flex h-full min-w-0 flex-col bg-bg" aria-label="Requisição">
-      <div
-        role="tablist"
-        className="flex h-10 shrink-0 items-stretch gap-4 overflow-x-auto border-b border-border px-4"
-      >
+      <TabStrip activeKey={section} className="h-10 shrink-0 items-stretch gap-4 border-b border-border px-4">
         {sections.map((s) => (
           <button
             key={s.id}
@@ -278,7 +286,7 @@ function RequestSections({
             )}
           </button>
         ))}
-      </div>
+      </TabStrip>
 
       <div className="min-h-0 flex-1 overflow-auto">
         {section === 'params' && (

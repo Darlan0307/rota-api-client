@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '../../components/Button';
 import { CodeEditor } from '../../components/CodeEditor';
 import { MethodBadge } from '../../components/MethodBadge';
+import { TabStrip } from '../../components/TabStrip';
 import { api, errorMessage, runCommand } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import { formatDateTime, formatDuration, statusTone } from '../../lib/format';
@@ -143,7 +144,7 @@ export function ExampleTabView({ tab }: { tab: ExampleTab }) {
           <Trash2 className="size-3.5" />
         </Button>
       </div>
-      <div role="tablist" className="flex h-10 shrink-0 items-stretch gap-4 border-b border-border px-6">
+      <TabStrip activeKey={section} className="h-10 shrink-0 items-stretch gap-4 border-b border-border px-6">
         {(
           [
             ['body', 'Body da resposta'],
@@ -157,7 +158,10 @@ export function ExampleTabView({ tab }: { tab: ExampleTab }) {
             role="tab"
             aria-selected={section === id}
             onClick={() => setSection(id)}
-            className={cn('relative text-[13px]', section === id ? 'text-fg' : 'text-fg-muted hover:text-fg')}
+            className={cn(
+              'relative shrink-0 text-[13px]',
+              section === id ? 'text-fg' : 'text-fg-muted hover:text-fg',
+            )}
           >
             {label}
             {section === id && (
@@ -165,7 +169,7 @@ export function ExampleTabView({ tab }: { tab: ExampleTab }) {
             )}
           </button>
         ))}
-      </div>
+      </TabStrip>
       <div className="min-h-0 flex-1 overflow-auto">
         {section === 'body' && (
           <CodeEditor value={pretty(ex.response.body, language)} language={language} readOnly />

@@ -2,6 +2,7 @@ import { Folder, Library, Save } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button } from '../../components/Button';
 import { TextArea } from '../../components/form';
+import { TabStrip } from '../../components/TabStrip';
 import { Tooltip } from '../../components/Tooltip';
 import { useInheritedAuth } from '../../lib/auth';
 import { cn } from '../../lib/cn';
@@ -116,7 +117,10 @@ export function ContainerTabView({ tab }: { tab: CollectionTab | FolderTab }) {
             </Button>
           </Tooltip>
         </div>
-        <div role="tablist" className="flex h-10 shrink-0 items-stretch gap-4 border-b border-border px-6">
+        <TabStrip
+          activeKey={tab.section}
+          className="h-10 shrink-0 items-stretch gap-4 border-b border-border px-6"
+        >
           {sections.map((s) => (
             <button
               key={s.id}
@@ -125,7 +129,7 @@ export function ContainerTabView({ tab }: { tab: CollectionTab | FolderTab }) {
               aria-selected={tab.section === s.id}
               onClick={() => setSection(s.id)}
               className={cn(
-                'relative flex items-center text-[13px] transition-colors',
+                'relative flex shrink-0 items-center text-[13px] transition-colors',
                 tab.section === s.id ? 'text-fg' : 'text-fg-muted hover:text-fg',
               )}
             >
@@ -135,7 +139,7 @@ export function ContainerTabView({ tab }: { tab: CollectionTab | FolderTab }) {
               )}
             </button>
           ))}
-        </div>
+        </TabStrip>
         <div className="min-h-0 flex-1 overflow-auto">{content}</div>
       </div>
     </VariableContextProvider>

@@ -7,6 +7,7 @@ import { CodeEditor, type EditorLanguage } from '../../components/CodeEditor';
 import { EmptyState } from '../../components/EmptyState';
 import { IconButton } from '../../components/IconButton';
 import { Kbd } from '../../components/Kbd';
+import { TabStrip } from '../../components/TabStrip';
 import { cn } from '../../lib/cn';
 import { formatBytes, formatDuration, statusTone } from '../../lib/format';
 import type { monaco } from '../../lib/monaco';
@@ -188,9 +189,13 @@ function ResponseView({
   const tone = statusTone(response.status);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-10 shrink-0 items-center gap-4 border-b border-border px-4">
-        <div role="tablist" className="flex min-w-0 items-center gap-4 self-stretch overflow-x-auto">
+    <div className="@container flex h-full min-h-0 flex-col">
+      {/* Em painéis estreitos, status/tempo/tamanho descem para uma segunda linha. */}
+      <div className="flex shrink-0 flex-col border-b border-border @3xl:h-10 @3xl:flex-row @3xl:items-center @3xl:gap-4 @3xl:px-4">
+        <TabStrip
+          activeKey={section}
+          className="h-10 shrink-0 items-stretch gap-4 px-4 @3xl:h-full @3xl:flex-1 @3xl:shrink @3xl:px-0"
+        >
           {sections.map((s) => (
             <button
               key={s.id}
@@ -199,7 +204,7 @@ function ResponseView({
               aria-selected={section === s.id}
               onClick={() => setSection(s.id)}
               className={cn(
-                'relative flex h-full items-center gap-1.5 text-[13px] transition-colors',
+                'relative flex h-full shrink-0 items-center gap-1.5 text-[13px] transition-colors',
                 section === s.id ? 'text-fg' : 'text-fg-muted hover:text-fg',
               )}
             >
@@ -209,27 +214,28 @@ function ResponseView({
               )}
             </button>
           ))}
-        </div>
-        <div className="flex-1" />
-        {actions}
-        {sending && <LoaderCircle className="size-3.5 animate-spin text-primary" />}
-        <div className="flex shrink-0 items-center gap-3 whitespace-nowrap text-xs">
-          <span
-            className={cn(
-              'font-mono font-semibold',
-              tone === 'success' && 'text-success',
-              tone === 'warning' && 'text-warning',
-              tone === 'danger' && 'text-danger',
-              tone === 'muted' && 'text-fg-muted',
-            )}
-          >
-            {response.status} {response.statusText}
-          </span>
-          <TimingsPopover timings={response.timings} />
-          <span className="font-mono text-fg-muted" title={`${response.sizeBytes} bytes`}>
-            {formatBytes(response.sizeBytes)}
-            {response.truncated && <span className="text-warning"> (truncado)</span>}
-          </span>
+        </TabStrip>
+        <div className="flex h-9 shrink-0 items-center justify-end gap-3 border-t border-border/60 px-4 @3xl:h-auto @3xl:border-0 @3xl:px-0">
+          {actions}
+          {sending && <LoaderCircle className="size-3.5 animate-spin text-primary" />}
+          <div className="flex shrink-0 items-center gap-3 whitespace-nowrap text-xs">
+            <span
+              className={cn(
+                'font-mono font-semibold',
+                tone === 'success' && 'text-success',
+                tone === 'warning' && 'text-warning',
+                tone === 'danger' && 'text-danger',
+                tone === 'muted' && 'text-fg-muted',
+              )}
+            >
+              {response.status} {response.statusText}
+            </span>
+            <TimingsPopover timings={response.timings} />
+            <span className="font-mono text-fg-muted" title={`${response.sizeBytes} bytes`}>
+              {formatBytes(response.sizeBytes)}
+              {response.truncated && <span className="text-warning"> (truncado)</span>}
+            </span>
+          </div>
         </div>
       </div>
 

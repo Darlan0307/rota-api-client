@@ -1,6 +1,7 @@
 import { GripVertical, Trash2 } from 'lucide-react';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useRef, useState } from 'react';
 import { cn } from '../lib/cn';
+import { useElementWidth } from '../lib/use-element-width';
 import { Checkbox } from './form';
 import { VariableInput } from './VariableInput';
 
@@ -29,6 +30,9 @@ interface KeyValueTableProps<T extends KeyValueRow> {
  * Tabela editável de chave/valor (params, headers, form). Sempre há uma linha
  * vazia no final: digitar nela cria uma nova linha.
  */
+/** Largura (px) abaixo da qual a coluna de descrição é escondida. */
+const NARROW_TABLE_WIDTH = 520;
+
 export function KeyValueTable<T extends KeyValueRow>({
   rows,
   onChange,
@@ -37,8 +41,12 @@ export function KeyValueTable<T extends KeyValueRow>({
   valuePlaceholder = 'Valor',
   renderValue,
   renderExtra,
-  showDescription = true,
+  showDescription: showDescriptionProp = true,
 }: KeyValueTableProps<T>) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const width = useElementWidth(rootRef);
+  // Em painéis estreitos a descrição some para chave e valor terem espaço.
+  const showDescription = showDescriptionProp && (width === 0 || width >= NARROW_TABLE_WIDTH);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   /** Campo que deve receber o foco ao criar uma linha pela linha vazia. */
@@ -75,7 +83,7 @@ export function KeyValueTable<T extends KeyValueRow>({
   );
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border text-xs">
+    <div ref={rootRef} className="overflow-hidden rounded-lg border border-border text-xs">
       <div
         className={cn(
           gridCols,

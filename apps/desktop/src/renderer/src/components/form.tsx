@@ -53,7 +53,7 @@ export function Switch({
 }) {
   return (
     <div className="flex items-start justify-between gap-6">
-      <div>
+      <div className="min-w-0">
         <p className="text-[13px] text-fg">{label}</p>
         {description && <p className="mt-0.5 text-xs text-fg-muted">{description}</p>}
       </div>
@@ -70,7 +70,7 @@ export function Switch({
       >
         <span
           className={cn(
-            'absolute top-0.5 size-4 rounded-full bg-fg shadow transition-transform duration-150',
+            'absolute top-0.5 left-0 size-4 rounded-full bg-fg shadow transition-transform duration-150',
             checked ? 'translate-x-[18px]' : 'translate-x-0.5',
           )}
         />
