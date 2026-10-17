@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import { importPostmanFiles, previewPostmanFiles } from '@rota/core';
 import { app, BrowserWindow, dialog, type IpcMainInvokeEvent, ipcMain, shell } from 'electron';
 import { IPC_ERROR_PREFIX, type IpcArgs, type IpcChannel, type IpcResult } from '../shared/ipc';
 import type { RequestService } from './services/request-service';
@@ -70,5 +72,27 @@ export function registerIpcHandlers({ workspace, requests, settings }: Services)
       ? await dialog.showOpenDialog(win, dialogOptions)
       : await dialog.showOpenDialog(dialogOptions);
     return result.canceled ? [] : result.filePaths;
+  });
+
+  // Importação do Postman: o renderer só passa caminhos; o main lê os arquivos.
+  const readFiles = (paths: string[]) =>
+    Promise.all(paths.map(async (path) => ({ fileName: path, content: await readFile(path, 'utf8') })));
+
+  handle('import:pickFiles', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const options: Electron.OpenDialogOptions = {
+      title: 'Importar do Postman',
+      buttonLabel: 'Selecionar',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'Exportações do Postman (JSON)', extensions: ['json'] }],
+    };
+    const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+    return result.canceled ? [] : result.filePaths;
+  });
+  handle('import:preview', async (_e, paths) => previewPostmanFiles(await readFiles(paths)));
+  handle('import:run', async (_e, paths, secretKeys) => {
+    const report = await importPostmanFiles(workspace.current, await readFiles(paths), { secretKeys });
+    workspace.emit();
+    return report;
   });
 }

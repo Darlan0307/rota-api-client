@@ -10,6 +10,8 @@
 import type {
   AppSettings,
   Auth,
+  ImportPreview,
+  ImportReport,
   RequestData,
   RunResult,
   VariableInput,
@@ -92,6 +94,11 @@ export interface IpcContract {
   'request:cancel': { args: [runId: string]; result: void };
 
   'dialog:openFiles': { args: [options: { multiple?: boolean; title?: string }]; result: string[] };
+
+  /** Seleciona arquivos .json exportados do Postman. */
+  'import:pickFiles': { args: []; result: string[] };
+  'import:preview': { args: [paths: string[]]; result: ImportPreview[] };
+  'import:run': { args: [paths: string[], secretKeys: Record<string, string[]>]; result: ImportReport };
 }
 
 export interface IpcEvents {
@@ -116,6 +123,9 @@ export const IPC_CHANNELS = [
   'request:send',
   'request:cancel',
   'dialog:openFiles',
+  'import:pickFiles',
+  'import:preview',
+  'import:run',
 ] as const satisfies readonly IpcChannel[];
 
 export const IPC_EVENTS = ['workspace:changed'] as const satisfies readonly IpcEvent[];

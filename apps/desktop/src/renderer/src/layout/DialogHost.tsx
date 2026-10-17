@@ -1,6 +1,6 @@
 import { type ChildNode, type CollectionNode, isContainer } from '@rota/core/shared';
 import { CheckCircle2, ChevronRight, Folder, Info, Library, XCircle } from 'lucide-react';
-import { type FormEvent, useState } from 'react';
+import { type ComponentType, type FormEvent, useState } from 'react';
 import { Button } from '../components/Button';
 import { Dialog } from '../components/Dialog';
 import { Field, TextInput } from '../components/form';
@@ -12,14 +12,25 @@ import { useToasts } from '../state/toasts';
 import { useUiStore } from '../state/ui';
 import { useSnapshot } from '../state/workspace';
 
-/** Renderiza os diálogos imperativos (confirm/prompt), o "Salvar como" e os toasts. */
+/** Diálogos/painéis das funcionalidades (importação, confirmações do MCP...). */
+const overlays: ComponentType[] = [];
+export function registerOverlay(component: ComponentType): void {
+  if (!overlays.includes(component)) overlays.push(component);
+}
+
+/** Renderiza os diálogos imperativos (confirm/prompt), o "Salvar como", overlays e toasts. */
 export function DialogHost() {
   const current = useDialogs((s) => s.current);
   return (
     <>
+      {overlays.map((Overlay, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: lista fixa registrada na inicialização
+        <Overlay key={i} />
+      ))}
+      <SaveAsDialog />
+      {/* Confirmações por último: ficam acima de qualquer outro diálogo. */}
       {current?.kind === 'confirm' && <ConfirmView options={current.options} resolve={current.resolve} />}
       {current?.kind === 'prompt' && <PromptView options={current.options} resolve={current.resolve} />}
-      <SaveAsDialog />
       <Toaster />
     </>
   );

@@ -18,6 +18,7 @@ import {
   type RequestFile,
   RequestFileSchema,
   SCHEMA_VERSION,
+  type Scripts,
   type Variable,
   type WorkspaceManifest,
   WorkspaceManifestSchema,
@@ -62,6 +63,32 @@ type Entry =
 type ContainerEntry = Extract<Entry, { kind: 'collection' | 'folder' }>;
 
 export type ItemKind = Entry['kind'];
+
+/** Estrutura de uma coleção a ser gravada de uma vez (importação). */
+export interface ImportedCollection {
+  name: string;
+  auth: Auth;
+  variables: VariableInput[];
+  scripts: Scripts;
+  description?: string | undefined;
+  children: ImportedChild[];
+}
+
+export type ImportedChild =
+  | {
+      kind: 'folder';
+      name: string;
+      auth: Auth;
+      scripts: Scripts;
+      description?: string | undefined;
+      children: ImportedChild[];
+    }
+  | {
+      kind: 'request';
+      name: string;
+      data: RequestData;
+      examples: Omit<ExampleFile, 'schemaVersion' | 'id'>[];
+    };
 
 /** Destino para gravar uma variável (usado por scripts e pelo MCP). */
 export type VariableTarget =
@@ -254,7 +281,7 @@ export class WorkspaceStore {
 
   updateCollection(
     id: string,
-    patch: { auth?: Auth; description?: string; variables?: VariableInput[] },
+    patch: { auth?: Auth; description?: string; variables?: VariableInput[]; scripts?: Scripts },
   ): Promise<void> {
     return this.mutate(async () => {
       const entry = this.entry(id, 'collection');
@@ -266,6 +293,7 @@ export class WorkspaceStore {
         CollectionFileSchema.parse({
           ...entry.file,
           ...(patch.auth ? { auth: patch.auth } : {}),
+          ...(patch.scripts ? { scripts: patch.scripts } : {}),
           ...(patch.description !== undefined ? { description: patch.description || undefined } : {}),
           variables,
         }),
@@ -273,7 +301,7 @@ export class WorkspaceStore {
     });
   }
 
-  updateFolder(id: string, patch: { auth?: Auth; description?: string }): Promise<void> {
+  updateFolder(id: string, patch: { auth?: Auth; description?: string; scripts?: Scripts }): Promise<void> {
     return this.mutate(async () => {
       const entry = this.entry(id, 'folder');
       await writeJsonAtomic(
@@ -281,6 +309,7 @@ export class WorkspaceStore {
         FolderFileSchema.parse({
           ...entry.file,
           ...(patch.auth ? { auth: patch.auth } : {}),
+          ...(patch.scripts ? { scripts: patch.scripts } : {}),
           ...(patch.description !== undefined ? { description: patch.description || undefined } : {}),
         }),
       );
@@ -476,6 +505,100 @@ export class WorkspaceStore {
     return this.mutate(() => this.writeManifest({ ...this.manifest, order }));
   }
 
+  /**
+   * Grava uma coleção inteira (ex.: importada do Postman) numa única operação,
+   * com um só recarregamento no final. Retorna o id da coleção criada.
+   */
+  importCollection(tree: ImportedCollection): Promise<string> {
+    return this.mutate(async () => {
+      const collectionsDir = join(this.root, COLLECTIONS_DIR);
+      const id = newId();
+      const dir = join(collectionsDir, uniqueSlug(tree.name, await listDirs(collectionsDir)));
+      const scope: SecretScope = { kind: 'collection', id };
+
+      const writeChildren = async (parentDir: string, children: ImportedChild[]): Promise<string[]> => {
+        const order: string[] = [];
+        const usedDirs: string[] = [];
+        const usedFiles: string[] = [];
+        for (const child of children) {
+          const childId = newId();
+          order.push(childId);
+          if (child.kind === 'folder') {
+            const slug = uniqueSlug(child.name, usedDirs);
+            usedDirs.push(slug);
+            const folderDir = join(parentDir, slug);
+            const childOrder = await writeChildren(folderDir, child.children);
+            await writeJsonAtomic(
+              join(folderDir, FOLDER_FILE),
+              FolderFileSchema.parse({
+                schemaVersion: SCHEMA_VERSION,
+                id: childId,
+                name: child.name,
+                auth: child.auth,
+                scripts: child.scripts,
+                description: child.description,
+                order: childOrder,
+              }),
+            );
+          } else {
+            const slug = uniqueSlug(child.name, usedFiles);
+            usedFiles.push(slug);
+            const path = join(parentDir, `${slug}${REQUEST_EXT}`);
+            await writeJsonAtomic(
+              path,
+              RequestFileSchema.parse({
+                schemaVersion: SCHEMA_VERSION,
+                id: childId,
+                name: child.name,
+                ...child.data,
+              }),
+            );
+            const usedExamples: string[] = [];
+            for (const example of child.examples) {
+              const exSlug = uniqueSlug(example.name, usedExamples);
+              usedExamples.push(exSlug);
+              await writeJsonAtomic(
+                join(examplesDirOf(path), `${exSlug}${EXAMPLE_EXT}`),
+                ExampleFileSchema.parse({ schemaVersion: SCHEMA_VERSION, id: newId(), ...example }),
+              );
+            }
+          }
+        }
+        return order;
+      };
+
+      const order = await writeChildren(dir, tree.children);
+      await writeJsonAtomic(
+        join(dir, COLLECTION_FILE),
+        CollectionFileSchema.parse({
+          schemaVersion: SCHEMA_VERSION,
+          id,
+          name: tree.name,
+          auth: tree.auth,
+          variables: persistVariables(tree.variables, [], scope, this.secrets),
+          scripts: tree.scripts,
+          description: tree.description,
+          order,
+        }),
+      );
+      await this.writeManifest({ ...this.manifest, order: [...this.collectionOrder(), id] });
+      return id;
+    });
+  }
+
+  /** Mescla variáveis nas globais (substitui as de mesmo nome). */
+  mergeGlobals(variables: VariableInput[]): Promise<void> {
+    return this.mutate(async () => {
+      const keys = new Set(variables.map((v) => v.key));
+      const kept = this.globals.variables.filter((v) => !keys.has(v.key));
+      const merged = persistVariables(variables, [], GLOBAL_SCOPE, this.secrets);
+      await writeJsonAtomic(join(this.root, GLOBALS_FILE), {
+        schemaVersion: SCHEMA_VERSION,
+        variables: [...kept, ...merged],
+      });
+    });
+  }
+
   // -------------------------------------------------------------------------
   // Ambientes e variáveis
 
@@ -631,6 +754,7 @@ export class WorkspaceStore {
         name: file.name,
         auth: file.auth,
         variables: viewVariables(file.variables, { kind: 'collection', id }, this.secrets),
+        scripts: file.scripts,
         description: file.description,
         children: await this.loadChildren(dir, id, file.order, entries, seen, problems),
       });
@@ -681,6 +805,7 @@ export class WorkspaceStore {
           name: file.name,
           parentId,
           auth: file.auth,
+          scripts: file.scripts,
           description: file.description,
           children: await this.loadChildren(path, id, file.order, entries, seen, problems),
         };

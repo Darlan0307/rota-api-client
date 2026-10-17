@@ -165,6 +165,8 @@ export const FolderFileSchema = z.object({
   id: z.string(),
   name: z.string(),
   auth: AuthSchema.default({ type: 'inherit' }),
+  /** Scripts executados para todas as requisições da pasta (como no Postman). */
+  scripts: ScriptsSchema.default({ preRequest: '', postResponse: '' }),
   description: z.string().optional(),
   /** Ids dos filhos na ordem de exibição. Filhos fora da lista vão para o fim. */
   order: z.array(z.string()).default([]),
@@ -177,6 +179,8 @@ export const CollectionFileSchema = z.object({
   name: z.string(),
   auth: AuthSchema.default({ type: 'none' }),
   variables: z.array(VariableSchema).default([]),
+  /** Scripts executados para todas as requisições da coleção (como no Postman). */
+  scripts: ScriptsSchema.default({ preRequest: '', postResponse: '' }),
   description: z.string().optional(),
   order: z.array(z.string()).default([]),
 });
