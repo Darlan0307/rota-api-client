@@ -19,6 +19,7 @@ import type {
   PreparedRequest,
   RequestData,
   RunResult,
+  Scripts,
   VariableInput,
   VariableTarget,
   WorkspaceSnapshot,
@@ -53,8 +54,15 @@ export type WorkspaceCommand =
   | { type: 'createFolder'; parentId: string; name: string; index?: number }
   | { type: 'createRequest'; parentId: string; name: string; data?: RequestData; index?: number }
   | { type: 'updateRequest'; id: string; data: RequestData }
-  | { type: 'updateCollection'; id: string; auth?: Auth; description?: string; variables?: VariableInput[] }
-  | { type: 'updateFolder'; id: string; auth?: Auth; description?: string }
+  | {
+      type: 'updateCollection';
+      id: string;
+      auth?: Auth;
+      description?: string;
+      variables?: VariableInput[];
+      scripts?: Scripts;
+    }
+  | { type: 'updateFolder'; id: string; auth?: Auth; description?: string; scripts?: Scripts }
   | { type: 'rename'; id: string; name: string }
   | { type: 'move'; id: string; parentId: string; index?: number }
   | { type: 'duplicate'; id: string }

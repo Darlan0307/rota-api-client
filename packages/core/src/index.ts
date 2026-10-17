@@ -31,6 +31,8 @@ export {
   runRequest,
   variableScopeFor,
 } from './runner/run-request';
+export { runScript, type ScriptInput, type ScriptOutput } from './scripts/sandbox';
+export { VariableState } from './scripts/variable-state';
 export { createSecretStore, keyringMasterKey } from './secrets/keyring';
 export * from './secrets/secret-store';
 export * from './settings';

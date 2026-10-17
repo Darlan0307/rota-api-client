@@ -30,6 +30,7 @@ export class RequestService {
           userAgent: this.userAgent,
         },
         signal: controller.signal,
+        requestName: input.name,
       });
 
       // Cancelamentos não vão para o histórico.

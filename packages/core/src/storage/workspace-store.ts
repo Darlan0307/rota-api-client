@@ -14,6 +14,7 @@ import {
   type GlobalsFile,
   GlobalsFileSchema,
   type RequestData,
+  type RequestDataInput,
   RequestDataSchema,
   type RequestFile,
   RequestFileSchema,
@@ -247,7 +248,7 @@ export class WorkspaceStore {
   createRequest(
     parentId: string,
     name: string,
-    data: Partial<RequestData> = {},
+    data: RequestDataInput = {},
     options: { index?: number } = {},
   ): Promise<string> {
     return this.mutate(async () => {

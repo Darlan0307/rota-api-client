@@ -20,7 +20,15 @@ export type { ImportPreview, ImportReport, ImportResultItem } from './import/imp
 export type { ImportCounts, ImportWarning, PostmanFileKind } from './import/postman';
 export * from './model/schemas';
 export * from './model/tree';
-export type { RunError, RunResult } from './runner/run-request';
+export type {
+  RunConsoleEntry,
+  RunError,
+  RunResult,
+  RunScriptError,
+  RunTest,
+  ScriptOrigin,
+} from './runner/run-request';
+export type { ConsoleEntry, TestResult, TestStatus } from './scripts/sandbox';
 export * from './search/search';
 export type { AppSettings } from './settings';
 export type { ItemKind, VariableTarget } from './storage/workspace-store';

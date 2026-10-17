@@ -190,7 +190,7 @@ function ResponseView({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-10 shrink-0 items-center gap-4 border-b border-border px-4">
-        <div role="tablist" className="flex items-center gap-4 self-stretch">
+        <div role="tablist" className="flex min-w-0 items-center gap-4 self-stretch overflow-x-auto">
           {sections.map((s) => (
             <button
               key={s.id}
@@ -213,7 +213,7 @@ function ResponseView({
         <div className="flex-1" />
         {actions}
         {sending && <LoaderCircle className="size-3.5 animate-spin text-primary" />}
-        <div className="flex items-center gap-3 text-xs">
+        <div className="flex shrink-0 items-center gap-3 whitespace-nowrap text-xs">
           <span
             className={cn(
               'font-mono font-semibold',

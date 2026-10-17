@@ -122,6 +122,8 @@ export const RequestDataSchema = z.object({
   description: z.string().optional(),
 });
 export type RequestData = z.infer<typeof RequestDataSchema>;
+/** Forma aceita na criação (campos com padrão são opcionais). */
+export type RequestDataInput = z.input<typeof RequestDataSchema>;
 
 export const RequestFileSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),

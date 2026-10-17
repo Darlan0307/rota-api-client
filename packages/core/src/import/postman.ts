@@ -504,6 +504,8 @@ const SUPPORTED_PM = new Set([
   'response',
   'test',
   'expect',
+  'info',
+  'iterationData',
 ]);
 
 function convertEvents(events: PmEvent[], ctx: Context, path: string): Scripts {
@@ -533,7 +535,6 @@ function reportScriptApis(code: string, ctx: Context, path: string): void {
     const api = match[1];
     if (api && !SUPPORTED_PM.has(api)) unsupported.add(`pm.${api}`);
   }
-  if (/\bpostman\.(set|get|clear)\w*/.test(code)) unsupported.add('postman.* (API antiga)');
   if (/\brequire\s*\(/.test(code)) unsupported.add('require()');
   if (unsupported.size) {
     ctx.warn(

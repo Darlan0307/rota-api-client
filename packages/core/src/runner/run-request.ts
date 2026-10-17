@@ -7,9 +7,19 @@ import {
   type ProxySettings,
 } from '../http/execute';
 import { type PreparedRequest, prepareRequest } from '../http/prepare';
-import type { RequestData } from '../model/schemas';
-import { ancestorsOf, collectionOf, findNode } from '../model/tree';
-import type { WorkspaceStore } from '../storage/workspace-store';
+import { applyUrlText, composeUrl } from '../http/url';
+import { HTTP_METHODS, type HttpMethod, type RequestData, type Scripts } from '../model/schemas';
+import { ancestorsOf, type ContainerNode, collectionOf, findNode } from '../model/tree';
+import {
+  type ConsoleEntry,
+  runScript,
+  type ScriptInput,
+  type ScriptRequest,
+  type ScriptResponse,
+  type TestResult,
+} from '../scripts/sandbox';
+import { type ScriptScope, VariableState } from '../scripts/variable-state';
+import type { VariableTarget, WorkspaceStore } from '../storage/workspace-store';
 import { maskSecretValues, VariableScope } from '../variables/template';
 
 export interface RunSettings {
@@ -27,6 +37,24 @@ export interface RunContext {
   environmentId: string | null;
   settings: RunSettings;
   signal?: AbortSignal;
+  /** Nome exibido em pm.info.requestName. */
+  requestName?: string | undefined;
+  /** Executa scripts de pré-requisição e pós-resposta (padrão: true). */
+  runScripts?: boolean;
+  scriptTimeoutMs?: number;
+}
+
+/** De qual script veio um teste/log (coleção, pasta ou a própria requisição). */
+export interface ScriptOrigin {
+  phase: 'pre' | 'post';
+  sourceKind: 'collection' | 'folder' | 'request';
+  source: string;
+}
+
+export interface RunTest extends TestResult, ScriptOrigin {}
+export interface RunConsoleEntry extends ConsoleEntry, ScriptOrigin {}
+export interface RunScriptError extends ScriptOrigin {
+  message: string;
 }
 
 export interface RunError {
@@ -41,6 +69,10 @@ export interface RunResult {
   response: HttpResponse | null;
   error: RunError | null;
   startedAt: string;
+  /** Resultados dos pm.test (ausente em entradas antigas do histórico). */
+  tests?: RunTest[];
+  console?: RunConsoleEntry[];
+  scriptErrors?: RunScriptError[];
 }
 
 /**
@@ -115,40 +147,214 @@ export function prepareForDisplay(
   });
 }
 
+/** Scripts a executar, de cima para baixo: coleção → pastas → requisição. */
+function scriptChain(
+  store: WorkspaceStore,
+  data: RequestData,
+  ctx: Pick<RunContext, 'requestId' | 'parentId' | 'requestName'>,
+): { kind: ScriptOrigin['sourceKind']; name: string; scripts: Scripts }[] {
+  const snapshot = store.snapshot();
+  let ancestors: ContainerNode[] = [];
+  if (ctx.requestId) ancestors = ancestorsOf(snapshot, ctx.requestId);
+  else if (ctx.parentId) {
+    const parent = findNode(snapshot, ctx.parentId);
+    if (parent && parent.kind !== 'request') ancestors = [parent, ...ancestorsOf(snapshot, ctx.parentId)];
+  }
+  return [
+    ...ancestors.reverse().map((a) => ({ kind: a.kind, name: a.name, scripts: a.scripts })),
+    { kind: 'request' as const, name: ctx.requestName ?? 'Requisição', scripts: data.scripts },
+  ];
+}
+
+function bodyText(data: RequestData): string | undefined {
+  switch (data.body.mode) {
+    case 'json':
+    case 'raw':
+      return data.body.text;
+    case 'urlencoded':
+      return data.body.fields
+        .filter((f) => f.enabled)
+        .map((f) => `${encodeURIComponent(f.key)}=${encodeURIComponent(f.value)}`)
+        .join('&');
+    default:
+      return undefined;
+  }
+}
+
+function toScriptRequest(data: RequestData): ScriptRequest {
+  return {
+    method: data.method,
+    url: composeUrl(data.url, data.query),
+    headers: data.headers.filter((h) => h.enabled && h.key).map((h) => ({ key: h.key, value: h.value })),
+    body: bodyText(data),
+  };
+}
+
+/** Aplica as alterações que o pré-script fez em pm.request. */
+function applyScriptRequest(data: RequestData, before: ScriptRequest, after: ScriptRequest): RequestData {
+  if (JSON.stringify(before) === JSON.stringify(after)) return data;
+  const next = structuredClone(data);
+  if ((HTTP_METHODS as readonly string[]).includes(after.method)) next.method = after.method as HttpMethod;
+  if (after.url !== before.url) Object.assign(next, applyUrlText(after.url, data.query));
+  if (JSON.stringify(after.headers) !== JSON.stringify(before.headers)) {
+    next.headers = [
+      ...after.headers.map((h) => ({ key: h.key, value: h.value, enabled: true })),
+      ...data.headers.filter((h) => !h.enabled),
+    ];
+  }
+  if (after.body !== before.body && after.body !== undefined) {
+    next.body =
+      next.body.mode === 'json' || next.body.mode === 'raw'
+        ? { ...next.body, text: after.body }
+        : { mode: 'raw', language: 'text', text: after.body };
+  }
+  return next;
+}
+
+function toScriptResponse(response: HttpResponse): ScriptResponse {
+  return {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers.map(([key, value]) => ({ key, value })),
+    body: response.body.encoding === 'utf8' ? response.body.data : '',
+    timeMs: response.timings.total,
+    size: response.sizeBytes,
+  };
+}
+
+/** Grava no workspace as variáveis que os scripts alteraram. */
+async function persistChanges(
+  store: WorkspaceStore,
+  state: VariableState,
+  targets: Partial<Record<Exclude<ScriptScope, 'local'>, VariableTarget>>,
+): Promise<void> {
+  for (const change of state.pendingChanges()) {
+    const target = targets[change.scope];
+    if (!target) continue;
+    if (change.value === null) await store.unsetVariable(target, change.key);
+    else await store.setVariable(target, change.key, change.value);
+  }
+}
+
 /**
- * Executa uma requisição como o app faria: resolve variáveis e auth herdada,
- * envia e devolve a resposta. Nunca lança — erros vêm em `error`.
+ * Executa uma requisição como o app faria: roda os scripts de pré-requisição
+ * (coleção → pastas → requisição), resolve variáveis e auth herdada, envia,
+ * roda os scripts de pós-resposta e grava as variáveis alteradas por eles.
+ * Nunca lança — erros vêm em `error` / `scriptErrors`.
  */
-export async function runRequest(data: RequestData, ctx: RunContext): Promise<RunOutcome> {
+export async function runRequest(original: RequestData, ctx: RunContext): Promise<RunOutcome> {
   const startedAt = new Date().toISOString();
-  const scope = variableScopeFor(ctx.store, ctx);
-  const secretValues = scope.secretValues();
-  const { auth } = effectiveAuth(ctx.store, data, ctx);
-  const prepareOpts = {
-    scope,
-    auth,
-    defaultTimeoutMs: ctx.settings.defaultTimeoutMs,
-    ...(ctx.settings.userAgent ? { userAgent: ctx.settings.userAgent } : {}),
+  const store = ctx.store;
+  const snapshot = store.snapshot();
+  const anchor = ctx.requestId ?? ctx.parentId;
+  const collection = anchor ? collectionOf(snapshot, anchor) : undefined;
+  const environment = snapshot.environments.find((e) => e.id === ctx.environmentId);
+
+  const available = new Set<ScriptScope>(['global', 'local']);
+  const targets: Partial<Record<Exclude<ScriptScope, 'local'>, VariableTarget>> = {
+    global: { kind: 'global' },
+  };
+  if (collection) {
+    available.add('collection');
+    targets.collection = { kind: 'collection', id: collection.id };
+  }
+  if (environment) {
+    available.add('environment');
+    targets.environment = { kind: 'environment', id: environment.id };
+  }
+  const state = new VariableState(store.variableLayers(collection?.id, environment?.id), available);
+
+  const tests: RunTest[] = [];
+  const consoleEntries: RunConsoleEntry[] = [];
+  const scriptErrors: RunScriptError[] = [];
+  const chain = ctx.runScripts === false ? [] : scriptChain(store, original, ctx);
+  const runPhase = async (
+    phase: 'pre' | 'post',
+    base: Omit<ScriptInput, 'phase'>,
+  ): Promise<ScriptRequest> => {
+    let request = base.request;
+    for (const item of chain) {
+      const code = phase === 'pre' ? item.scripts.preRequest : item.scripts.postResponse;
+      if (!code.trim()) continue;
+      const origin: ScriptOrigin = { phase, sourceKind: item.kind, source: item.name };
+      const out = await runScript(code, { ...base, request, phase }, state, {
+        ...(ctx.scriptTimeoutMs ? { timeoutMs: ctx.scriptTimeoutMs } : {}),
+      });
+      tests.push(...out.tests.map((t) => ({ ...t, ...origin })));
+      consoleEntries.push(...out.console.map((c) => ({ ...c, ...origin })));
+      if (out.error) scriptErrors.push({ ...origin, message: out.error });
+      if (phase === 'pre') request = out.request;
+    }
+    return request;
   };
 
+  let data = original;
   let masked: PreparedRequest | null = null;
+  let response: HttpResponse | null = null;
+  let runError: RunError | null = null;
+  const requestName = ctx.requestName ?? 'Requisição';
+
   try {
+    // 1. Pré-requisição (pode alterar variáveis e a própria requisição).
+    const before = toScriptRequest(data);
+    const after = await runPhase('pre', { request: before, requestName });
+    data = applyScriptRequest(data, before, after);
+
+    // 2. Envio, com as variáveis já atualizadas pelos scripts.
+    const prepareOpts = {
+      scope: state.scope(),
+      auth: effectiveAuth(store, data, ctx).auth,
+      defaultTimeoutMs: ctx.settings.defaultTimeoutMs,
+      ...(ctx.settings.userAgent ? { userAgent: ctx.settings.userAgent } : {}),
+    };
     masked = prepareRequest(data, { ...prepareOpts, maskSecrets: true });
     const prepared = prepareRequest(data, prepareOpts);
     const execOptions: ExecuteOptions = {
       ...(ctx.signal ? { signal: ctx.signal } : {}),
       ...(ctx.settings.proxy ? { proxy: ctx.settings.proxy } : {}),
     };
-    const response = await executeRequest(prepared, execOptions);
-    return { result: { request: masked, response, error: null, startedAt }, secretValues };
+    response = await executeRequest(prepared, execOptions);
+
+    // 3. Pós-resposta (testes, extração de tokens...).
+    await runPhase('post', {
+      request: toScriptRequest(data),
+      response: toScriptResponse(response),
+      requestName,
+    });
   } catch (error) {
-    const runError: RunError =
+    runError =
       error instanceof HttpError
         ? { code: error.code, message: error.message, detail: error.detail }
         : { code: 'unknown', message: error instanceof Error ? error.message : String(error) };
+  } finally {
+    try {
+      await persistChanges(store, state, targets);
+    } catch (error) {
+      scriptErrors.push({
+        phase: 'post',
+        sourceKind: 'request',
+        source: requestName,
+        message: `Não foi possível gravar as variáveis alteradas pelos scripts: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+  }
+
+  const secretValues = [...new Set([...state.scope().secretValues(), ...state.secretValues()])];
+  if (runError) {
     // Mensagens de erro podem conter a URL resolvida: mascara segredos.
     runError.message = maskSecretValues(runError.message, secretValues);
     if (runError.detail) runError.detail = maskSecretValues(runError.detail, secretValues);
-    return { result: { request: masked, response: null, error: runError, startedAt }, secretValues };
   }
+  return {
+    result: {
+      request: masked,
+      response,
+      error: runError,
+      startedAt,
+      tests,
+      console: consoleEntries,
+      scriptErrors,
+    },
+    secretValues,
+  };
 }

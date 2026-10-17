@@ -117,11 +117,19 @@ export class WorkspaceService {
       case 'updateCollection':
         await store.updateCollection(
           command.id,
-          opt({ auth: command.auth, description: command.description, variables: command.variables }),
+          opt({
+            auth: command.auth,
+            description: command.description,
+            variables: command.variables,
+            scripts: command.scripts,
+          }),
         );
         break;
       case 'updateFolder':
-        await store.updateFolder(command.id, opt({ auth: command.auth, description: command.description }));
+        await store.updateFolder(
+          command.id,
+          opt({ auth: command.auth, description: command.description, scripts: command.scripts }),
+        );
         break;
       case 'rename':
         await store.rename(command.id, command.name);

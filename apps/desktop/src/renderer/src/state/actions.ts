@@ -114,6 +114,7 @@ export async function saveTab(tabId: string): Promise<boolean> {
         id: tab.itemId,
         auth: tab.draft.auth,
         description: tab.draft.description,
+        scripts: tab.draft.scripts,
         variables: draftsToInputs(tab.draft.variables, tab.base.variables),
       });
       if (ok) tabs.markSaved(tabId);
@@ -126,6 +127,7 @@ export async function saveTab(tabId: string): Promise<boolean> {
         id: tab.itemId,
         auth: tab.draft.auth,
         description: tab.draft.description,
+        scripts: tab.draft.scripts,
       });
       if (ok) tabs.markSaved(tabId);
       return Boolean(ok);

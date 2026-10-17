@@ -206,6 +206,14 @@ function buildEntry(
       request,
       response,
       ...(result.error ? { error: { ...result.error, message: mask(result.error.message) } } : {}),
+      // Scripts podem imprimir tokens no console: mascarados também.
+      ...(result.console ? { console: result.console.map((c) => ({ ...c, message: mask(c.message) })) } : {}),
+      ...(result.tests
+        ? { tests: result.tests.map((t) => (t.message ? { ...t, message: mask(t.message) } : t)) }
+        : {}),
+      ...(result.scriptErrors
+        ? { scriptErrors: result.scriptErrors.map((e) => ({ ...e, message: mask(e.message) })) }
+        : {}),
     },
   };
 }

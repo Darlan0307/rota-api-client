@@ -9,6 +9,8 @@ import { SaveExampleButton } from './examples/ExampleTabView';
 import { HistoryActions, HistoryPanel } from './history/HistoryPanel';
 import { ImportDialog, openImportDialog } from './import/ImportDialog';
 import { registerRequestEditorExtensions } from './request/RequestEditor';
+import { scriptResultSections } from './scripts/ScriptResults';
+import { ScriptsEditor } from './scripts/ScriptsEditor';
 import { SearchPalette } from './search/SearchPalette';
 
 /**
@@ -34,4 +36,15 @@ export function registerFeatures(): void {
     responseActions: (tab) => createElement(SaveExampleButton, { tab }),
   });
   registerSearchContent((close) => createElement(SearchPalette, { close }));
+
+  // Fase 5: scripts e testes no padrão pm.*.
+  registerRequestEditorExtensions({
+    renderScripts: (tab, onChange) =>
+      createElement(ScriptsEditor, {
+        scripts: tab.draft.scripts,
+        onChange: (scripts) => onChange({ ...tab.draft, scripts }),
+        scopeNote: 'Scripts da coleção e das pastas rodam antes deste.',
+      }),
+    responseSections: scriptResultSections,
+  });
 }

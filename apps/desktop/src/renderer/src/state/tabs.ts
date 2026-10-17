@@ -10,6 +10,7 @@ import {
   type RequestData,
   RequestDataSchema,
   type RunResult,
+  type Scripts,
   type VariableView,
   type WorkspaceSnapshot,
   walkTree,
@@ -62,20 +63,21 @@ export interface CollectionDraft {
   auth: Auth;
   description: string;
   variables: VariableDraft[];
+  scripts: Scripts;
 }
 
 export interface CollectionTab extends TabCommon {
   kind: 'collection';
   draft: CollectionDraft;
-  base: { auth: Auth; description: string; variables: VariableView[] };
-  section: 'variables' | 'auth' | 'description';
+  base: { auth: Auth; description: string; variables: VariableView[]; scripts: Scripts };
+  section: 'variables' | 'auth' | 'scripts' | 'description';
 }
 
 export interface FolderTab extends TabCommon {
   kind: 'folder';
-  draft: { auth: Auth; description: string };
-  base: { auth: Auth; description: string };
-  section: 'auth' | 'description';
+  draft: { auth: Auth; description: string; scripts: Scripts };
+  base: { auth: Auth; description: string; scripts: Scripts };
+  section: 'auth' | 'scripts' | 'description';
 }
 
 /** Exemplo salvo de uma requisição (somente leitura). */
@@ -126,10 +128,18 @@ function readIncoming(
     case 'collection':
       return {
         title: node.name,
-        value: { auth: node.auth, description: node.description ?? '', variables: node.variables },
+        value: {
+          auth: node.auth,
+          description: node.description ?? '',
+          variables: node.variables,
+          scripts: node.scripts,
+        },
       };
     case 'folder':
-      return { title: node.name, value: { auth: node.auth, description: node.description ?? '' } };
+      return {
+        title: node.name,
+        value: { auth: node.auth, description: node.description ?? '', scripts: node.scripts },
+      };
   }
 }
 
@@ -144,6 +154,7 @@ export function isDirty(tab: Tab): boolean {
       return (
         !deepEqual(tab.draft.auth, tab.base.auth) ||
         tab.draft.description !== tab.base.description ||
+        !deepEqual(tab.draft.scripts, tab.base.scripts) ||
         variablesDirty(tab.draft.variables, tab.base.variables)
       );
     case 'folder':
@@ -174,6 +185,7 @@ function withIncoming(tab: Tab, value: unknown): Tab {
           auth: structuredClone(v.auth),
           description: v.description,
           variables: [...draftsFromViews(v.variables), emptyDraft()],
+          scripts: structuredClone(v.scripts),
         },
         conflict: null,
       };
@@ -206,6 +218,7 @@ function describeChanges(tab: Tab, incoming: unknown): FieldChange[] {
       return [
         ...authChange(tab.base.auth, inc.auth),
         ...descriptionChange(tab.base.description, inc.description),
+        ...scriptsChange(tab.base.scripts, inc.scripts),
         ...diffVariables(tab.base.variables, inc.variables),
       ];
     }
@@ -214,6 +227,7 @@ function describeChanges(tab: Tab, incoming: unknown): FieldChange[] {
       return [
         ...authChange(tab.base.auth, inc.auth),
         ...descriptionChange(tab.base.description, inc.description),
+        ...scriptsChange(tab.base.scripts, inc.scripts),
       ];
     }
     case 'example':
@@ -225,6 +239,19 @@ function authChange(before: Auth, after: Auth): FieldChange[] {
   return deepEqual(before, after)
     ? []
     : [{ field: 'Autenticação', before: describeAuth(before), after: describeAuth(after) }];
+}
+
+function scriptsChange(before: Scripts | undefined, after: Scripts | undefined): FieldChange[] {
+  const changes: FieldChange[] = [];
+  for (const [key, label] of [
+    ['preRequest', 'Script de pré-requisição'],
+    ['postResponse', 'Script de pós-resposta'],
+  ] as const) {
+    const a = before?.[key] ?? '';
+    const b = after?.[key] ?? '';
+    if (a !== b) changes.push({ field: label, lines: diffLines(a, b) });
+  }
+  return changes;
 }
 
 function descriptionChange(before: string, after: string): FieldChange[] {
@@ -289,6 +316,8 @@ function tabId(): string {
   return `t${Date.now().toString(36)}${tabCounter}`;
 }
 
+const EMPTY_SCRIPTS: Scripts = { preRequest: '', postResponse: '' };
+
 export function newRequestData(partial: Partial<RequestData> = {}): RequestData {
   return RequestDataSchema.parse(partial);
 }
@@ -322,8 +351,8 @@ function createTab(
         {
           ...common,
           kind,
-          draft: { auth: { type: 'none' }, description: '', variables: [] },
-          base: { auth: { type: 'none' }, description: '', variables: [] },
+          draft: { auth: { type: 'none' }, description: '', variables: [], scripts: EMPTY_SCRIPTS },
+          base: { auth: { type: 'none' }, description: '', variables: [], scripts: EMPTY_SCRIPTS },
           section: 'variables',
         },
         incoming.value,
@@ -333,8 +362,8 @@ function createTab(
         {
           ...common,
           kind,
-          draft: { auth: { type: 'inherit' }, description: '' },
-          base: { auth: { type: 'inherit' }, description: '' },
+          draft: { auth: { type: 'inherit' }, description: '', scripts: EMPTY_SCRIPTS },
+          base: { auth: { type: 'inherit' }, description: '', scripts: EMPTY_SCRIPTS },
           section: 'auth',
         },
         incoming.value,

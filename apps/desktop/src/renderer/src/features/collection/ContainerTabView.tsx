@@ -11,6 +11,7 @@ import { type CollectionTab, type FolderTab, isDirty, useTabs } from '../../stat
 import { ConflictBanner } from '../conflict/ConflictBanner';
 import { AuthEditor } from '../request/AuthEditor';
 import { openItemById } from '../request/open';
+import { ScriptsEditor } from '../scripts/ScriptsEditor';
 import { VariablesEditor } from '../variables/VariablesEditor';
 
 /** Configurações de uma coleção ou pasta (auth herdável, variáveis, descrição). */
@@ -24,10 +25,12 @@ export function ContainerTabView({ tab }: { tab: CollectionTab | FolderTab }) {
     ? [
         { id: 'variables', label: 'Variáveis' },
         { id: 'auth', label: 'Autenticação' },
+        { id: 'scripts', label: 'Scripts' },
         { id: 'description', label: 'Descrição' },
       ]
     : [
         { id: 'auth', label: 'Autenticação' },
+        { id: 'scripts', label: 'Scripts' },
         { id: 'description', label: 'Descrição' },
       ];
 
@@ -50,6 +53,18 @@ export function ContainerTabView({ tab }: { tab: CollectionTab | FolderTab }) {
           tem prioridade.
         </p>
       </div>
+    );
+  } else if (tab.section === 'scripts') {
+    content = (
+      <ScriptsEditor
+        scripts={tab.draft.scripts}
+        onChange={(scripts) => setDraft({ scripts })}
+        scopeNote={
+          isCollection
+            ? 'Vale para todas as requisições da coleção e roda antes dos scripts das pastas e da requisição.'
+            : 'Vale para todas as requisições da pasta e roda antes do script da requisição.'
+        }
+      />
     );
   } else if (tab.section === 'auth') {
     content = (
