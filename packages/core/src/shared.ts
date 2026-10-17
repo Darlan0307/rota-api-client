@@ -7,6 +7,7 @@ export { CODEGEN_LABELS, CODEGEN_TARGETS, type CodegenTarget } from './codegen/c
 export * from './contract/reference';
 export * from './contract/shape';
 export { type CurlParseResult, looksLikeCurl, parseCurl } from './curl/parse-curl';
+export * from './database/types';
 export * from './export/backup';
 export * from './export/markdown';
 export * from './export/postman-export';

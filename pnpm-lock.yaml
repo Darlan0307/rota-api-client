@@ -29,6 +29,9 @@ importers:
       chokidar:
         specifier: ^5.0.0
         version: 5.0.0
+      node-firebird:
+        specifier: 2.18.2
+        version: 2.18.2
       quickjs-emscripten:
         specifier: ^0.32.0
         version: 0.32.0
@@ -157,6 +160,9 @@ importers:
       chokidar:
         specifier: ^5.0.0
         version: 5.0.0
+      node-firebird:
+        specifier: 2.18.2
+        version: 2.18.2
       quickjs-emscripten:
         specifier: ^0.32.0
         version: 0.32.0
@@ -2465,6 +2471,9 @@ packages:
 
   node-api-version@0.2.1:
     resolution: {integrity: sha512-2xP/IGGMmmSQpI1+O/k72jF/ykvZ89JeuKX3TLJAYPDVLUalrshrLHkeVcCCZqG/eEa635cr8IBYzgnDvM2O8Q==}
+
+  node-firebird@2.18.2:
+    resolution: {integrity: sha512-0z2xEwFZcPNLJQ4Mp0jXZ0V1cxKaSnrAPemj8LsuKM5KJ716hrIijB7QtjA1CbbRif+CWahwd8I5KmZU43OGFQ==}
 
   node-gyp@12.4.0:
     resolution: {integrity: sha512-OMcPNvqTCFUnNaBlmdgq+lfNqY7gTiSmNRDjY3uAXRyudeKZEZxu3CLtjMQrx4zZxCX2b/mpNqTtwuCJgXhHkw==}
@@ -5326,6 +5335,8 @@ snapshots:
   node-api-version@0.2.1:
     dependencies:
       semver: 7.8.5
+
+  node-firebird@2.18.2: {}
 
   node-gyp@12.4.0:
     dependencies:

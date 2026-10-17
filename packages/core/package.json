@@ -21,6 +21,7 @@
     "@napi-rs/keyring": "^2.1.1",
     "chai": "^4.5.0",
     "chokidar": "^5.0.0",
+    "node-firebird": "2.18.2",
     "quickjs-emscripten": "^0.32.0",
     "undici": "^8.12.2",
     "yaml": "^2.9.1",
