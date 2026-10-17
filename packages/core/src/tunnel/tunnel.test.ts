@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { DEFAULT_WEBHOOK_SETTINGS } from '../webhooks/providers';
 import { describeCloudflaredFailure, parseQuickTunnelUrl, QuickTunnel } from './cloudflared';
 import { TunnelInspector } from './inspector';
 import { DEFAULT_CAPTURE_BODY, joinUrl, normalizeTarget, type TunnelConfig } from './types';
@@ -45,6 +46,7 @@ function config(patch: Partial<TunnelConfig> = {}): TunnelConfig {
     captureStatus: 200,
     captureBody: DEFAULT_CAPTURE_BODY,
     webhookPath: '',
+    webhook: DEFAULT_WEBHOOK_SETTINGS,
     ...patch,
   };
 }

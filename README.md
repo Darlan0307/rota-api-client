@@ -28,6 +28,7 @@ O Rota resolve isso para o meu fluxo:
 - **Histórico**, **busca global** (Ctrl+P), **gerar código** (cURL, fetch, axios), **colar cURL** na URL e **lixeira** com restauração. Excluir, mover ou renomear tem "Desfazer" (Ctrl+Z).
 - **Teste de carga** simples: total de requisições ou duração, concorrência, percentis e gráficos.
 - **Túneis para webhooks**: cria uma URL `https://….trycloudflare.com` (via cloudflared) que entrega as chamadas na porta da sua API local e registra cada chamada para inspecionar e reenviar.
+- **Simulador de webhooks**: dispara eventos de exemplo do Stripe, Mercado Pago, GitHub, Asaas, Shopify, Standard Webhooks (Svix, Clerk, Resend) ou de qualquer serviço com HMAC, com a assinatura correta, direto na sua API. As chamadas reais recebidas pelo túnel mostram se a assinatura confere com o seu segredo.
 - **Workspaces de projeto**: abra qualquer pasta como workspace e versione as coleções junto com o código. Alterações feitas por fora (Git, MCP) aparecem na hora.
 - **Servidor MCP** embutido no próprio executável, com configuração automática do Claude Desktop e comando pronto para o Claude Code.
 

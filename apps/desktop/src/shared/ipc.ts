@@ -269,6 +269,14 @@ export interface IpcContract {
   'tunnel:replay': { args: [id: string, exchangeId: string]; result: TunnelExchangeSummary };
   // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
   'tunnel:clear': { args: [id: string]; result: void };
+  /** Segredo do webhook (null apaga). Fica cifrado; a tela só recebe hasWebhookSecret. */
+  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
+  'tunnel:setWebhookSecret': { args: [id: string, value: string | null]; result: void };
+  /** Envia um webhook simulado e assinado direto para a API local. */
+  'tunnel:simulate': {
+    args: [id: string, input: { body: string; path: string; eventId?: string }];
+    result: TunnelExchangeSummary;
+  };
 }
 
 export interface IpcEvents {
@@ -344,6 +352,8 @@ export const IPC_CHANNELS = [
   'tunnel:replay',
   'tunnel:test',
   'tunnel:clear',
+  'tunnel:setWebhookSecret',
+  'tunnel:simulate',
 ] as const satisfies readonly IpcChannel[];
 
 export const IPC_EVENTS = [

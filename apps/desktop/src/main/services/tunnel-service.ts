@@ -7,13 +7,20 @@ import { pipeline } from 'node:stream/promises';
 import {
   cloudflaredDownloadUrl,
   DEFAULT_CAPTURE_BODY,
+  DEFAULT_HMAC,
+  DEFAULT_WEBHOOK_SETTINGS,
   describeCloudflaredFailure,
+  findWebhookProvider,
   joinUrl,
   Mutex,
   newId,
   normalizeTarget,
   QuickTunnel,
   readJsonIfExists,
+  resolveTemplate,
+  type SecretScope,
+  type SecretStore,
+  signWebhook,
   summarizeExchange,
   type TunnelConfig,
   type TunnelExchange,
@@ -21,6 +28,9 @@ import {
   TunnelInspector,
   type TunnelStatus,
   type TunnelView,
+  VariableScope,
+  verifyWebhook,
+  type WebhookSettings,
   writeJsonAtomic,
 } from '@rota/core';
 import type { CloudflaredInfo } from '../../shared/ipc';
@@ -35,6 +45,25 @@ interface Runtime {
 }
 
 const MAX_LOGS = 80;
+
+const HMAC_ALGORITHMS = ['sha1', 'sha256', 'sha512'] as const;
+
+/** Configuração de webhook vinda do arquivo ou da tela, com os valores conferidos. */
+function normalizeWebhook(value: Partial<WebhookSettings> | undefined): WebhookSettings {
+  const hmac = { ...DEFAULT_HMAC, ...value?.hmac };
+  return {
+    provider: findWebhookProvider(value?.provider)?.id ?? null,
+    hmac: {
+      header: typeof hmac.header === 'string' ? hmac.header.trim() : DEFAULT_HMAC.header,
+      algorithm: HMAC_ALGORITHMS.includes(hmac.algorithm) ? hmac.algorithm : DEFAULT_HMAC.algorithm,
+      encoding: hmac.encoding === 'base64' ? 'base64' : 'hex',
+      prefix: typeof hmac.prefix === 'string' ? hmac.prefix : '',
+    },
+  };
+}
+
+const secretScope = (id: string): SecretScope => ({ kind: 'tunnel', id });
+const SECRET_KEY = 'webhook';
 
 /** Arquivo salvo: id, nome e destino obrigatórios; o resto ganha o padrão. */
 function isConfig(
@@ -60,6 +89,8 @@ export class TunnelService {
 
   constructor(
     private readonly dataDir: string,
+    /** Segredos de webhook dos túneis (cifrados, fora do tunnels.json). */
+    private readonly secrets: SecretStore,
     private readonly onChange: (views: TunnelView[]) => void,
   ) {}
 
@@ -121,6 +152,7 @@ export class TunnelService {
       ...c,
       // Arquivo editado à mão: destino inválido volta ao padrão.
       target: normalizeTarget(c.target) ?? 'http://localhost:3000',
+      webhook: normalizeWebhook(c.webhook),
     }));
   }
 
@@ -166,6 +198,7 @@ export class TunnelService {
         publicUrl: rt?.publicUrl ?? null,
         error: rt?.error ?? null,
         logs: rt?.logs ?? [],
+        hasWebhookSecret: this.secrets.has(secretScope(config.id), SECRET_KEY),
         exchanges: rt?.inspector.list().map(summarizeExchange) ?? [],
       };
     });
@@ -265,6 +298,7 @@ export class TunnelService {
       captureStatus: patch.captureStatus ?? 200,
       captureBody: patch.captureBody ?? DEFAULT_CAPTURE_BODY,
       webhookPath: patch.webhookPath ?? '',
+      webhook: normalizeWebhook(patch.webhook ?? DEFAULT_WEBHOOK_SETTINGS),
     };
     this.configs.push(config);
     await this.persist();
@@ -283,6 +317,8 @@ export class TunnelService {
       next.target = target;
     }
     if (patch.name !== undefined) next.name = patch.name.trim() || current.name;
+    if (patch.webhook !== undefined)
+      next.webhook = normalizeWebhook({ ...current.webhook, ...patch.webhook });
     if (patch.captureStatus !== undefined && !(patch.captureStatus >= 100 && patch.captureStatus <= 599))
       throw new Error('Status HTTP inválido (100 a 599).');
     this.configs = this.configs.map((c) => (c.id === id ? next : c));
@@ -293,6 +329,7 @@ export class TunnelService {
   async remove(id: string): Promise<void> {
     await this.stop(id);
     this.runtimes.delete(id);
+    this.secrets.deleteScope(secretScope(id));
     this.configs = this.configs.filter((c) => c.id !== id);
     await this.persist();
     this.notify();
@@ -385,8 +422,72 @@ export class TunnelService {
   // -------------------------------------------------------------------------
   // Chamadas recebidas
 
+  /** Detalhe de uma chamada, com a assinatura conferida quando há provedor e segredo. */
   exchange(id: string, exchangeId: string): TunnelExchange | null {
-    return this.runtimes.get(id)?.inspector.get(exchangeId) ?? null;
+    const exchange = this.runtimes.get(id)?.inspector.get(exchangeId);
+    if (!exchange) return null;
+    const { webhook } = this.config(id);
+    const secret = this.secrets.get(secretScope(id), SECRET_KEY);
+    if (!webhook.provider || !secret) return exchange;
+    const signature = exchange.requestBody.truncated
+      ? {
+          status: 'unverifiable' as const,
+          message:
+            'O corpo era grande demais para ficar registrado inteiro; não dá para conferir a assinatura.',
+        }
+      : verifyWebhook({
+          provider: webhook.provider,
+          secret,
+          hmac: webhook.hmac,
+          path: exchange.path,
+          headers: exchange.requestHeaders,
+          body: Buffer.from(exchange.requestBody.data, exchange.requestBody.encoding),
+        });
+    return { ...exchange, signature };
+  }
+
+  /** null apaga. O valor nunca volta para a tela: ela só sabe se existe. */
+  setWebhookSecret(id: string, value: string | null): void {
+    this.config(id);
+    if (value?.trim()) this.secrets.set(secretScope(id), SECRET_KEY, value.trim());
+    else this.secrets.delete(secretScope(id), SECRET_KEY);
+    this.notify();
+  }
+
+  /**
+   * Monta a chamada que o provedor faria (corpo com variáveis e dados de
+   * teste resolvidos, e assinatura) e envia direto para a API local, registrando-a na lista.
+   * Não precisa do túnel ligado.
+   */
+  async simulate(
+    id: string,
+    input: { body: string; path: string; eventId?: string },
+    scope: VariableScope = new VariableScope([]),
+  ): Promise<TunnelExchangeSummary> {
+    const config = this.config(id);
+    const provider = findWebhookProvider(config.webhook.provider);
+    if (!provider) throw new Error('Escolha o provedor do webhook.');
+    const secret = this.secrets.get(secretScope(id), SECRET_KEY);
+    if (!secret) throw new Error(`Informe o ${provider.secretLabel.toLowerCase()} para assinar a chamada.`);
+    const body = resolveTemplate(input.body, scope);
+    const event = provider.events.find((e) => e.id === input.eventId);
+    const signed = signWebhook({
+      provider: provider.id,
+      secret,
+      body,
+      path: input.path.trim() ? `/${input.path.trim().replace(/^\//, '')}` : '/',
+      hmac: config.webhook.hmac,
+      ...(event ? { event } : {}),
+    });
+    const contentType = /^\s*[[{]/.test(body) ? 'application/json' : 'text/plain; charset=utf-8';
+    const exchange = await this.runtime(id).inspector.send({
+      method: 'POST',
+      path: signed.path,
+      headers: [['Content-Type', contentType], ...signed.headers],
+      body: Buffer.from(body, 'utf8'),
+      label: event ? `${provider.shortName} · ${event.label}` : provider.shortName,
+    });
+    return summarizeExchange(exchange);
   }
 
   async replay(id: string, exchangeId: string): Promise<TunnelExchangeSummary> {

@@ -53,3 +53,4 @@ export { readJson, readJsonIfExists, stringifyJson, writeFileAtomic, writeJsonAt
 export { newId } from './util/ids';
 export { Mutex } from './util/mutex';
 export { persistVariables, viewVariables, withSecretValues } from './variables/persist';
+export * from './webhooks/signature';

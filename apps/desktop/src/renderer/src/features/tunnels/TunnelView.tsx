@@ -1,21 +1,27 @@
 import {
   applyUrlText,
+  findWebhookProvider,
   HTTP_METHODS,
   joinUrl,
   type RequestData,
+  type SignatureCheck,
   type TunnelBody,
   type TunnelConfig,
   type TunnelExchange,
   type TunnelExchangeSummary,
   type TunnelView as TunnelViewData,
+  type WebhookProviderId,
 } from '@rota/core/shared';
 import {
   ArrowRight,
+  CircleAlert,
+  CircleCheck,
   CircleHelp,
   Copy,
   Download,
   ExternalLink,
   LoaderCircle,
+  PenLine,
   Play,
   Radio,
   RotateCcw,
@@ -23,6 +29,7 @@ import {
   Square,
   Trash2,
   Unplug,
+  Zap,
 } from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Button } from '../../components/Button';
@@ -41,8 +48,10 @@ import { toast } from '../../state/toasts';
 import {
   clearExchanges,
   installCloudflared,
+  openSimulator,
   removeTunnel,
   replayExchange,
+  selectExchange,
   startTunnel,
   stopTunnel,
   testTunnel,
@@ -390,7 +399,7 @@ function PublicUrlCard({ view }: { view: TunnelViewData }) {
         <p className="text-xs text-fg-muted">
           Ligue o túnel para gerar o endereço https. Ele vale enquanto o túnel estiver ligado.
         </p>
-        <TunnelDiagram />
+        <TunnelDiagram target={config.target.replace(/^https?:\/\//, '')} />
       </div>
     );
   }
@@ -457,7 +466,8 @@ function asMethod(method: string): HttpMethod {
 
 function Inspector({ view }: { view: TunnelViewData }) {
   const { config, exchanges } = view;
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedId = useTunnels((s) => s.selected[config.id]);
+  const setSelectedId = (id: string) => selectExchange(config.id, id);
   const selected = exchanges.find((e) => e.id === selectedId) ?? exchanges[0] ?? null;
 
   return (
@@ -480,6 +490,13 @@ function Inspector({ view }: { view: TunnelViewData }) {
             Limpar
           </Button>
         )}
+        <Button
+          size="sm"
+          onClick={() => openSimulator({ tunnelId: config.id })}
+          title="Envia um evento de exemplo, assinado como o provedor faria, direto para a sua API"
+        >
+          <Zap className="size-3.5" /> Simular webhook
+        </Button>
       </div>
 
       {exchanges.length === 0 ? (
@@ -490,7 +507,7 @@ function Inspector({ view }: { view: TunnelViewData }) {
             <p className="mt-1 text-xs leading-relaxed text-fg-muted">
               {view.status === 'running'
                 ? 'Dispare o webhook no serviço ou use "Testar agora". Cada chamada aparece aqui na hora.'
-                : 'Ligue o túnel, cole a URL no serviço e as chamadas aparecem aqui.'}
+                : 'Ligue o túnel, cole a URL no serviço e as chamadas aparecem aqui. Sem o serviço por perto, use "Simular webhook".'}
             </p>
           </div>
         </div>
@@ -511,6 +528,7 @@ function Inspector({ view }: { view: TunnelViewData }) {
               key={selected.id}
               tunnelId={config.id}
               target={config.target}
+              provider={config.webhook.provider}
               summary={selected}
               onReplayed={(id) => setSelectedId(id)}
             />
@@ -546,6 +564,11 @@ function ExchangeRow({
           <span className="flex items-center gap-1.5 text-2xs text-fg-subtle">
             {timeOf(exchange.at)} · {formatDuration(exchange.durationMs)}
             {exchange.replay && <span className="rounded bg-surface-2 px-1 text-fg-muted">reenvio</span>}
+            {exchange.simulated && (
+              <span className="truncate rounded bg-primary-soft px-1 text-primary" title={exchange.simulated}>
+                simulado
+              </span>
+            )}
             {exchange.mode === 'capture' && (
               <span className="rounded bg-surface-2 px-1 text-fg-muted">capturada</span>
             )}
@@ -591,14 +614,49 @@ function openAsRequest(exchange: TunnelExchange, target: string) {
   useTabs.getState().openNewRequest({ data, title: `Webhook ${exchange.path.split('?')[0]}` });
 }
 
+/** Evento do catálogo com os mesmos headers fixos da chamada (ex.: X-GitHub-Event: push). */
+function guessEvent(provider: WebhookProviderId | null, headers: [string, string][]): string | undefined {
+  const events = findWebhookProvider(provider)?.events ?? [];
+  const value = (name: string) => headers.find(([k]) => k.toLowerCase() === name.toLowerCase())?.[1];
+  return events.find((e) => {
+    const fixed = Object.entries(e.headers ?? {});
+    return fixed.length > 0 && fixed.every(([k, v]) => value(k) === v);
+  })?.id;
+}
+
+function SignatureBadge({ check }: { check: SignatureCheck }) {
+  const ok = check.status === 'valid';
+  const Icon = ok ? CircleCheck : CircleAlert;
+  return (
+    <div
+      className={cn(
+        'mx-4 mb-2 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs',
+        ok && 'border-success/40 bg-success/5',
+        check.status === 'invalid' && 'border-danger/40 bg-danger/5',
+        (check.status === 'missing' || check.status === 'unverifiable') && 'border-warning/40 bg-warning/5',
+      )}
+    >
+      <Icon
+        className={cn(
+          'mt-px size-3.5 shrink-0',
+          ok ? 'text-success' : check.status === 'invalid' ? 'text-danger' : 'text-warning',
+        )}
+      />
+      <span className="text-fg">{check.message}</span>
+    </div>
+  );
+}
+
 function ExchangeDetail({
   tunnelId,
   target,
+  provider,
   summary,
   onReplayed,
 }: {
   tunnelId: string;
   target: string;
+  provider: WebhookProviderId | null;
   summary: TunnelExchangeSummary;
   onReplayed: (id: string) => void;
 }) {
@@ -656,10 +714,30 @@ function ExchangeDetail({
           )}
           Reenviar
         </Button>
+        {exchange.requestBody.encoding === 'utf8' && !exchange.requestBody.truncated && (
+          <Button
+            size="sm"
+            variant="ghost"
+            title="Abre no simulador para editar o corpo e enviar com uma assinatura nova"
+            onClick={() => {
+              const eventId = guessEvent(provider, exchange.requestHeaders);
+              openSimulator({
+                tunnelId,
+                body: exchange.requestBody.data,
+                path: exchange.path,
+                ...(eventId ? { eventId } : {}),
+              });
+            }}
+          >
+            <PenLine className="size-3.5" /> Editar e reenviar
+          </Button>
+        )}
         <Button size="sm" variant="ghost" onClick={() => openAsRequest(exchange, target)}>
           <ExternalLink className="size-3.5" /> Abrir como requisição
         </Button>
       </div>
+
+      {exchange.signature && <SignatureBadge check={exchange.signature} />}
 
       {exchange.error && (
         <div className="mx-4 mb-2 rounded-lg border border-danger/40 bg-danger/5 px-3 py-2 text-xs text-fg">

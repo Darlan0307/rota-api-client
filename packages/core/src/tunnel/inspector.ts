@@ -111,6 +111,7 @@ interface SendInput {
   /** Resposta para o cloudflared (ausente no reenvio). */
   client?: ServerResponse;
   replay: boolean;
+  simulated?: string;
 }
 
 export class TunnelInspector {
@@ -174,6 +175,26 @@ export class TunnelInspector {
       headers,
       body: Readable.from(body.length ? [body] : []),
       replay: true,
+    });
+  }
+
+  /** Envia uma chamada montada pelo Rota (simulador) direto para o destino, registrando-a. */
+  send(input: {
+    method: string;
+    path: string;
+    headers: [string, string][];
+    body: Buffer;
+    label: string;
+  }): Promise<TunnelExchange> {
+    const headers = input.headers.filter(([k]) => k.toLowerCase() !== 'content-length');
+    headers.push(['content-length', String(input.body.length)]);
+    return this.forward({
+      method: input.method,
+      path: input.path,
+      headers,
+      body: Readable.from(input.body.length ? [input.body] : []),
+      replay: false,
+      simulated: input.label,
     });
   }
 
@@ -266,6 +287,7 @@ export class TunnelInspector {
       mode: 'forward' as const,
       target: config.target,
       replay: input.replay,
+      ...(input.simulated ? { simulated: input.simulated } : {}),
     };
 
     return new Promise<TunnelExchange>((resolve) => {

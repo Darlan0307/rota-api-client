@@ -5,8 +5,8 @@ import { isNotFound, stringifyJson, TEMP_SUFFIX } from '../util/fs';
 
 /** Onde uma variável secreta está definida. Para globais, `id` é "globals". */
 export interface SecretScope {
-  /** 'trash': segredos de itens na lixeira (para restaurar). */
-  kind: 'global' | 'collection' | 'environment' | 'trash';
+  /** 'trash': segredos de itens na lixeira (para restaurar). 'tunnel': segredo do webhook de um túnel. */
+  kind: 'global' | 'collection' | 'environment' | 'trash' | 'tunnel';
   id: string;
 }
 

@@ -3,6 +3,8 @@
  * local. Tipos sem dependências de Node (usados também pelo renderer).
  */
 
+import type { SignatureCheck, WebhookSettings } from '../webhooks/providers';
+
 /** "forward": repassa para a API local. "capture": só registra e responde. */
 export type TunnelMode = 'forward' | 'capture';
 
@@ -19,6 +21,8 @@ export interface TunnelConfig {
   captureBody: string;
   /** Caminho do webhook (ex.: /webhooks/stripe), só para montar a URL a copiar. */
   webhookPath: string;
+  /** Provedor do webhook: assina as chamadas simuladas e confere as recebidas. */
+  webhook: WebhookSettings;
 }
 
 export type TunnelStatus = 'stopped' | 'starting' | 'running' | 'error';
@@ -52,11 +56,15 @@ export interface TunnelExchange {
   target: string;
   /** Reenviada pelo Rota (não veio da internet). */
   replay: boolean;
+  /** Gerada pelo simulador (ex.: "Stripe · invoice.paid"). */
+  simulated?: string;
+  /** Conferência da assinatura com o segredo do túnel (só no detalhe). */
+  signature?: SignatureCheck;
 }
 
 export type TunnelExchangeSummary = Pick<
   TunnelExchange,
-  'id' | 'at' | 'method' | 'path' | 'status' | 'durationMs' | 'error' | 'mode' | 'replay'
+  'id' | 'at' | 'method' | 'path' | 'status' | 'durationMs' | 'error' | 'mode' | 'replay' | 'simulated'
 >;
 
 export interface TunnelView {
@@ -67,6 +75,8 @@ export interface TunnelView {
   error: string | null;
   /** Últimas linhas do cloudflared (para diagnóstico). */
   logs: string[];
+  /** Há segredo de webhook salvo (o valor fica só no processo principal). */
+  hasWebhookSecret: boolean;
   /** Mais recentes primeiro. */
   exchanges: TunnelExchangeSummary[];
 }
@@ -84,6 +94,7 @@ export function summarizeExchange(e: TunnelExchange): TunnelExchangeSummary {
     replay: e.replay,
     ...(e.status !== undefined ? { status: e.status } : {}),
     ...(e.error !== undefined ? { error: e.error } : {}),
+    ...(e.simulated !== undefined ? { simulated: e.simulated } : {}),
   };
 }
 

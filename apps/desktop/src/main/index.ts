@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { appDataDir } from '@rota/core';
+import { appDataDir, EncryptedFileSecretStore, keyringMasterKey } from '@rota/core';
 import { app, BrowserWindow, Menu, shell } from 'electron';
 import { APP_NAME, TITLE_BAR_HEIGHT } from '../shared/constants';
 import type { WorkspaceState } from '../shared/ipc';
@@ -125,7 +125,10 @@ if (!app.requestSingleInstanceLock()) {
       // Outra instância (ou um processo antigo) segurando o pipe: o app segue sem a ponte.
       console.error('Ponte com o MCP indisponível:', error);
     });
-    const tunnels = new TunnelService(appDataDir(), (views) => {
+    const tunnelSecrets = new EncryptedFileSecretStore(join(appDataDir(), 'tunnel-secrets.json'), () =>
+      keyringMasterKey(),
+    );
+    const tunnels = new TunnelService(appDataDir(), tunnelSecrets, (views) => {
       for (const win of BrowserWindow.getAllWindows()) win.webContents.send('tunnel:changed', views);
     });
     await tunnels.load();

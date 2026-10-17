@@ -50,3 +50,4 @@ export { slugify, uniqueSlug } from './util/slug';
 export * from './variables/dynamic';
 export type { VariableInput } from './variables/persist';
 export * from './variables/template';
+export * from './webhooks/providers';

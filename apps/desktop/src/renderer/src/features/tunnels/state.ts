@@ -17,6 +17,17 @@ interface TunnelState {
   /** Guia "como usar" aberto. */
   guideOpen: boolean;
   setGuideOpen(open: boolean): void;
+  /** Chamada selecionada em cada túnel (ausente = a mais recente). */
+  selected: Record<string, string>;
+  /** Simulador de webhook aberto, opcionalmente com corpo e caminho de uma chamada recebida. */
+  simulator: SimulatorRequest | null;
+}
+
+export interface SimulatorRequest {
+  tunnelId: string;
+  body?: string;
+  path?: string;
+  eventId?: string;
 }
 
 export const useTunnels = create<TunnelState>()((set) => ({
@@ -26,7 +37,21 @@ export const useTunnels = create<TunnelState>()((set) => ({
   download: null,
   guideOpen: false,
   setGuideOpen: (guideOpen) => set({ guideOpen }),
+  selected: {},
+  simulator: null,
 }));
+
+export function selectExchange(tunnelId: string, exchangeId: string): void {
+  useTunnels.setState((s) => ({ selected: { ...s.selected, [tunnelId]: exchangeId } }));
+}
+
+export function openSimulator(request: SimulatorRequest): void {
+  useTunnels.setState({ simulator: request });
+}
+
+export function closeSimulator(): void {
+  useTunnels.setState({ simulator: null });
+}
 
 let subscribed = false;
 
@@ -148,4 +173,21 @@ export function replayExchange(id: string, exchangeId: string) {
 
 export async function clearExchanges(id: string): Promise<void> {
   await guarded(() => api.invoke('tunnel:clear', id));
+}
+
+export async function setWebhookSecret(id: string, value: string | null): Promise<boolean> {
+  return (await guarded(() => api.invoke('tunnel:setWebhookSecret', id, value).then(() => true))) ?? false;
+}
+
+/** Envia o webhook simulado e seleciona a chamada na lista. */
+export async function simulateWebhook(
+  id: string,
+  input: { body: string; path: string; eventId?: string },
+): Promise<boolean> {
+  const result = await guarded(() => api.invoke('tunnel:simulate', id, input));
+  if (!result) return false;
+  selectExchange(id, result.id);
+  if (result.error) toast.error(result.error);
+  else toast.success(`Webhook simulado: a API respondeu ${result.status}.`);
+  return true;
 }

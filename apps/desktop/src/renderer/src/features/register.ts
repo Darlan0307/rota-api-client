@@ -26,6 +26,7 @@ import { TrashActions, TrashPanel } from './trash/TrashPanel';
 import { subscribeTunnelEvents } from './tunnels/state';
 import { TunnelGuideDialog } from './tunnels/TunnelGuide';
 import { TunnelsActions, TunnelsPanel } from './tunnels/TunnelsPanel';
+import { WebhookSimulatorDialog } from './tunnels/WebhookSimulator';
 import { NewWorkspaceDialog, openFolderAsWorkspace, WorkspaceMenu } from './workspaces/WorkspaceMenu';
 
 /**
@@ -94,6 +95,7 @@ export function registerFeatures(): void {
     tunnelsActions: () => createElement(TunnelsActions),
   });
   registerOverlay(TunnelGuideDialog);
+  registerOverlay(WebhookSimulatorDialog);
   subscribeTunnelEvents();
 
   // Backup completo no formato do Postman.

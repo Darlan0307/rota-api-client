@@ -82,6 +82,15 @@ export function registerIpcHandlers({
   handle('tunnel:replay', (_e, id, exchangeId) => tunnels.replay(id, exchangeId));
   handle('tunnel:clear', (_e, id) => tunnels.clear(id));
   handle('tunnel:test', (_e, id, path) => tunnels.test(id, path));
+  handle('tunnel:setWebhookSecret', (_e, id, value) => tunnels.setWebhookSecret(id, value));
+  // O corpo simulado aceita {{variáveis}} das globais e do ambiente ativo, além dos dados de teste.
+  handle('tunnel:simulate', (_e, id, input) =>
+    tunnels.simulate(
+      id,
+      input,
+      variableScopeFor(workspace.current, { environmentId: workspace.activeEnvironmentId }),
+    ),
+  );
 
   handle('mcp:respond', (_e, id, approved) => mcp.respond(id, approved));
 

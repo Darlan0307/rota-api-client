@@ -88,7 +88,7 @@ function Code({ children }: { children: ReactNode }) {
 }
 
 /** Diagrama do caminho de uma chamada. */
-export function TunnelDiagram() {
+export function TunnelDiagram({ target = 'localhost:3000' }: { target?: string }) {
   const node = (icon: ReactNode, label: string, detail: string) => (
     <div className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-lg border border-border bg-surface px-2 py-2.5 text-center">
       <span className="text-primary">{icon}</span>
@@ -105,7 +105,7 @@ export function TunnelDiagram() {
       {arrow}
       {node(<Logo size={16} />, 'Rota', 'registra tudo')}
       {arrow}
-      {node(<Laptop className="size-4" />, 'Sua API', 'localhost:3000')}
+      {node(<Laptop className="size-4" />, 'Sua API', target)}
     </div>
   );
 }
