@@ -17,6 +17,7 @@ import {
   KeyValueSchema,
   loadAppSettings,
   maskSecretValues,
+  type PreparedRequest,
   prepareForDisplay,
   prepareRequest,
   type RequestData,
@@ -43,6 +44,34 @@ import { type McpSession, ToolError } from './session';
 
 const MAX_BODY_CHARS = 60_000;
 const DESTRUCTIVE_METHODS = new Set(['DELETE', 'PUT', 'PATCH']);
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host.toLowerCase();
+  } catch {
+    return url;
+  }
+}
+
+function isLoopback(host: string): boolean {
+  const name = host.replace(/:\d+$/, '').replace(/^\[|\]$/g, '');
+  return name === 'localhost' || name === '::1' || /^127\.\d+\.\d+\.\d+$/.test(name);
+}
+
+/**
+ * A requisição final leva algum segredo? Variáveis secretas chegam como ••••••;
+ * um valor secreto copiado por script chega como texto e é achado pelo valor.
+ */
+function carriesSecret(request: PreparedRequest, secrets: readonly string[]): boolean {
+  const body =
+    request.body.kind === 'text'
+      ? [request.body.text]
+      : request.body.kind === 'formdata'
+        ? request.body.fields.map((f) => f.value)
+        : [];
+  const text = [request.url, ...request.headers.flat(), ...body].join('\n');
+  return text.includes(SECRET_MASK) || maskSecretValues(text, secrets) !== text;
+}
 
 type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean };
 
@@ -701,9 +730,23 @@ export function registerTools(server: McpServer, session: McpSession): void {
 
   // ---- Envio ---------------------------------------------------------------
 
+  /** Hosts liberados nesta sessão para receber segredos. */
+  const approvedHosts = new Set<string>();
+
+  /**
+   * Endereço em que o usuário confia: a própria máquina, um host para o qual ele
+   * já enviou pelo app ou um que ele aprovou nesta sessão. Requisição salva não
+   * conta, porque o Claude pode criá-la sem confirmação.
+   */
+  async function isKnownHost(host: string): Promise<boolean> {
+    if (isLoopback(host) || approvedHosts.has(host)) return true;
+    const { items } = await (await session.history()).list({ limit: 500 });
+    return items.some((e) => e.source === 'app' && hostOf(e.url) === host);
+  }
+
   tool(
     'enviar_requisicao',
-    'Envia uma requisição salva (id) ou avulsa (requisicao), com o ambiente ativo, auth herdada e scripts. DELETE, PUT e PATCH exigem confirmação no app. Valores secretos aparecem mascarados na resposta.',
+    'Envia uma requisição salva (id) ou avulsa (requisicao), com o ambiente ativo, auth herdada e scripts. DELETE, PUT e PATCH exigem confirmação no app, assim como enviar valores secretos para um endereço que o usuário ainda não usou. Valores secretos aparecem mascarados na resposta.',
     {
       id: z.string().optional().describe('Requisição salva'),
       requisicao: z
@@ -741,11 +784,16 @@ export function registerTools(server: McpServer, session: McpSession): void {
         parentId: paiId,
         environmentId,
         requestName: name,
-        // Confere o método final, depois dos pré-scripts (que podem trocá-lo).
+        // Confere a requisição final, depois dos pré-scripts (que podem trocar método e URL).
         beforeSend: async (final) => {
-          if (!DESTRUCTIVE_METHODS.has(final.method)) return;
+          const destructive = DESTRUCTIVE_METHODS.has(final.method);
+          const host = hostOf(final.url);
+          // Segredo indo para um endereço que o usuário nunca usou: pode ser o
+          // Claude seguindo instruções escondidas numa resposta de API.
+          const unknownHost = carriesSecret(final, session.secretValues()) && !(await isKnownHost(host));
+          if (!destructive && !unknownHost) return;
           await session.confirm({
-            title: `Enviar ${final.method}`,
+            title: destructive ? `Enviar ${final.method}` : 'Enviar segredo para outro endereço',
             description: `O Claude quer enviar ${final.method} ${final.url}.`,
             details: [
               `Requisição: ${name}`,
@@ -753,9 +801,13 @@ export function registerTools(server: McpServer, session: McpSession): void {
               ...(final.method !== data.method
                 ? [`Atenção: o método salvo é ${data.method}; um pré-script o mudou para ${final.method}.`]
                 : []),
+              ...(unknownHost
+                ? [`Atenção: leva valores secretos para ${host}, endereço que você ainda não usou no Rota.`]
+                : []),
             ],
-            danger: final.method === 'DELETE',
+            danger: final.method === 'DELETE' || unknownHost,
           });
+          if (unknownHost) approvedHosts.add(host);
         },
         settings: {
           defaultTimeoutMs: settings.defaultTimeoutMs,

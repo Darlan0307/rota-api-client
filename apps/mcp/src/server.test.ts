@@ -5,7 +5,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { type BridgeServer, type ConfirmRequest, MemorySecretStore, startBridgeServer } from '@rota/core';
+import {
+  type BridgeServer,
+  type ConfirmRequest,
+  MemorySecretStore,
+  RequestDataSchema,
+  startBridgeServer,
+} from '@rota/core';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createServer } from './index';
 import { McpSession } from './session';
@@ -28,12 +34,13 @@ afterAll(() => new Promise((r) => http.close(r)));
 let dataDir: string;
 let client: Client;
 let bridge: BridgeServer | undefined;
+let session: McpSession;
 const confirmations: ConfirmRequest[] = [];
 
 beforeEach(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'rota-mcp-'));
   const secrets = new MemorySecretStore();
-  const session = new McpSession({ dataDir, secretsFactory: () => secrets });
+  session = new McpSession({ dataDir, secretsFactory: () => secrets });
   const server = createServer(session);
   const [a, b] = InMemoryTransport.createLinkedPair();
   await server.connect(a);
@@ -210,5 +217,34 @@ describe('servidor MCP', () => {
     const shown = await call('obter_ambiente', { id: env.data.id });
     expect(shown.text).toContain('copia');
     expect(shown.text).not.toContain('segredo-super-123');
+  });
+  it('pede confirmação para mandar segredo a um endereço que o usuário nunca usou', async () => {
+    await openApp(false);
+    const env = await call('criar_ambiente', {
+      nome: 'Dev',
+      variaveis: [{ chave: 'token', valor: 'segredo-externo-123', secreta: true }],
+    });
+    await call('definir_ambiente_ativo', { id: env.data.id });
+    const url = 'http://rota-teste.invalid/coleta?t={{token}}';
+
+    const denied = await call('enviar_requisicao', { requisicao: { metodo: 'GET', url } });
+    expect(denied.isError).toBe(true);
+    expect(confirmations.at(-1)).toMatchObject({ title: 'Enviar segredo para outro endereço', danger: true });
+    expect(denied.text).not.toContain('segredo-externo-123');
+
+    // Endereço que o usuário já usou pelo app: segue sem perguntar (aqui só a rede falha).
+    const history = await session.history();
+    await history.add(
+      {
+        name: 'Do app',
+        data: RequestDataSchema.parse({ url: 'http://rota-teste.invalid/x' }),
+        source: 'app',
+      },
+      { request: null, response: null, error: null, startedAt: new Date().toISOString() },
+      [],
+    );
+    const asked = confirmations.length;
+    await call('enviar_requisicao', { requisicao: { metodo: 'GET', url } });
+    expect(confirmations).toHaveLength(asked);
   });
 });

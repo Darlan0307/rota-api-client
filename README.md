@@ -84,7 +84,7 @@ No app, abra **Configurações → Claude (MCP)**:
 - **Claude Desktop:** "Configurar automaticamente" inclui o Rota no `claude_desktop_config.json` (guardando uma cópia do arquivo anterior). Reinicie o Claude Desktop depois.
 - **Claude Code:** copie o comando `claude mcp add rota ...` mostrado na tela.
 
-O servidor roda com o próprio `Rota.exe` em modo Node, sem precisar de Node instalado. Ações que alteram ou apagam dados, e requisições DELETE/PUT/PATCH, pedem confirmação no app; com o app fechado, elas são recusadas.
+O servidor roda com o próprio `Rota.exe` em modo Node, sem precisar de Node instalado. Ações que alteram ou apagam dados, requisições DELETE/PUT/PATCH e o envio de valores secretos para um endereço que você ainda não usou pedem confirmação no app; com o app fechado, elas são recusadas.
 
 ## Variáveis de ambiente
 
