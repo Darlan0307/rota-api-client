@@ -191,5 +191,18 @@ export interface DbServerInfo {
   connectionCharset: string;
 }
 
+/** Consulta executada numa conexão (histórico local, só nesta máquina). */
+export interface DbHistoryEntry {
+  id: string;
+  /** ISO 8601. */
+  at: string;
+  sql: string;
+  durationMs: number;
+  /** Linhas lidas (consultas) ou afetadas (comandos). */
+  rows?: number;
+  affected?: number;
+  error?: string;
+}
+
 export const DEFAULT_FIREBIRD_PORT = 3050;
 export const DEFAULT_ROW_LIMIT = 500;

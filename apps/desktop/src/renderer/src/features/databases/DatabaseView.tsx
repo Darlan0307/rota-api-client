@@ -38,6 +38,7 @@ import type { monaco } from '../../lib/monaco';
 import { confirmDialog } from '../../state/dialogs';
 import { type DatabaseTab, useTabs } from '../../state/tabs';
 import { ConnectionDot, EnvironmentBadge } from './DatabasesPanel';
+import { QueryHistory } from './QueryHistory';
 import { ResultGrid } from './ResultGrid';
 import { bindSqlEditor } from './sql-completion';
 import {
@@ -428,7 +429,13 @@ function SqlEditor({
       if (selection && !selection.isEmpty()) text = model.getValueInRange(selection);
       else if (position) text = statementAt(model.getValue(), model.getOffsetAt(position))?.text ?? sql;
     }
-    text = text.trim().replace(/;+$/, '');
+    await runText(text);
+  }
+
+  /** Confirma comandos de escrita em produção antes de executar (editor ou histórico). */
+  async function runText(raw: string) {
+    if (!view) return;
+    const text = raw.trim().replace(/;+$/, '');
     if (!text) return;
     if (!view.config.readOnly && view.config.environment === 'producao' && !isReadQuery(text)) {
       const choice = await confirmDialog({
@@ -454,6 +461,14 @@ function SqlEditor({
             <Play className="size-3.5" /> Executar
           </Button>
         )}
+        <QueryHistory
+          connectionId={id}
+          onPick={(text) => updateQuery(id, { sql: text })}
+          onRun={(text) => {
+            updateQuery(id, { sql: text });
+            void runText(text);
+          }}
+        />
         <span className="hidden text-2xs text-fg-subtle xl:inline">
           <Kbd keys="Ctrl+Enter" /> roda a seleção ou o comando onde está o cursor
         </span>
@@ -496,7 +511,8 @@ function SqlEditor({
 
 function ResultArea({ id, name }: { id: string; name: string }) {
   const query = useDatabases((s) => s.queries[id]);
-  const running = useConnection(id)?.running ?? false;
+  const view = useConnection(id);
+  const running = view?.running ?? false;
 
   if (query?.error)
     return (
@@ -534,7 +550,13 @@ function ResultArea({ id, name }: { id: string; name: string }) {
     );
   return (
     <div className={cn('h-full', running && 'opacity-60')}>
-      <ResultGrid key={query.ranSql ?? ''} result={query.result} name={name} />
+      <ResultGrid
+        key={query.ranSql ?? ''}
+        result={query.result}
+        name={name}
+        engine={view?.config.engine ?? 'firebird'}
+        sql={query.ranSql ?? ''}
+      />
     </div>
   );
 }

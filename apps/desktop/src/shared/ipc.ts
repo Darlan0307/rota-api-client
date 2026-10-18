@@ -13,6 +13,7 @@ import type {
   CodegenTarget,
   DbConnectionConfig,
   DbCredential,
+  DbHistoryEntry,
   DbQueryResult,
   DbSchema,
   DbServerInfo,
@@ -308,6 +309,10 @@ export interface IpcContract {
   'db:run': { args: [id: string, sql: string, limit?: number]; result: DbQueryResult };
   // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
   'db:cancel': { args: [id: string]; result: void };
+  /** Consultas executadas na conexão (mais recentes primeiro). */
+  'db:history': { args: [id: string]; result: DbHistoryEntry[] };
+  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
+  'db:clearHistory': { args: [id: string]; result: void };
 }
 
 export interface IpcEvents {
@@ -398,6 +403,8 @@ export const IPC_CHANNELS = [
   'db:schema',
   'db:run',
   'db:cancel',
+  'db:history',
+  'db:clearHistory',
 ] as const satisfies readonly IpcChannel[];
 
 export const IPC_EVENTS = [

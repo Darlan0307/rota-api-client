@@ -1,6 +1,26 @@
-import { compareCells, type DbQueryResult, type DbValue } from '@rota/core/shared';
-import { ArrowDown, ArrowUp, Copy, Download, Search } from 'lucide-react';
+import {
+  compareCells,
+  type DbEngine,
+  type DbQueryResult,
+  type DbValue,
+  resultToInserts,
+  resultToJson,
+  resultToTsv,
+  tableFromSql,
+} from '@rota/core/shared';
+import {
+  ArrowDown,
+  ArrowUp,
+  Braces,
+  ChevronDown,
+  Copy,
+  Database,
+  Download,
+  Search,
+  Table2,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { DropdownActions } from '../../components/ActionMenu';
 import { Button } from '../../components/Button';
 import { IconButton } from '../../components/IconButton';
 import { api, errorMessage } from '../../lib/api';
@@ -26,7 +46,18 @@ function toCsv(columns: readonly string[], rows: readonly DbValue[][]): string {
 }
 
 /** Resultado de uma consulta: ordenar, filtrar, ver o valor completo e exportar para CSV. */
-export function ResultGrid({ result, name }: { result: DbQueryResult; name: string }) {
+export function ResultGrid({
+  result,
+  name,
+  engine,
+  sql,
+}: {
+  result: DbQueryResult;
+  name: string;
+  engine: DbEngine;
+  /** Comando que gerou o resultado (para achar a tabela dos INSERTs). */
+  sql: string;
+}) {
   const [filter, setFilter] = useState('');
   const [sort, setSort] = useState<Sort>(null);
   const [selected, setSelected] = useState<{ row: number; column: number } | null>(null);
@@ -68,6 +99,25 @@ export function ResultGrid({ result, name }: { result: DbQueryResult; name: stri
     }
   }
 
+  function copyAs(format: 'json' | 'tsv' | 'insert', onlySelected = false) {
+    const names = result.columns.map((c) => c.name);
+    const source = onlySelected && selected ? [result.rows[selected.row] ?? []] : rows.map((r) => r.row);
+    const text =
+      format === 'json'
+        ? resultToJson(names, source)
+        : format === 'tsv'
+          ? resultToTsv(names, source)
+          : resultToInserts(engine, tableFromSql(sql) ?? 'TABELA', names, source);
+    void navigator.clipboard.writeText(text);
+    const count = source.length === 1 ? '1 linha copiada' : `${source.length} linhas copiadas`;
+    const label = format === 'json' ? 'JSON' : format === 'tsv' ? 'tabela' : 'INSERT';
+    toast.success(
+      format === 'insert' && !tableFromSql(sql)
+        ? `${count} como INSERT (troque TABELA pelo nome da tabela).`
+        : `${count} como ${label}.`,
+    );
+  }
+
   const selectedValue = selected ? result.rows[selected.row]?.[selected.column] : undefined;
   const selectedColumn = selected ? result.columns[selected.column] : undefined;
 
@@ -90,6 +140,29 @@ export function ResultGrid({ result, name }: { result: DbQueryResult; name: stri
             : `${rows.length} de ${result.rows.length}`}
           {result.truncated && ' (limite atingido)'} · {result.durationMs} ms
         </span>
+        <DropdownActions
+          align="end"
+          trigger={
+            <Button size="sm" variant="ghost" title="Copia as linhas filtradas, na ordem atual">
+              <Copy className="size-3.5" /> Copiar <ChevronDown className="size-3" />
+            </Button>
+          }
+          entries={[
+            { label: 'Como JSON', icon: Braces, onSelect: () => copyAs('json') },
+            { label: 'Como tabela (colar no Excel)', icon: Table2, onSelect: () => copyAs('tsv') },
+            { label: 'Como INSERT', icon: Database, onSelect: () => copyAs('insert') },
+            ...(selected
+              ? [
+                  'separator' as const,
+                  {
+                    label: 'Linha selecionada como JSON',
+                    icon: Braces,
+                    onSelect: () => copyAs('json', true),
+                  },
+                ]
+              : []),
+          ]}
+        />
         <Button
           size="sm"
           variant="ghost"

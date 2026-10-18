@@ -1,4 +1,4 @@
-import { mkdir, rename } from 'node:fs/promises';
+import { mkdir, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   connectDatabase,
@@ -6,6 +6,7 @@ import {
   type DbConnectionConfig,
   type DbCredential,
   type DbEngine,
+  type DbHistoryEntry,
   type DbQueryResult,
   type DbSchema,
   type DbServerInfo,
@@ -24,6 +25,11 @@ import {
 const CHARSETS = ['auto', 'UTF8', 'WIN1252', 'ISO8859_1', 'NONE'] as const;
 const ENVIRONMENTS = ['local', 'teste', 'producao'] as const;
 const PASSWORD = 'password';
+const MAX_ROW_LIMIT = 50_000;
+const MAX_HISTORY = 200;
+/** Conexão parada há mais que isso é fechada (economiza o servidor e não deixa produção aberta). */
+const IDLE_MS = 15 * 60_000;
+
 /**
  * Arquivo de configuração ilegível (ex.: gravação interrompida): guarda uma cópia
  * com outro nome antes de seguir vazio, para a próxima gravação não apagar tudo.
@@ -36,7 +42,6 @@ async function readConfig(file: string): Promise<unknown> {
     return null;
   }
 }
-const MAX_ROW_LIMIT = 50_000;
 
 /** Entrada da tela para criar ou editar uma conexão. */
 export type ConnectionInput = Partial<DbConnectionConfig>;
@@ -47,6 +52,7 @@ interface Runtime {
   info: DbServerInfo | null;
   error: string | null;
   running: number;
+  lastUsed: number;
 }
 
 interface SavedFile {
@@ -111,12 +117,17 @@ export class DatabaseService {
   private credentials: DbCredential[] = [];
   private readonly runtimes = new Map<string, Runtime>();
   private readonly writes = new Mutex();
+  private readonly historyWrites = new Mutex();
+  private readonly idleTimer: NodeJS.Timeout;
 
   constructor(
     private readonly dataDir: string,
     private readonly secrets: SecretStore,
     private readonly onChange: (state: DbState) => void,
-  ) {}
+  ) {
+    this.idleTimer = setInterval(() => void this.closeIdle(), 60_000);
+    this.idleTimer.unref();
+  }
 
   private get file() {
     return join(this.dataDir, 'databases.json');
@@ -149,7 +160,14 @@ export class DatabaseService {
   private runtime(id: string): Runtime {
     let rt = this.runtimes.get(id);
     if (!rt) {
-      rt = { session: null, status: 'disconnected', info: null, error: null, running: 0 };
+      rt = {
+        session: null,
+        status: 'disconnected',
+        info: null,
+        error: null,
+        running: 0,
+        lastUsed: Date.now(),
+      };
       this.runtimes.set(id, rt);
     }
     return rt;
@@ -231,6 +249,7 @@ export class DatabaseService {
     this.secrets.deleteScope({ kind: 'database', id });
     this.connections = this.connections.filter((c) => c.id !== id);
     await this.persist();
+    await rm(this.historyFile(id), { force: true });
     this.notify();
   }
 
@@ -314,7 +333,14 @@ export class DatabaseService {
       },
     );
     rt.session = pending;
+    rt.lastUsed = Date.now();
     return pending;
+  }
+
+  private async closeIdle(): Promise<void> {
+    const now = Date.now();
+    for (const [id, rt] of this.runtimes)
+      if (rt.session && rt.running === 0 && now - rt.lastUsed > IDLE_MS) await this.disconnect(id);
   }
 
   async connect(id: string): Promise<DbServerInfo> {
@@ -333,13 +359,20 @@ export class DatabaseService {
     this.notify();
   }
 
-  /** Conexão que caiu (rede, servidor reiniciado): reconecta uma vez e repete. */
-  private async withSession<T>(id: string, work: (session: DbSession) => Promise<T>): Promise<T> {
+  /**
+   * Conexão que caiu (rede, servidor reiniciado): reconecta uma vez e repete.
+   * Só para leitura: um comando que grava pode ter sido aplicado antes da queda.
+   */
+  private async withSession<T>(
+    id: string,
+    work: (session: DbSession) => Promise<T>,
+    retry = true,
+  ): Promise<T> {
     try {
       return await work(await this.session(id));
     } catch (error) {
       const message = error instanceof Error ? error.message : '';
-      if (!/conexão com .* caiu|ECONNRESET|EPIPE|closed|fechad/i.test(message)) throw error;
+      if (!retry || !/conexão com .* caiu|ECONNRESET|EPIPE|closed|fechad/i.test(message)) throw error;
       await this.disconnect(id);
       return work(await this.session(id));
     }
@@ -354,15 +387,61 @@ export class DatabaseService {
     if (!sql.trim()) throw new Error('Escreva uma consulta.');
     const rt = this.runtime(id);
     rt.running++;
+    rt.lastUsed = Date.now();
     this.notify();
+    const started = Date.now();
     try {
-      return await this.withSession(id, (s) =>
-        s.run(sql, { readOnly: config.readOnly, limit: Math.min(Math.max(1, limit), MAX_ROW_LIMIT) }),
+      const result = await this.withSession(
+        id,
+        (s) => s.run(sql, { readOnly: config.readOnly, limit: Math.min(Math.max(1, limit), MAX_ROW_LIMIT) }),
+        config.readOnly,
       );
+      void this.record(id, {
+        sql,
+        durationMs: result.durationMs,
+        ...(result.affected !== undefined ? { affected: result.affected } : { rows: result.rows.length }),
+      });
+      return result;
+    } catch (error) {
+      void this.record(id, {
+        sql,
+        durationMs: Date.now() - started,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
     } finally {
       rt.running = Math.max(0, rt.running - 1);
+      rt.lastUsed = Date.now();
       this.notify();
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Histórico de consultas (só nesta máquina)
+
+  private historyFile(id: string): string {
+    return join(this.dataDir, 'database-history', `${id}.json`);
+  }
+
+  async history(id: string): Promise<DbHistoryEntry[]> {
+    const saved = await readJsonIfExists(this.historyFile(id)).catch(() => null);
+    return Array.isArray(saved) ? (saved as DbHistoryEntry[]) : [];
+  }
+
+  /** Mais recente primeiro; repetir a mesma consulta só atualiza a entrada. */
+  private record(id: string, entry: Omit<DbHistoryEntry, 'id' | 'at'>): Promise<void> {
+    return this.historyWrites
+      .run(async () => {
+        const list = (await this.history(id)).filter((e) => e.sql.trim() !== entry.sql.trim());
+        const next = [{ id: newId(), at: new Date().toISOString(), ...entry }, ...list].slice(0, MAX_HISTORY);
+        await mkdir(join(this.dataDir, 'database-history'), { recursive: true });
+        await writeJsonAtomic(this.historyFile(id), next);
+      })
+      .catch(() => undefined);
+  }
+
+  clearHistory(id: string): Promise<void> {
+    return this.historyWrites.run(() => rm(this.historyFile(id), { force: true }));
   }
 
   async cancel(id: string): Promise<void> {
@@ -372,6 +451,7 @@ export class DatabaseService {
 
   /** Fechamento do app. */
   async closeAll(): Promise<void> {
+    clearInterval(this.idleTimer);
     await Promise.allSettled([...this.runtimes.keys()].map((id) => this.disconnect(id)));
   }
 }

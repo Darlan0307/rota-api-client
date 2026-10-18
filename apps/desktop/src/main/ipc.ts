@@ -83,6 +83,8 @@ export function registerIpcHandlers({
   handle('db:schema', (_e, id) => databases.schema(id));
   handle('db:run', (_e, id, sql, limit) => databases.run(id, sql, limit));
   handle('db:cancel', (_e, id) => databases.cancel(id));
+  handle('db:history', (_e, id) => databases.history(id));
+  handle('db:clearHistory', (_e, id) => databases.clearHistory(id));
 
   handle('tunnel:list', () => tunnels.views());
   handle('tunnel:binary', () => tunnels.binary());

@@ -1,4 +1,4 @@
-import type { DbEngine } from './types';
+import type { DbEngine, DbValue } from './types';
 
 /**
  * Utilidades de texto SQL para o editor (sem depender do banco): separar
@@ -195,3 +195,65 @@ export const SQL_KEYWORDS = [
   'SET',
   'DELETE FROM',
 ] as const;
+
+// ---------------------------------------------------------------------------
+// Copiar resultados
+
+/** Tabela do primeiro FROM do comando (para montar INSERTs a partir de um SELECT). */
+export function tableFromSql(sql: string): string | undefined {
+  const match = new RegExp(`\\bFROM\\s+(${IDENT}(?:\\.${IDENT})*)`, 'i').exec(sql);
+  return match?.[1];
+}
+
+/** Nomes repetidos (JOIN) ganham sufixo: ID, ID_2. */
+function uniqueNames(columns: readonly string[]): string[] {
+  const seen = new Map<string, number>();
+  return columns.map((name) => {
+    const count = (seen.get(name) ?? 0) + 1;
+    seen.set(name, count);
+    return count === 1 ? name : `${name}_${count}`;
+  });
+}
+
+export function resultToJson(columns: readonly string[], rows: readonly DbValue[][]): string {
+  const names = uniqueNames(columns);
+  return JSON.stringify(
+    rows.map((row) => Object.fromEntries(names.map((name, i) => [name, row[i] ?? null]))),
+    null,
+    2,
+  );
+}
+
+/** Separado por tabulação: cola direto em colunas no Excel ou no Google Planilhas. */
+export function resultToTsv(columns: readonly string[], rows: readonly DbValue[][]): string {
+  const cell = (v: DbValue) => (v === null ? '' : String(v).replace(/[\t\r\n]+/g, ' '));
+  return [columns.map((c) => cell(c)).join('\t'), ...rows.map((row) => row.map(cell).join('\t'))].join('\n');
+}
+
+function sqlLiteral(engine: DbEngine, value: DbValue): string {
+  if (value === null) return 'NULL';
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'boolean')
+    return engine === 'postgres' ? String(value).toUpperCase() : value ? '1' : '0';
+  const text = String(value);
+  // Binário vem como 0x...; no Postgres o literal é '\x...'.
+  if (/^0x[0-9A-F]+$/.test(text)) return engine === 'postgres' ? `'\\x${text.slice(2)}'` : text;
+  // Texto com acento no SQL Server precisa do prefixo N (Unicode).
+  const unicode = engine === 'sqlserver' && [...text].some((ch) => (ch.codePointAt(0) ?? 0) > 127);
+  return `${unicode ? 'N' : ''}'${text.replaceAll("'", "''")}'`;
+}
+
+/** Um INSERT por linha, na sintaxe do motor. */
+export function resultToInserts(
+  engine: DbEngine,
+  table: string,
+  columns: readonly string[],
+  rows: readonly DbValue[][],
+): string {
+  const cols = columns.map((c) => quoteIdentifier(engine, c)).join(', ');
+  return rows
+    .map(
+      (row) => `INSERT INTO ${table} (${cols}) VALUES (${row.map((v) => sqlLiteral(engine, v)).join(', ')});`,
+    )
+    .join('\n');
+}

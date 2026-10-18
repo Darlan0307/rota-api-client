@@ -55,6 +55,13 @@ export function subscribeDatabaseEvents(): void {
     closeTabsWithout('database', new Set(state.connections.map((c) => c.config.id)));
   });
   void api.invoke('db:state').then((state) => useDatabases.setState({ ...state, loaded: true }));
+  // Fechou a aba da conexão: desconecta (não deixa sessão aberta, principalmente em produção).
+  useTabs.subscribe((state, previous) => {
+    const open = new Set(state.tabs.filter((t) => t.kind === 'database').map((t) => t.itemId));
+    for (const tab of previous.tabs)
+      if (tab.kind === 'database' && tab.itemId && !open.has(tab.itemId))
+        void api.invoke('db:disconnect', tab.itemId).catch(() => undefined);
+  });
 }
 
 export function useConnection(id: string | null): DbConnectionView | undefined {
