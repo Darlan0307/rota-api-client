@@ -12,7 +12,7 @@ import { setCredentialsOpen, useDatabases } from './state';
 
 const connectionsText = (n: number) => (n === 1 ? '1 conexão' : `${n} conexões`);
 
-/** Usuário e senha reaproveitados por várias conexões (ex.: o SYSDBA padrão dos clientes). */
+/** Usuário e senha reaproveitados por várias conexões (ex.: o mesmo SYSDBA em vários servidores). */
 export function CredentialsDialog() {
   const open = useDatabases((s) => s.credentialsOpen);
   const credentials = useDatabases((s) => s.credentials);

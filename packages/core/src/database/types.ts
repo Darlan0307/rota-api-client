@@ -99,7 +99,7 @@ export function engineInfo(engine: DbEngine): DbEngineInfo {
   return DB_ENGINES.find((e) => e.id === engine) ?? (DB_ENGINES[0] as DbEngineInfo);
 }
 
-/** Usuário e senha reaproveitados por várias conexões (ex.: SYSDBA padrão dos clientes). */
+/** Usuário e senha reaproveitados por várias conexões (ex.: o mesmo SYSDBA em vários servidores). */
 export interface DbCredential {
   id: string;
   name: string;
