@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   connectDatabase,
@@ -24,6 +24,18 @@ import {
 const CHARSETS = ['auto', 'UTF8', 'WIN1252', 'ISO8859_1', 'NONE'] as const;
 const ENVIRONMENTS = ['local', 'teste', 'producao'] as const;
 const PASSWORD = 'password';
+/**
+ * Arquivo de configuração ilegível (ex.: gravação interrompida): guarda uma cópia
+ * com outro nome antes de seguir vazio, para a próxima gravação não apagar tudo.
+ */
+async function readConfig(file: string): Promise<unknown> {
+  try {
+    return await readJsonIfExists(file);
+  } catch {
+    await rename(file, `${file}.corrompido-${Date.now()}`).catch(() => undefined);
+    return null;
+  }
+}
 const MAX_ROW_LIMIT = 50_000;
 
 /** Entrada da tela para criar ou editar uma conexão. */
@@ -111,7 +123,7 @@ export class DatabaseService {
   }
 
   async load(): Promise<void> {
-    const saved = ((await readJsonIfExists(this.file).catch(() => null)) ?? {}) as SavedFile;
+    const saved = ((await readConfig(this.file)) ?? {}) as SavedFile;
     this.credentials = (saved.credentials ?? []).filter(
       (c): c is DbCredential =>
         typeof (c as DbCredential)?.id === 'string' && typeof (c as DbCredential).name === 'string',

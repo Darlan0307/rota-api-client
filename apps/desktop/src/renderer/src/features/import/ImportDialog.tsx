@@ -176,18 +176,20 @@ const KIND: Record<string, { label: string; icon: typeof Library }> = {
   unknown: { label: 'Desconhecido', icon: FileJson },
 };
 
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
 function countsText(kind: string, c: ImportCounts): string {
   if (kind === 'collection' || kind === 'openapi') {
     return [
-      `${c.requests} requisições`,
-      c.folders ? `${c.folders} pastas` : null,
-      c.examples ? `${c.examples} exemplos` : null,
-      c.variables ? `${c.variables} variáveis` : null,
+      plural(c.requests, 'requisição', 'requisições'),
+      c.folders ? plural(c.folders, 'pasta', 'pastas') : null,
+      c.examples ? plural(c.examples, 'exemplo', 'exemplos') : null,
+      c.variables ? plural(c.variables, 'variável', 'variáveis') : null,
     ]
       .filter(Boolean)
       .join(' · ');
   }
-  return `${c.variables} variáveis${c.secrets ? ` (${c.secrets} secretas)` : ''}`;
+  return `${plural(c.variables, 'variável', 'variáveis')}${c.secrets ? ` (${plural(c.secrets, 'secreta', 'secretas')})` : ''}`;
 }
 
 function PreviewStep() {

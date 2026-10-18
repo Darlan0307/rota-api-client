@@ -50,7 +50,10 @@ let subscribed = false;
 export function subscribeDatabaseEvents(): void {
   if (subscribed) return;
   subscribed = true;
-  api.on('db:changed', (state) => useDatabases.setState({ ...state, loaded: true }));
+  api.on('db:changed', (state) => {
+    useDatabases.setState({ ...state, loaded: true });
+    closeTabsWithout('database', new Set(state.connections.map((c) => c.config.id)));
+  });
   void api.invoke('db:state').then((state) => useDatabases.setState({ ...state, loaded: true }));
 }
 
@@ -88,7 +91,21 @@ export async function saveConnection(
   input: ConnectionInput,
   password?: string | null,
 ): Promise<string | undefined> {
-  return guarded(() => api.invoke('db:saveConnection', input, password));
+  const id = await guarded(() => api.invoke('db:saveConnection', input, password));
+  // Servidor, banco ou senha podem ter mudado: a árvore e o erro antigos não valem mais.
+  if (id && input.id)
+    useDatabases.setState((s) => ({
+      schemas: { ...s.schemas, [id]: undefined },
+      schemaErrors: { ...s.schemaErrors, [id]: undefined },
+    }));
+  return id;
+}
+
+/** Fecha abas de itens que deixaram de existir (excluídos por outra tela, pelo MCP...). */
+export function closeTabsWithout(kind: 'database' | 'tunnel', existing: Set<string>): void {
+  const tabs = useTabs.getState();
+  for (const tab of tabs.tabs)
+    if (tab.kind === kind && tab.itemId && !existing.has(tab.itemId)) tabs.close(tab.id);
 }
 
 export async function duplicateConnection(id: string): Promise<void> {

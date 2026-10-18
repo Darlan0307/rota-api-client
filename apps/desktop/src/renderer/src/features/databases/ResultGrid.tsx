@@ -9,6 +9,9 @@ import { toast } from '../../state/toasts';
 
 type Sort = { column: number; dir: 'asc' | 'desc' } | null;
 
+/** Acima disso a grade mostra só as primeiras linhas (filtro, ordenação e CSV usam todas). */
+const MAX_RENDERED = 1000;
+
 const text = (value: DbValue) => (value === null ? 'NULL' : String(value));
 
 /** BIGINT fora da faixa segura vem como texto, mas continua alinhado como número. */
@@ -126,7 +129,7 @@ export function ResultGrid({ result, name }: { result: DbQueryResult; name: stri
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ row, index }) => (
+            {rows.slice(0, MAX_RENDERED).map(({ row, index }) => (
               <tr key={index} className="hover:bg-surface/60">
                 <td className="border-b border-border px-2 py-1 text-right font-mono text-2xs text-fg-subtle">
                   {index + 1}
@@ -160,6 +163,12 @@ export function ResultGrid({ result, name }: { result: DbQueryResult; name: stri
             ))}
           </tbody>
         </table>
+        {rows.length > MAX_RENDERED && (
+          <p className="px-3 py-2 text-2xs text-fg-subtle">
+            Mostrando as primeiras {MAX_RENDERED} de {rows.length} linhas. Use o filtro ou exporte o CSV para
+            ver todas.
+          </p>
+        )}
         {rows.length === 0 && (
           <p className="px-3 py-6 text-center text-xs text-fg-subtle">
             {result.rows.length === 0 ? 'A consulta não retornou linhas.' : 'Nenhuma linha encontrada.'}

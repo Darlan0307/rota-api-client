@@ -38,6 +38,10 @@ export function createServer(session = new McpSession()): McpServer {
 async function main() {
   const server = createServer();
   await server.connect(new StdioServerTransport());
+  // O Claude fechou a conexão (ou foi encerrado): sai de vez, sem deixar um
+  // processo Rota órfão no Gerenciador de Tarefas.
+  process.stdin.on('end', () => process.exit(0));
+  process.stdin.on('close', () => process.exit(0));
 }
 
 // Executado diretamente (node dist/index.mjs ou via o executável do app).

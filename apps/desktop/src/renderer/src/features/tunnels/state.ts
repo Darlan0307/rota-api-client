@@ -6,6 +6,7 @@ import { promptDialog } from '../../state/dialogs';
 import { useTabs } from '../../state/tabs';
 import { toast } from '../../state/toasts';
 import { useUiStore } from '../../state/ui';
+import { closeTabsWithout } from '../databases/state';
 
 interface TunnelState {
   views: TunnelView[];
@@ -62,6 +63,7 @@ export function subscribeTunnelEvents(): void {
   api.on('tunnel:changed', (views) => {
     warnDropped(useTunnels.getState().views, views);
     useTunnels.setState({ views, loaded: true });
+    closeTabsWithout('tunnel', new Set(views.map((v) => v.config.id)));
   });
   api.on('tunnel:download', (download) => useTunnels.setState({ download }));
   void api.invoke('tunnel:list').then((views) => useTunnels.setState({ views, loaded: true }));

@@ -46,6 +46,19 @@ interface Runtime {
 
 const MAX_LOGS = 80;
 
+/**
+ * Arquivo de configuração ilegível (ex.: gravação interrompida): guarda uma cópia
+ * com outro nome antes de seguir vazio, para a próxima gravação não apagar tudo.
+ */
+async function readConfig(file: string): Promise<unknown> {
+  try {
+    return await readJsonIfExists(file);
+  } catch {
+    await rename(file, `${file}.corrompido-${Date.now()}`).catch(() => undefined);
+    return null;
+  }
+}
+
 const HMAC_ALGORITHMS = ['sha1', 'sha256', 'sha512'] as const;
 
 /** Configuração de webhook vinda do arquivo ou da tela, com os valores conferidos. */
@@ -141,7 +154,7 @@ export class TunnelService {
 
   async load(): Promise<void> {
     await this.killOrphans();
-    const saved = await readJsonIfExists(this.file).catch(() => null);
+    const saved = await readConfig(this.file);
     const list = Array.isArray(saved) ? saved : [];
     this.configs = list.filter(isConfig).map((c) => ({
       mode: 'forward',
@@ -428,7 +441,15 @@ export class TunnelService {
     if (!exchange) return null;
     const { webhook } = this.config(id);
     const secret = this.secrets.get(secretScope(id), SECRET_KEY);
-    if (!webhook.provider || !secret) return exchange;
+    if (!secret) return exchange;
+    const masked = {
+      ...exchange,
+      requestHeaders: exchange.requestHeaders.map(([k, v]): [string, string] => [
+        k,
+        v === secret ? '••••••' : v,
+      ]),
+    };
+    if (!webhook.provider) return masked;
     const signature = exchange.requestBody.truncated
       ? {
           status: 'unverifiable' as const,
@@ -443,7 +464,7 @@ export class TunnelService {
           headers: exchange.requestHeaders,
           body: Buffer.from(exchange.requestBody.data, exchange.requestBody.encoding),
         });
-    return { ...exchange, signature };
+    return { ...masked, signature };
   }
 
   /** null apaga. O valor nunca volta para a tela: ela só sabe se existe. */
