@@ -4,16 +4,6 @@ Cliente de API para desktop (Windows), no estilo do Postman, que roda offline e 
 
 ![Requisição e resposta](docs/screenshots/requisicao-e-resposta.png)
 
-## Por que existe
-
-Eu usava Postman e Insomnia no dia a dia e sempre esbarrava nas mesmas coisas: login obrigatório, sincronização na nuvem que eu não queria, coleções presas num formato que não dá para versionar direito e nenhuma forma simples de deixar uma IA mexer nas minhas requisições sem entregar meus tokens.
-
-O Rota resolve isso para o meu fluxo:
-
-- Tudo fica local, em arquivos JSON legíveis (um por requisição), que podem morar dentro do repositório do projeto e gerar diffs limpos no Git.
-- Variáveis secretas ficam cifradas no Windows Credential Manager; no arquivo versionado vai só o nome.
-- Importa o que já existe no Postman (coleções, ambientes e globais) e exporta de volta no mesmo formato.
-- O Claude consegue listar, criar, editar e enviar requisições pelo MCP, mas ações destrutivas pedem confirmação no app e valores secretos nunca chegam até ele.
 
 ## Funcionalidades
 
