@@ -1,4 +1,9 @@
-import type { DbConnectionStatus, DbConnectionView, DbEnvironment } from '@rota/core/shared';
+import {
+  type DbConnectionStatus,
+  type DbConnectionView,
+  type DbEnvironment,
+  engineInfo,
+} from '@rota/core/shared';
 import { KeyRound, Lock, Pencil, Plus } from 'lucide-react';
 import { Button } from '../../components/Button';
 import { IconButton } from '../../components/IconButton';
@@ -71,7 +76,7 @@ export function DatabasesPanel({ filter }: { filter: string }) {
     return (
       <div className="space-y-4 px-4 pt-2 text-xs">
         <p className="leading-relaxed text-fg-muted">
-          Conecte direto no Firebird dos clientes (2.5 ou mais novo) para ver tabelas e rodar consultas, sem
+          Conecte em Firebird, PostgreSQL, MySQL/MariaDB ou SQL Server para ver tabelas e rodar consultas, sem
           instalar nada. Bancos de produção começam somente leitura.
         </p>
         <div className="flex flex-col gap-2">
@@ -125,6 +130,12 @@ function ConnectionItem({ view, selected }: { view: DbConnectionView; selected: 
             )}
           </p>
           <p className="flex items-center gap-1.5 text-2xs text-fg-subtle">
+            <span
+              className="shrink-0 rounded bg-surface-2 px-1 font-mono text-2xs text-fg-muted"
+              title={engineInfo(config.engine).label}
+            >
+              {engineInfo(config.engine).short}
+            </span>
             <EnvironmentBadge environment={config.environment} />
             <span className="truncate font-mono">
               {config.host}:{config.database}

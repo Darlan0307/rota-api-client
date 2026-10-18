@@ -1,4 +1,4 @@
-import { SQL_KEYWORDS, statementAt, tableForQualifier } from '@rota/core/shared';
+import { quoteIdentifier, SQL_KEYWORDS, statementAt, tableForQualifier } from '@rota/core/shared';
 import { monaco } from '../../lib/monaco';
 import { useDatabases } from './state';
 
@@ -20,7 +20,10 @@ function registerSqlCompletion(): void {
     triggerCharacters: ['.'],
     provideCompletionItems(model, position) {
       const connectionId = editors.get(model);
-      const schema = connectionId ? useDatabases.getState().schemas[connectionId] : undefined;
+      const state = useDatabases.getState();
+      const schema = connectionId ? state.schemas[connectionId] : undefined;
+      const engine = state.connections.find((c) => c.config.id === connectionId)?.config.engine ?? 'firebird';
+      const quote = (name: string) => quoteIdentifier(engine, name);
       const word = model.getWordUntilPosition(position);
       const range = {
         startLineNumber: position.lineNumber,
@@ -48,7 +51,7 @@ function registerSqlCompletion(): void {
           suggestions: columns.map((c) => ({
             label: { label: c.name, description: c.type },
             kind: CompletionItemKind.Field,
-            insertText: c.name,
+            insertText: quote(c.name),
             detail: `${table}.${c.name} ${c.type}${c.primaryKey ? ' · PK' : ''}`,
             range,
           })),
@@ -57,14 +60,17 @@ function registerSqlCompletion(): void {
 
       // Colunas das tabelas citadas no comando aparecem primeiro.
       const mentioned = new Set(
-        tableNames.filter((name) => new RegExp(`\\b${name.replace(/\$/g, '\\$')}\\b`, 'i').test(statement)),
+        tableNames.filter((name) => {
+          const last = (name.split('.').pop() ?? name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          return new RegExp(`(^|[^\\w$])${last}($|[^\\w$])`, 'i').test(statement);
+        }),
       );
       const suggestions: monaco.languages.CompletionItem[] = [];
       for (const table of schema?.tables ?? []) {
         suggestions.push({
           label: { label: table.name, description: table.kind === 'view' ? 'view' : 'tabela' },
           kind: table.kind === 'view' ? CompletionItemKind.Interface : CompletionItemKind.Class,
-          insertText: table.name,
+          insertText: table.ref,
           range,
           sortText: `1${table.name}`,
         });
@@ -73,7 +79,7 @@ function registerSqlCompletion(): void {
           suggestions.push({
             label: { label: c.name, description: `${table.name} · ${c.type}` },
             kind: CompletionItemKind.Field,
-            insertText: c.name,
+            insertText: quote(c.name),
             range,
             sortText: `0${c.name}`,
           });

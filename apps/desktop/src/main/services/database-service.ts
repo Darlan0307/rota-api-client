@@ -1,15 +1,18 @@
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
+  connectDatabase,
+  DB_ENGINES,
   type DbConnectionConfig,
   type DbCredential,
+  type DbEngine,
   type DbQueryResult,
   type DbSchema,
   type DbServerInfo,
+  type DbSession,
   type DbState,
-  DEFAULT_FIREBIRD_PORT,
   DEFAULT_ROW_LIMIT,
-  FirebirdSession,
+  engineInfo,
   Mutex,
   newId,
   readJsonIfExists,
@@ -24,10 +27,10 @@ const PASSWORD = 'password';
 const MAX_ROW_LIMIT = 50_000;
 
 /** Entrada da tela para criar ou editar uma conexão. */
-export type ConnectionInput = Partial<Omit<DbConnectionConfig, 'engine'>>;
+export type ConnectionInput = Partial<DbConnectionConfig>;
 
 interface Runtime {
-  session: Promise<FirebirdSession> | null;
+  session: Promise<DbSession> | null;
   status: 'disconnected' | 'connecting' | 'connected' | 'error';
   info: DbServerInfo | null;
   error: string | null;
@@ -40,24 +43,37 @@ interface SavedFile {
 }
 
 /** Campos que exigem reconectar quando mudam. */
-const CONNECTION_FIELDS = ['host', 'port', 'database', 'user', 'credentialId', 'charset'] as const;
+const CONNECTION_FIELDS = [
+  'engine',
+  'host',
+  'port',
+  'database',
+  'user',
+  'credentialId',
+  'charset',
+  'ssl',
+] as const;
 
 function normalizeConnection(value: ConnectionInput, fallback?: DbConnectionConfig): DbConnectionConfig {
   const pick = <T>(v: T | undefined, d: T) => (v === undefined ? d : v);
+  const requested = pick(value.engine, fallback?.engine ?? 'firebird');
+  const engine: DbEngine = DB_ENGINES.some((e) => e.id === requested) ? requested : 'firebird';
+  const defaults = engineInfo(engine);
   const environment = pick(value.environment, fallback?.environment ?? 'local');
-  const port = Number(pick(value.port, fallback?.port ?? DEFAULT_FIREBIRD_PORT));
+  const port = Number(pick(value.port, fallback?.port ?? defaults.defaultPort));
   return {
     id: fallback?.id ?? value.id ?? newId(),
     name: (pick(value.name, fallback?.name ?? '') ?? '').trim(),
-    engine: 'firebird',
+    engine,
     host: (pick(value.host, fallback?.host ?? '') ?? '').trim(),
-    port: Number.isInteger(port) && port > 0 && port < 65536 ? port : DEFAULT_FIREBIRD_PORT,
+    port: Number.isInteger(port) && port > 0 && port < 65536 ? port : defaults.defaultPort,
     database: (pick(value.database, fallback?.database ?? '') ?? '').trim(),
-    user: (pick(value.user, fallback?.user ?? 'SYSDBA') ?? '').trim(),
+    user: (pick(value.user, fallback?.user ?? defaults.defaultUser) ?? '').trim(),
     credentialId: pick(value.credentialId, fallback?.credentialId ?? null),
     charset: CHARSETS.includes(value.charset as (typeof CHARSETS)[number])
       ? (value.charset as DbConnectionConfig['charset'])
       : (fallback?.charset ?? 'auto'),
+    ssl: pick(value.ssl, fallback?.ssl ?? false) === true,
     environment: ENVIRONMENTS.includes(environment) ? environment : 'local',
     // Produção nasce somente leitura; depois a pessoa decide.
     readOnly: pick(value.readOnly, fallback?.readOnly ?? environment === 'producao'),
@@ -66,11 +82,16 @@ function normalizeConnection(value: ConnectionInput, fallback?: DbConnectionConf
 
 function validate(config: DbConnectionConfig): void {
   if (!config.host) throw new Error('Informe o endereço do servidor (IP ou domínio).');
-  if (!config.database) throw new Error('Informe o banco: o alias (ex.: LOJA) ou o caminho do arquivo .FDB.');
+  if (!config.database)
+    throw new Error(
+      config.engine === 'firebird'
+        ? 'Informe o banco: o alias (ex.: LOJA) ou o caminho do arquivo .FDB.'
+        : 'Informe o nome do banco.',
+    );
 }
 
 /**
- * Conexões com bancos de dados (Firebird). Ficam em %APPDATA%/Rota/databases.json
+ * Conexões com bancos de dados (Firebird, PostgreSQL, MySQL/MariaDB e SQL Server). Ficam em %APPDATA%/Rota/databases.json
  * (são desta máquina, não do projeto); senhas cifradas no cofre, nunca no arquivo.
  */
 export class DatabaseService {
@@ -252,12 +273,12 @@ export class DatabaseService {
     const config = normalizeConnection(input, current);
     validate(config);
     const { user, password: pass } = this.credentialsFor(config, password || undefined);
-    const session = await FirebirdSession.connect({ ...config, user }, pass);
+    const session = await connectDatabase({ ...config, user }, pass);
     await session.close();
     return session.info;
   }
 
-  private session(id: string): Promise<FirebirdSession> {
+  private session(id: string): Promise<DbSession> {
     const config = this.connection(id);
     const rt = this.runtime(id);
     if (rt.session) return rt.session;
@@ -265,7 +286,7 @@ export class DatabaseService {
     rt.status = 'connecting';
     rt.error = null;
     this.notify();
-    const pending = FirebirdSession.connect({ ...config, user }, password).then(
+    const pending = connectDatabase({ ...config, user }, password).then(
       (session) => {
         rt.status = 'connected';
         rt.info = session.info;
@@ -301,7 +322,7 @@ export class DatabaseService {
   }
 
   /** Conexão que caiu (rede, servidor reiniciado): reconecta uma vez e repete. */
-  private async withSession<T>(id: string, work: (session: FirebirdSession) => Promise<T>): Promise<T> {
+  private async withSession<T>(id: string, work: (session: DbSession) => Promise<T>): Promise<T> {
     try {
       return await work(await this.session(id));
     } catch (error) {

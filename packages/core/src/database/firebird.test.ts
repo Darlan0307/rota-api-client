@@ -1,16 +1,17 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { type DatabaseError, describeFieldType, FirebirdSession, readOnlyViolation } from './firebird';
+import type { DatabaseError } from './common';
+import { describeFieldType, FirebirdSession, firebirdReadOnlyViolation } from './firebird';
 import type { DbConnectionConfig } from './types';
 
 describe('trava de somente leitura', () => {
   it('recusa GEN_ID e NEXT VALUE FOR, que avançam generators mesmo em transação READ ONLY', () => {
-    expect(readOnlyViolation('SELECT GEN_ID(GEN_PEDIDOS, 1) FROM RDB$DATABASE')).not.toBeNull();
-    expect(readOnlyViolation('select next value for seq from rdb$database')).not.toBeNull();
+    expect(firebirdReadOnlyViolation('SELECT GEN_ID(GEN_PEDIDOS, 1) FROM RDB$DATABASE')).not.toBeNull();
+    expect(firebirdReadOnlyViolation('select next value for seq from rdb$database')).not.toBeNull();
   });
 
   it('ignora as palavras dentro de textos e comentários', () => {
-    expect(readOnlyViolation("SELECT 'GEN_ID(' AS X FROM RDB$DATABASE -- GEN_ID(")).toBeNull();
-    expect(readOnlyViolation('SELECT /* NEXT VALUE FOR */ 1 FROM RDB$DATABASE')).toBeNull();
+    expect(firebirdReadOnlyViolation("SELECT 'GEN_ID(' AS X FROM RDB$DATABASE -- GEN_ID(")).toBeNull();
+    expect(firebirdReadOnlyViolation('SELECT /* NEXT VALUE FOR */ 1 FROM RDB$DATABASE')).toBeNull();
   });
 });
 
@@ -45,6 +46,7 @@ function config(database: string, patch: Partial<DbConnectionConfig> = {}): DbCo
     user: 'SYSDBA',
     credentialId: null,
     charset: 'auto',
+    ssl: false,
     environment: 'teste',
     readOnly: true,
     ...patch,
@@ -65,7 +67,7 @@ describe.skipIf(!server)('Firebird 2.5 (integração)', () => {
 
   it('conecta pelo alias e escolhe o charset sozinho', () => {
     expect(win.info).toMatchObject({ databaseCharset: 'WIN1252', connectionCharset: 'UTF8' });
-    expect(win.info.version).toMatch(/^2\.5/);
+    expect(win.info.version).toMatch(/^Firebird 2\.5/);
     expect(none.info).toMatchObject({ databaseCharset: 'NONE', connectionCharset: 'WIN1252' });
   });
 

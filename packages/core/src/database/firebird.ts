@@ -1,5 +1,15 @@
 import * as Firebird from 'node-firebird';
 import {
+  type ConnectOptions,
+  DatabaseError,
+  type DbSession,
+  describeNetworkError,
+  formatDate,
+  stripSqlLiterals,
+  withTimeout,
+} from './common';
+import { quoteIdentifier } from './sql';
+import {
   type DbColumn,
   type DbConnectionConfig,
   type DbQueryResult,
@@ -49,46 +59,16 @@ interface XsqlVar {
   length: number;
 }
 
-export class DatabaseError extends Error {
-  constructor(
-    message: string,
-    readonly code?: string | number,
-  ) {
-    super(message);
-    this.name = 'DatabaseError';
-  }
-}
-
 /** Mensagens em português para os erros mais comuns de conexão e consulta. */
 export function describeFirebirdError(
   error: unknown,
   config?: Pick<DbConnectionConfig, 'host' | 'port' | 'database'>,
 ): DatabaseError {
+  if (error instanceof DatabaseError) return error;
   const e = error as { message?: string; code?: string; gdscode?: number };
-  const where = config ? `${config.host}:${config.port}` : 'o servidor';
   const raw = String(e?.message ?? error).split('\n')[0] ?? '';
-  switch (e?.code) {
-    case 'ECONNREFUSED':
-      return new DatabaseError(
-        `Nada respondeu em ${where}. O Firebird está rodando e a porta está liberada no firewall?`,
-        e.code,
-      );
-    case 'ENOTFOUND':
-    case 'EAI_AGAIN':
-      return new DatabaseError(
-        `O servidor ${config?.host ?? ''} não foi encontrado. Confira o endereço (e a VPN, se houver).`,
-        e.code,
-      );
-    case 'ETIMEDOUT':
-    case 'EHOSTUNREACH':
-    case 'ENETUNREACH':
-      return new DatabaseError(
-        `Sem resposta de ${where}. Confira a rede, a VPN ou o túnel até o servidor.`,
-        e.code,
-      );
-    case 'ECONNRESET':
-      return new DatabaseError(`A conexão com ${where} caiu.`, e.code);
-  }
+  const network = describeNetworkError(error, config);
+  if (network) return network;
   switch (e?.gdscode) {
     case GDS_LOGIN:
       return new DatabaseError('Usuário ou senha inválidos para este servidor.', e.gdscode);
@@ -105,40 +85,23 @@ export function describeFirebirdError(
   return new DatabaseError(raw || 'Erro desconhecido do Firebird.', e?.code ?? e?.gdscode);
 }
 
-/** Tira comentários e textos entre aspas para procurar palavras do comando. */
-function stripSqlLiterals(sql: string): string {
-  return sql
-    .replace(/--[^\n]*/g, ' ')
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/'(?:[^']|'')*'/g, "''")
-    .replace(/"(?:[^"]|"")*"/g, '""');
-}
-
 /**
  * Motivo para recusar o comando numa conexão somente leitura, ou null.
  * GEN_ID e NEXT VALUE FOR alteram generators mesmo em transação READ ONLY.
  */
-export function readOnlyViolation(sql: string): string | null {
+export function firebirdReadOnlyViolation(sql: string): string | null {
   const text = stripSqlLiterals(sql);
   if (/\bGEN_ID\s*\(/i.test(text) || /\bNEXT\s+VALUE\s+FOR\b/i.test(text))
     return 'GEN_ID e NEXT VALUE FOR avançam o generator mesmo sem gravar nada, por isso ficam bloqueados nesta conexão somente leitura.';
   return null;
 }
 
-const pad = (n: number, size = 2) => String(n).padStart(size, '0');
-
 /** Datas e horas no horário local (o driver entrega Date em UTC). */
 function formatValue(value: unknown, type: number): DbValue {
   if (value === null || value === undefined) return null;
   if (typeof value === 'function') return '(BLOB binário)';
-  if (value instanceof Date) {
-    const date = `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
-    const time = `${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`;
-    if (type === SQL_TYPE_DATE) return date;
-    if (type === SQL_TYPE_TIME) return time;
-    const ms = value.getMilliseconds();
-    return `${date} ${time}${ms ? `.${pad(ms, 3)}` : ''}`;
-  }
+  if (value instanceof Date)
+    return formatDate(value, type === SQL_TYPE_DATE ? 'date' : type === SQL_TYPE_TIME ? 'time' : 'datetime');
   if (Buffer.isBuffer(value)) return `0x${value.toString('hex').toUpperCase()}`;
   if (typeof value === 'bigint') return value.toString();
   if (typeof value === 'string') return value.replace(/ +$/, '');
@@ -233,12 +196,7 @@ function query<T>(db: Firebird.Database | Firebird.Transaction, sql: string): Pr
   );
 }
 
-export interface FirebirdConnectOptions {
-  /** Tempo máximo para conectar (padrão 10 s). */
-  timeoutMs?: number;
-}
-
-export class FirebirdSession {
+export class FirebirdSession implements DbSession {
   private constructor(
     private readonly db: Firebird.Database,
     readonly config: DbConnectionConfig,
@@ -253,7 +211,7 @@ export class FirebirdSession {
   static async connect(
     config: DbConnectionConfig,
     password: string,
-    options: FirebirdConnectOptions = {},
+    options: ConnectOptions = {},
   ): Promise<FirebirdSession> {
     const base: Firebird.Options = {
       host: config.host,
@@ -265,20 +223,8 @@ export class FirebirdSession {
       numericMode: 'safe',
       lowercase_keys: false,
     };
-    const open = async (encoding: Firebird.SupportedCharacterSet) => {
-      let timer: NodeJS.Timeout | undefined;
-      const timeout = new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' })),
-          options.timeoutMs ?? 10_000,
-        );
-      });
-      try {
-        return await Promise.race([attach({ ...base, encoding }), timeout]);
-      } finally {
-        clearTimeout(timer);
-      }
-    };
+    const open = (encoding: Firebird.SupportedCharacterSet) =>
+      withTimeout(attach({ ...base, encoding }), options.timeoutMs ?? 10_000);
 
     try {
       let encoding: Firebird.SupportedCharacterSet = config.charset === 'auto' ? 'UTF8' : config.charset;
@@ -300,7 +246,7 @@ export class FirebirdSession {
       return new FirebirdSession(db, config, {
         databaseCharset,
         connectionCharset: encoding,
-        version: version?.V?.trim() ?? '',
+        version: `Firebird ${version?.V?.trim() ?? ''}`.trim(),
       });
     } catch (error) {
       throw describeFirebirdError(error, config);
@@ -378,7 +324,15 @@ export class FirebirdSession {
       );
 
       const tables = new Map<string, DbTable>(
-        relations.map((r) => [r.NAME, { name: r.NAME, kind: r.IS_VIEW ? 'view' : 'table', columns: [] }]),
+        relations.map((r) => [
+          r.NAME,
+          {
+            name: r.NAME,
+            ref: quoteIdentifier('firebird', r.NAME),
+            kind: r.IS_VIEW ? 'view' : 'table',
+            columns: [],
+          },
+        ]),
       );
       for (const f of fields) {
         const column: DbColumn = {
@@ -424,7 +378,7 @@ export class FirebirdSession {
     const started = Date.now();
     const limit = options.limit ?? DEFAULT_ROW_LIMIT;
     if (options.readOnly) {
-      const violation = readOnlyViolation(sql);
+      const violation = firebirdReadOnlyViolation(sql);
       if (violation) throw new DatabaseError(violation);
     }
     const t = await this.transaction(options.readOnly);

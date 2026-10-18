@@ -11,7 +11,7 @@ import { useTabs } from '../../state/tabs';
 import { toast } from '../../state/toasts';
 import { useUiStore } from '../../state/ui';
 
-export type ConnectionInput = Partial<Omit<DbConnectionConfig, 'engine'>>;
+export type ConnectionInput = Partial<DbConnectionConfig>;
 
 /** Consulta de uma aba: o texto sobrevive ao fechar o app (localStorage); o resultado não. */
 export interface QueryState {

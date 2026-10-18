@@ -287,7 +287,7 @@ export interface IpcContract {
   'db:state': { args: []; result: DbState };
   /** Cria ou atualiza; password undefined mantém a senha salva, null apaga. */
   'db:saveConnection': {
-    args: [input: Partial<Omit<DbConnectionConfig, 'engine'>>, password?: string | null];
+    args: [input: Partial<DbConnectionConfig>, password?: string | null];
     result: string;
   };
   'db:duplicateConnection': { args: [id: string]; result: string };
@@ -298,7 +298,7 @@ export interface IpcContract {
   'db:removeCredential': { args: [id: string]; result: void };
   /** Testa os dados da tela (sem salvar); sem senha, usa a salva. */
   'db:test': {
-    args: [input: Partial<Omit<DbConnectionConfig, 'engine'>>, password?: string];
+    args: [input: Partial<DbConnectionConfig>, password?: string];
     result: DbServerInfo;
   };
   'db:connect': { args: [id: string]; result: DbServerInfo };

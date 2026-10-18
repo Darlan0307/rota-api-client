@@ -2,7 +2,12 @@
 
 export * from './bridge/bridge';
 export { generateCode, shellQuote } from './codegen/codegen';
+export * from './database/common';
+export * from './database/connect';
 export * from './database/firebird';
+export * from './database/mysql';
+export * from './database/postgres';
+export * from './database/sqlserver';
 export { type HistoryQuery, HistoryStore } from './history/history-store';
 export type { ExecuteOptions } from './http/execute';
 export { executeRequest, HttpError, isBypassed } from './http/execute';

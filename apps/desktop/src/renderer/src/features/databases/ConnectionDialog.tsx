@@ -1,11 +1,13 @@
 import {
+  DB_ENGINES,
   DB_ENVIRONMENTS,
   type DbConnectionConfig,
+  type DbEngine,
   type DbServerInfo,
-  DEFAULT_FIREBIRD_PORT,
+  engineInfo,
   type FirebirdCharset,
 } from '@rota/core/shared';
-import { CircleAlert, CircleCheck, Copy, LoaderCircle, Plug, Trash2 } from 'lucide-react';
+import { AlertTriangle, CircleAlert, CircleCheck, Copy, LoaderCircle, Plug, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '../../components/Button';
 import { Dialog } from '../../components/Dialog';
@@ -36,18 +38,21 @@ const CHARSET_OPTIONS: { value: FirebirdCharset; label: string; hint?: string }[
 
 type Form = Pick<
   DbConnectionConfig,
-  'name' | 'host' | 'database' | 'user' | 'charset' | 'environment' | 'readOnly'
+  'engine' | 'name' | 'host' | 'database' | 'user' | 'charset' | 'ssl' | 'environment' | 'readOnly'
 > & { port: string; credential: string };
 
 function initialForm(config: DbConnectionConfig | undefined, firstCredential: string | undefined): Form {
+  const engine = config?.engine ?? 'firebird';
   return {
+    engine,
     name: config?.name ?? '',
     host: config?.host ?? '',
-    port: String(config?.port ?? DEFAULT_FIREBIRD_PORT),
+    port: String(config?.port ?? engineInfo(engine).defaultPort),
     database: config?.database ?? '',
-    user: config?.user ?? 'SYSDBA',
+    user: config?.user ?? engineInfo(engine).defaultUser,
     credential: config ? (config.credentialId ?? OWN) : (firstCredential ?? OWN),
     charset: config?.charset ?? 'auto',
+    ssl: config?.ssl ?? false,
     environment: config?.environment ?? 'producao',
     readOnly: config?.readOnly ?? true,
   };
@@ -81,20 +86,36 @@ function ConnectionForm({ id }: { id: string | null }) {
 
   const own = form.credential === OWN;
   const credential = credentials.find((c) => c.id === form.credential);
+  const engine = engineInfo(form.engine);
   const set = (patch: Partial<Form>) => {
     setForm((f) => ({ ...f, ...patch }));
     setTested(null);
   };
 
+  /** Troca o tipo de banco: porta e usuário padrão acompanham, se não foram mudados. */
+  function chooseEngine(next: DbEngine) {
+    const before = engineInfo(form.engine);
+    const after = engineInfo(next);
+    set({
+      engine: next,
+      ...(form.port === String(before.defaultPort) || form.port === ''
+        ? { port: String(after.defaultPort) }
+        : {}),
+      ...(form.user === before.defaultUser || form.user === '' ? { user: after.defaultUser } : {}),
+    });
+  }
+
   const input = () => ({
     ...(id ? { id } : {}),
+    engine: form.engine,
     name: form.name,
     host: form.host,
-    port: Number(form.port) || DEFAULT_FIREBIRD_PORT,
+    port: Number(form.port) || engine.defaultPort,
     database: form.database,
     user: own ? form.user : (credential?.user ?? form.user),
     credentialId: own ? null : form.credential,
     charset: form.charset,
+    ssl: form.ssl,
     environment: form.environment,
     readOnly: form.readOnly,
   });
@@ -138,6 +159,26 @@ function ConnectionForm({ id }: { id: string | null }) {
   return (
     <div className="flex min-h-0 flex-col">
       <div className="max-h-[70vh] space-y-4 overflow-y-auto px-5 py-4">
+        <Field label="Banco de dados">
+          <div className="grid grid-cols-4 gap-1 rounded-lg bg-surface-2 p-1">
+            {DB_ENGINES.map((e) => (
+              <button
+                key={e.id}
+                type="button"
+                onClick={() => chooseEngine(e.id)}
+                className={cn(
+                  'h-7 truncate rounded-md px-1 text-xs transition-colors',
+                  form.engine === e.id
+                    ? 'bg-elevated font-medium text-fg shadow-sm'
+                    : 'text-fg-muted hover:text-fg',
+                )}
+              >
+                {e.label}
+              </button>
+            ))}
+          </div>
+        </Field>
+
         <Field label="Nome">
           <TextInput
             autoFocus
@@ -166,14 +207,11 @@ function ConnectionForm({ id }: { id: string | null }) {
           </Field>
         </div>
 
-        <Field
-          label="Banco"
-          hint="O alias configurado no servidor (aliases.conf) ou o caminho do arquivo .FDB no servidor."
-        >
+        <Field label={engine.databaseLabel} hint={engine.databaseHint}>
           <TextInput
             mono
             value={form.database}
-            placeholder="Ex.: LOJA ou C:\Dados\LOJA.FDB"
+            placeholder={engine.databasePlaceholder}
             onChange={(e) => set({ database: e.target.value })}
           />
         </Field>
@@ -231,15 +269,42 @@ function ConnectionForm({ id }: { id: string | null }) {
         )}
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Charset da conexão">
-            <Select
-              value={form.charset}
-              options={CHARSET_OPTIONS}
-              onChange={(charset) => set({ charset })}
-              ariaLabel="Charset"
-              triggerClassName="h-8 w-full"
-            />
-          </Field>
+          {form.engine === 'firebird' ? (
+            <Field label="Charset da conexão">
+              <Select
+                value={form.charset}
+                options={CHARSET_OPTIONS}
+                onChange={(charset) => set({ charset })}
+                ariaLabel="Charset"
+                triggerClassName="h-8 w-full"
+              />
+            </Field>
+          ) : (
+            <Field label="Criptografia">
+              <div className="grid h-8 grid-cols-2 gap-1 rounded-lg bg-surface-2 p-1">
+                {(
+                  [
+                    [false, 'Sem TLS'],
+                    [true, 'TLS'],
+                  ] as const
+                ).map(([ssl, label]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => set({ ssl })}
+                    className={cn(
+                      'rounded-md text-xs transition-colors',
+                      form.ssl === ssl
+                        ? 'bg-elevated font-medium text-fg shadow-sm'
+                        : 'text-fg-muted hover:text-fg',
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </Field>
+          )}
           <Field label="Ambiente">
             <div className="grid h-8 grid-cols-3 gap-1 rounded-lg bg-surface-2 p-1">
               {DB_ENVIRONMENTS.map((env) => (
@@ -277,12 +342,24 @@ function ConnectionForm({ id }: { id: string | null }) {
           label="Somente leitura"
           description={
             form.readOnly
-              ? 'Só SELECT. O próprio servidor recusa qualquer alteração (transação somente leitura).'
+              ? engine.serverReadOnly
+                ? 'Só consultas. O próprio servidor recusa qualquer alteração (transação somente leitura).'
+                : 'Só consultas: o Rota recusa comandos de escrita e desfaz a transação no fim.'
               : form.environment === 'producao'
                 ? 'Atenção: escrita liberada num banco de produção. Comandos que alteram dados pedem confirmação.'
                 : 'INSERT, UPDATE, DELETE e DDL liberados.'
           }
         />
+
+        {form.readOnly && !engine.serverReadOnly && (
+          <div className="flex gap-2.5 rounded-lg border border-warning/40 bg-warning/5 p-3 text-xs leading-relaxed text-fg">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+            <p>
+              O SQL Server não tem transação somente leitura: a proteção é do Rota. Para garantia total em
+              produção, conecte com um usuário que só tenha permissão de leitura (papel <b>db_datareader</b>).
+            </p>
+          </div>
+        )}
 
         {tested && (
           <div
@@ -298,7 +375,7 @@ function ConnectionForm({ id }: { id: string | null }) {
             )}
             <span>
               {tested.ok
-                ? `Conectou: Firebird ${tested.info.version}, banco em ${tested.info.databaseCharset} (conexão em ${tested.info.connectionCharset}).`
+                ? `Conectou: ${tested.info.version}${tested.info.databaseCharset ? `, banco em ${tested.info.databaseCharset}` : ''}${tested.info.connectionCharset ? ` (conexão em ${tested.info.connectionCharset})` : ''}.`
                 : tested.error}
             </span>
           </div>

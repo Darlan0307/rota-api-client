@@ -1,9 +1,9 @@
 /**
- * Conexões com bancos de dados (por enquanto, Firebird). Tipos sem
- * dependências de Node (usados também pelo renderer).
+ * Conexões com bancos de dados (Firebird, PostgreSQL, MySQL/MariaDB e SQL
+ * Server). Tipos sem dependências de Node (usados também pelo renderer).
  */
 
-export type DbEngine = 'firebird';
+export type DbEngine = 'firebird' | 'postgres' | 'mysql' | 'sqlserver';
 
 /** Produção começa somente leitura; local e teste podem liberar escrita. */
 export type DbEnvironment = 'local' | 'teste' | 'producao';
@@ -17,15 +17,86 @@ export interface DbConnectionConfig {
   engine: DbEngine;
   host: string;
   port: number;
-  /** Alias (ex.: LOJA) ou caminho do arquivo no servidor (ex.: C:\Dados\LOJA.FDB). */
+  /**
+   * Firebird: alias (ex.: LOJA) ou caminho do arquivo no servidor.
+   * Demais: nome do banco.
+   */
   database: string;
   /** Usado quando a conexão não usa uma credencial salva. */
   user: string;
   /** Credencial salva (usuário e senha reaproveitados entre conexões). */
   credentialId: string | null;
+  /** Só Firebird. */
   charset: FirebirdCharset;
+  /** Conexão criptografada (TLS). Não existe no Firebird 2.5. */
+  ssl: boolean;
   environment: DbEnvironment;
   readOnly: boolean;
+}
+
+export interface DbEngineInfo {
+  id: DbEngine;
+  label: string;
+  /** Sigla curta para listas. */
+  short: string;
+  defaultPort: number;
+  defaultUser: string;
+  databaseLabel: string;
+  databaseHint: string;
+  databasePlaceholder: string;
+  /** O servidor garante a somente leitura (transação READ ONLY). */
+  serverReadOnly: boolean;
+}
+
+export const DB_ENGINES: readonly DbEngineInfo[] = [
+  {
+    id: 'firebird',
+    label: 'Firebird',
+    short: 'FB',
+    defaultPort: 3050,
+    defaultUser: 'SYSDBA',
+    databaseLabel: 'Banco',
+    databaseHint: 'O alias configurado no servidor (aliases.conf) ou o caminho do arquivo .FDB no servidor.',
+    databasePlaceholder: 'Ex.: LOJA ou C:\\Dados\\LOJA.FDB',
+    serverReadOnly: true,
+  },
+  {
+    id: 'postgres',
+    label: 'PostgreSQL',
+    short: 'PG',
+    defaultPort: 5432,
+    defaultUser: 'postgres',
+    databaseLabel: 'Banco',
+    databaseHint: 'O nome do banco (database).',
+    databasePlaceholder: 'Ex.: loja',
+    serverReadOnly: true,
+  },
+  {
+    id: 'mysql',
+    label: 'MySQL / MariaDB',
+    short: 'MY',
+    defaultPort: 3306,
+    defaultUser: 'root',
+    databaseLabel: 'Banco',
+    databaseHint: 'O nome do banco (schema).',
+    databasePlaceholder: 'Ex.: loja',
+    serverReadOnly: true,
+  },
+  {
+    id: 'sqlserver',
+    label: 'SQL Server',
+    short: 'MS',
+    defaultPort: 1433,
+    defaultUser: 'sa',
+    databaseLabel: 'Banco',
+    databaseHint: 'O nome do banco (database).',
+    databasePlaceholder: 'Ex.: Loja',
+    serverReadOnly: false,
+  },
+];
+
+export function engineInfo(engine: DbEngine): DbEngineInfo {
+  return DB_ENGINES.find((e) => e.id === engine) ?? (DB_ENGINES[0] as DbEngineInfo);
 }
 
 /** Usuário e senha reaproveitados por várias conexões (ex.: SYSDBA padrão dos clientes). */
@@ -78,7 +149,10 @@ export interface DbColumn {
 }
 
 export interface DbTable {
+  /** Nome exibido (com o schema quando não é o padrão, ex.: vendas.pedidos). */
   name: string;
+  /** Como escrever no SQL (com aspas quando precisa). */
+  ref: string;
   kind: 'table' | 'view';
   columns: DbColumn[];
 }
@@ -86,6 +160,7 @@ export interface DbTable {
 export interface DbSchema {
   tables: DbTable[];
   procedures: string[];
+  /** Generators (Firebird) ou sequences. */
   generators: string[];
 }
 
@@ -94,7 +169,7 @@ export interface DbResultColumn {
   type: string;
 }
 
-/** Valores já prontos para exibir: datas no horário local, BIGINT exato como texto. */
+/** Valores já prontos para exibir: datas como texto, números grandes como texto exato. */
 export type DbValue = string | number | boolean | null;
 
 export interface DbQueryResult {
@@ -103,16 +178,17 @@ export interface DbQueryResult {
   /** Havia mais linhas que o limite. */
   truncated: boolean;
   durationMs: number;
-  /** Linhas afetadas (comandos que não são SELECT, com escrita liberada). */
+  /** Linhas afetadas (comandos que não são consulta, com escrita liberada). */
   affected?: number;
 }
 
 export interface DbServerInfo {
-  /** Charset declarado no banco. */
-  databaseCharset: string;
-  /** Charset usado na conexão (depois do "auto"). */
-  connectionCharset: string;
+  /** Produto e versão (ex.: "Firebird 2.5.9", "PostgreSQL 16.4"). */
   version: string;
+  /** Charset ou collation do banco ("" quando não se aplica). */
+  databaseCharset: string;
+  /** Charset usado na conexão. */
+  connectionCharset: string;
 }
 
 export const DEFAULT_FIREBIRD_PORT = 3050;

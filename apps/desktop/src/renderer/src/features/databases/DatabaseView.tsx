@@ -1,4 +1,12 @@
-import { type DbSchema, type DbTable, isReadQuery, statementAt } from '@rota/core/shared';
+import {
+  type DbEngine,
+  type DbSchema,
+  type DbTable,
+  isReadQuery,
+  previewSql,
+  quoteIdentifier,
+  statementAt,
+} from '@rota/core/shared';
 import {
   AlertTriangle,
   ChevronRight,
@@ -124,6 +132,7 @@ export function DatabaseTabView({ tab }: { tab: DatabaseTab }) {
             <Panel id="schema" minSize="14%" defaultSize="24%">
               <SchemaTree
                 connectionId={id}
+                engine={view.config.engine}
                 schema={schema}
                 error={schemaError}
                 connecting={view.status === 'connecting'}
@@ -174,7 +183,7 @@ function Header({ id }: { id: string }) {
         </p>
         <p className="truncate font-mono text-2xs text-fg-subtle">
           {config.host}:{config.port} · {config.database}
-          {info && ` · Firebird ${info.version} · ${info.connectionCharset}`}
+          {info && ` · ${info.version}${info.connectionCharset ? ` · ${info.connectionCharset}` : ''}`}
         </p>
       </div>
       <Button size="sm" variant="ghost" onClick={() => openConnectionDialog(id)}>
@@ -206,14 +215,18 @@ function Header({ id }: { id: string }) {
 // ---------------------------------------------------------------------------
 // Estrutura do banco
 
+const matches = (name: string, q: string) => name.toLowerCase().includes(q);
+
 function SchemaTree({
   connectionId,
+  engine,
   schema,
   error,
   connecting,
   onInsert,
 }: {
   connectionId: string;
+  engine: DbEngine;
   schema: DbSchema | undefined;
   error: string | undefined;
   connecting: boolean;
@@ -221,17 +234,18 @@ function SchemaTree({
 }) {
   const [filter, setFilter] = useState('');
   const [open, setOpen] = useState<Record<string, boolean>>({});
-  const q = filter.trim().toUpperCase();
+  // Nomes vêm em maiúsculas (Firebird) ou minúsculas (PostgreSQL): compara sem caixa.
+  const q = filter.trim().toLowerCase();
   const tables = useMemo(
     () =>
       (schema?.tables ?? []).filter(
-        (t) => !q || t.name.includes(q) || t.columns.some((c) => c.name.includes(q)),
+        (t) => !q || matches(t.name, q) || t.columns.some((c) => matches(c.name, q)),
       ),
     [schema, q],
   );
 
   function query(table: DbTable) {
-    const sql = `SELECT FIRST 100 * FROM ${table.name}`;
+    const sql = previewSql(engine, table.ref);
     updateQuery(connectionId, { sql });
     void runQuery(connectionId, sql, 100);
   }
@@ -272,7 +286,7 @@ function SchemaTree({
             </p>
             <ul>
               {list.map((table) => {
-                const expanded = open[table.name] ?? (q !== '' && !table.name.includes(q));
+                const expanded = open[table.name] ?? (q !== '' && !matches(table.name, q));
                 const Icon = table.kind === 'view' ? Eye : Table2;
                 return (
                   <li key={table.name}>
@@ -280,7 +294,7 @@ function SchemaTree({
                       <button
                         type="button"
                         onClick={() => setOpen((o) => ({ ...o, [table.name]: !expanded }))}
-                        onDoubleClick={() => onInsert(table.name)}
+                        onDoubleClick={() => onInsert(table.ref)}
                         title="Clique para ver as colunas; duplo clique insere o nome no editor"
                         className="flex min-w-0 flex-1 items-center gap-1.5 py-1 pl-2 text-left"
                       >
@@ -307,13 +321,13 @@ function SchemaTree({
                           <li key={column.name}>
                             <button
                               type="button"
-                              onClick={() => onInsert(column.name)}
+                              onClick={() => onInsert(quoteIdentifier(engine, column.name))}
                               title={`${column.name} ${column.type}${column.nullable ? '' : ' NOT NULL'}${
                                 column.defaultValue ? ` DEFAULT ${column.defaultValue}` : ''
                               }${column.references ? ` → ${column.references}` : ''}\nClique para inserir no editor`}
                               className={cn(
                                 'flex w-full items-center gap-1.5 py-0.5 pl-9 pr-2 text-left hover:bg-surface-2/60',
-                                q && column.name.includes(q) && 'bg-primary-soft/40',
+                                q && matches(column.name, q) && 'bg-primary-soft/40',
                               )}
                             >
                               {column.primaryKey ? (
@@ -465,7 +479,7 @@ function SqlEditor({
           value={sql}
           onChange={(value) => updateQuery(id, { sql: value })}
           language="sql"
-          placeholder="SELECT FIRST 100 * FROM ... (Ctrl+Espaço sugere tabelas e colunas)"
+          placeholder={`${previewSql(view?.config.engine ?? 'firebird', '...')} (Ctrl+Espaço sugere tabelas e colunas)`}
           onEditor={(editor) => {
             editorRef.current = editor;
             bindSqlEditor(editor, id);
