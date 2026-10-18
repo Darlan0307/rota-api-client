@@ -5,12 +5,11 @@ import {
   type DbSession,
   describeNetworkError,
   formatDate,
-  readOnlyViolation,
   toDbValue,
   toSafeNumber,
   withTimeout,
 } from './common';
-import { quoteIdentifier } from './sql';
+import { quoteIdentifier, readOnlyViolation } from './sql';
 import type { DbConnectionConfig, DbQueryResult, DbSchema, DbServerInfo, DbTable, DbValue } from './types';
 import { DEFAULT_ROW_LIMIT } from './types';
 

@@ -4,12 +4,11 @@ import {
   DatabaseError,
   type DbSession,
   describeNetworkError,
-  readOnlyViolation,
   toDbValue,
   toSafeNumber,
   withTimeout,
 } from './common';
-import { quoteIdentifier } from './sql';
+import { quoteIdentifier, readOnlyViolation } from './sql';
 import type { DbConnectionConfig, DbQueryResult, DbSchema, DbServerInfo, DbTable } from './types';
 import { DEFAULT_ROW_LIMIT } from './types';
 

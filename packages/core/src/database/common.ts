@@ -113,35 +113,3 @@ export function toDbValue(value: unknown): DbValue {
   if (typeof value === 'function') return '(BLOB binário)';
   return JSON.stringify(value);
 }
-
-/** Tira comentários e textos entre aspas para procurar palavras do comando. */
-export function stripSqlLiterals(sql: string): string {
-  return sql
-    .replace(/--[^\n]*/g, ' ')
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/'(?:[^']|'')*'/g, "''")
-    .replace(/"(?:[^"]|"")*"/g, '""')
-    .replace(/`(?:[^`]|``)*`/g, '``')
-    .replace(/\[[^\]]*\]/g, '[]');
-}
-
-const READ_START = /^\s*\(*\s*(SELECT|WITH|SHOW|DESCRIBE|DESC|EXPLAIN|VALUES|TABLE)\b/i;
-
-/** Palavras que alteram dados, estrutura ou permissões (ou executam código). */
-const WRITE_WORDS =
-  /\b(INSERT|UPDATE|DELETE|MERGE|UPSERT|REPLACE\s+INTO|DROP|ALTER|CREATE|TRUNCATE|RENAME|GRANT|REVOKE|DENY|EXEC|EXECUTE|CALL|DO|COPY|LOAD|IMPORT|BACKUP|RESTORE|DBCC|SHUTDOWN|KILL|VACUUM|REINDEX|CLUSTER|LOCK|INTO|OPENROWSET|OPENQUERY|OPENDATASOURCE|BULK|SET\s+TRANSACTION|COMMIT|ROLLBACK|BEGIN|SAVEPOINT|nextval|setval)\b|\b(sp|xp)_\w+/i;
-
-/**
- * Motivo para recusar um comando numa conexão somente leitura (null = pode).
- * Camada extra além da transação READ ONLY do banco, e a única proteção do
- * lado do Rota no SQL Server, que não tem transação somente leitura.
- */
-export function readOnlyViolation(sql: string): string | null {
-  const text = stripSqlLiterals(sql);
-  if (!READ_START.test(text))
-    return 'Esta conexão é somente leitura: só consultas (SELECT, WITH, SHOW, EXPLAIN) são permitidas.';
-  const word = WRITE_WORDS.exec(text)?.[0];
-  if (word)
-    return `Esta conexão é somente leitura: "${word.toUpperCase()}" não é permitido aqui (pode alterar o banco).`;
-  return null;
-}

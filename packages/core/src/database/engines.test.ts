@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { type DbSession, readOnlyViolation } from './common';
+import type { DbSession } from './common';
 import { connectDatabase } from './connect';
-import { previewSql, quoteIdentifier } from './sql';
+import { previewSql, quoteIdentifier, readOnlyViolation } from './sql';
 import type { DbConnectionConfig, DbEngine } from './types';
 
 describe('trava de somente leitura (Postgres, MySQL, SQL Server)', () => {
@@ -14,6 +14,8 @@ describe('trava de somente leitura (Postgres, MySQL, SQL Server)', () => {
       'EXPLAIN SELECT 1',
       "SELECT 'DELETE FROM x; DROP TABLE y' AS texto",
       'SELECT [Delete] FROM t',
+      "SELECT 'C:\\pasta' AS caminho, 'it''s' AS t FROM t -- delete",
+      'SELECT * FROM t /* drop */ WHERE a = 1',
     ])
       expect(readOnlyViolation(sql), sql).toBeNull();
   });
@@ -30,6 +32,15 @@ describe('trava de somente leitura (Postgres, MySQL, SQL Server)', () => {
       'EXEC sp_who',
       "SELECT * FROM OPENROWSET('x', 'y', 'z')",
       'SELECT * FROM clientes INTO OUTFILE "/tmp/x"',
+      // Comentário dentro de texto não pode esconder o resto do comando.
+      "SELECT '--'; DELETE FROM clientes",
+      "SELECT '/*'; DROP TABLE clientes; SELECT '*/'",
+      "SELECT '--' AS x; CREATE TABLE copia (a int); COMMIT",
+      // Regras do MySQL: \' dentro de texto, # como comentário, --sem espaço e /*! */.
+      "SELECT 'a\\'' , 1 INTO OUTFILE '/tmp/x' -- '",
+      "SELECT 1 # '\n INTO OUTFILE '/tmp/x'",
+      "SELECT 1--1 INTO OUTFILE '/tmp/x'",
+      "SELECT 1 /*!50000 INTO OUTFILE '/tmp/x' */",
     ])
       expect(readOnlyViolation(sql), sql).not.toBeNull();
   });

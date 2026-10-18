@@ -5,10 +5,9 @@ import {
   type DbSession,
   describeNetworkError,
   formatDate,
-  stripSqlLiterals,
   withTimeout,
 } from './common';
-import { quoteIdentifier } from './sql';
+import { quoteIdentifier, stripSqlLiterals } from './sql';
 import {
   type DbColumn,
   type DbConnectionConfig,

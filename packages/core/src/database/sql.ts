@@ -129,13 +129,78 @@ export function previewSql(engine: DbEngine, ref: string, rows = 100): string {
   }
 }
 
+/**
+ * Tira comentários e textos entre aspas para procurar palavras do comando.
+ * Percorre o texto uma vez só: o que vem primeiro (comentário ou texto) manda,
+ * senão '--' dentro de um texto esconderia o resto do comando. Com `mysql`,
+ * segue as regras dele: \' dentro de textos, # como comentário, "-- " só com
+ * espaço e /*! ... *\/ executado como código.
+ */
+export function stripSqlLiterals(sql: string, mysql = false): string {
+  let out = '';
+  let i = 0;
+  const skipLine = () => {
+    while (i < sql.length && sql[i] !== '\n') i++;
+    out += ' ';
+  };
+  while (i < sql.length) {
+    const ch = sql[i] as string;
+    const next = sql[i + 1];
+    if (ch === '-' && next === '-' && (!mysql || /^\s?$/.test(sql[i + 2] ?? ''))) skipLine();
+    else if (mysql && ch === '#') skipLine();
+    else if (ch === '/' && next === '*' && !(mysql && sql[i + 2] === '!')) {
+      const close = sql.indexOf('*/', i + 2);
+      i = close < 0 ? sql.length : close + 2;
+      out += ' ';
+    } else if (ch === "'" || ch === '"' || ch === '`') {
+      let j = i + 1;
+      while (j < sql.length) {
+        if (mysql && ch !== '`' && sql[j] === '\\') j += 2;
+        else if (sql[j] === ch && sql[j + 1] === ch) j += 2;
+        else if (sql[j] === ch) break;
+        else j++;
+      }
+      out += ch + ch;
+      i = j + 1;
+    } else if (ch === '[') {
+      const close = sql.indexOf(']', i + 1);
+      out += '[]';
+      i = close < 0 ? sql.length : close + 1;
+    } else {
+      out += ch;
+      i++;
+    }
+  }
+  return out;
+}
+
+const READ_START = /^\s*\(*\s*(SELECT|WITH|SHOW|DESCRIBE|DESC|EXPLAIN|VALUES|TABLE)\b/i;
+
+/** Palavras que alteram dados, estrutura ou permissões (ou executam código). */
+const WRITE_WORDS =
+  /\b(INSERT|UPDATE|DELETE|MERGE|UPSERT|REPLACE\s+INTO|DROP|ALTER|CREATE|TRUNCATE|RENAME|GRANT|REVOKE|DENY|EXEC|EXECUTE|CALL|DO|COPY|LOAD|IMPORT|BACKUP|RESTORE|DBCC|SHUTDOWN|KILL|VACUUM|REINDEX|CLUSTER|LOCK|INTO|OPENROWSET|OPENQUERY|OPENDATASOURCE|BULK|SET\s+TRANSACTION|COMMIT|ROLLBACK|BEGIN|SAVEPOINT|nextval|setval)\b|\b(sp|xp)_\w+/i;
+
+/**
+ * Motivo para recusar um comando numa conexão somente leitura (null = pode).
+ * Camada extra além da transação READ ONLY do banco, e a única proteção do
+ * lado do Rota no SQL Server, que não tem transação somente leitura.
+ */
+export function readOnlyViolation(sql: string): string | null {
+  // Lido como SQL padrão e como MySQL: o que um trata como texto ou comentário
+  // o outro pode executar (ex.: '\'' ou #), então os dois precisam passar.
+  for (const text of [stripSqlLiterals(sql), stripSqlLiterals(sql, true)]) {
+    if (!READ_START.test(text))
+      return 'Esta conexão é somente leitura: só consultas (SELECT, WITH, SHOW, EXPLAIN) são permitidas.';
+    const word = WRITE_WORDS.exec(text)?.[0];
+    if (word)
+      return `Esta conexão é somente leitura: "${word.toUpperCase()}" não é permitido aqui (pode alterar o banco).`;
+  }
+  return null;
+}
+
 /** O comando é uma consulta (não altera dados nem estrutura)? */
 export function isReadQuery(sql: string): boolean {
-  const text = sql
-    .replace(/--[^\n]*/g, ' ')
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .trim();
-  return /^(SELECT|WITH)\b/i.test(text);
+  return readOnlyViolation(sql) === null;
 }
 
 export const SQL_KEYWORDS = [
