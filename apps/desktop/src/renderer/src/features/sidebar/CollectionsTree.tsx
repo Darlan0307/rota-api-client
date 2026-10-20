@@ -39,9 +39,11 @@ import { useSnapshot } from '../../state/workspace';
 import { claudePrompts, copyPrompt } from '../claude/AskClaude';
 import {
   deleteItem,
+  deleteItems,
   duplicateItem,
   exportCollection,
   moveItem,
+  moveItems,
   newCollection,
   newFolder,
   newRequest,
@@ -51,6 +53,7 @@ import {
   reorderCollections,
   revealInExplorer,
   useRenaming,
+  useTreeSelection,
 } from './item-actions';
 
 type DropZone = 'before' | 'after' | 'inside';
@@ -65,6 +68,7 @@ export function CollectionsTree({ filter }: { filter: string }) {
   const snapshot = useSnapshot();
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
+  const selectedIds = useTreeSelection((s) => s.ids);
 
   const query = filter.trim().toLowerCase();
   const visible = useMemo(() => (query ? filterTree(snapshot.collections, query) : null), [snapshot, query]);
@@ -101,6 +105,13 @@ export function CollectionsTree({ filter }: { filter: string }) {
     const targetNode = findIn(snapshot.collections, target.id);
     if (!source || !targetNode) return;
 
+    if (selectedIds.length > 1 && selectedIds.includes(sourceId)) {
+      const parentId =
+        target.zone === 'inside' && isContainer(targetNode) ? targetNode.id : parents.get(target.id)?.id;
+      if (parentId) await moveItems(selectedIds, parentId);
+      return;
+    }
+
     if (source.kind === 'collection') {
       if (targetNode.kind !== 'collection' || target.zone === 'inside') return;
       const order = snapshot.collections.map((c) => c.id).filter((id) => id !== sourceId);
@@ -134,6 +145,8 @@ export function CollectionsTree({ filter }: { filter: string }) {
     dragId,
     dropTarget,
     onDragStart: (id, e) => {
+      // Arrastar um item fora da seleção desfaz a seleção (arrasta só ele).
+      if (!selectedIds.includes(id)) useTreeSelection.getState().clear();
       setDragId(id);
       e.dataTransfer.setData(DRAG_MIME, id);
       e.dataTransfer.effectAllowed = 'move';
@@ -169,14 +182,38 @@ export function CollectionsTree({ filter }: { filter: string }) {
     },
   };
 
+  const marked = selectedIds.filter((id) => findIn(snapshot.collections, id));
+
   return (
-    <ul className="px-2" onDragLeave={(e) => e.currentTarget === e.target && setDropTarget(null)}>
-      {snapshot.collections.map((node) =>
-        !visible || visible.has(node.id) ? (
-          <TreeRow key={node.id} node={node} depth={0} visible={visible} dnd={dnd} forceOpen={!!visible} />
-        ) : null,
+    <>
+      <ul
+        className="px-2"
+        onDragLeave={(e) => e.currentTarget === e.target && setDropTarget(null)}
+        onKeyDown={(e) => e.key === 'Escape' && useTreeSelection.getState().clear()}
+      >
+        {snapshot.collections.map((node) =>
+          !visible || visible.has(node.id) ? (
+            <TreeRow key={node.id} node={node} depth={0} visible={visible} dnd={dnd} forceOpen={!!visible} />
+          ) : null,
+        )}
+      </ul>
+      {marked.length > 0 && (
+        <div className="sticky bottom-0 mx-2 mt-2 flex items-center gap-1 rounded-md border border-border bg-elevated px-2 py-1.5 text-xs shadow-lg shadow-black/30 animate-fade-in">
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-fg">
+              {marked.length === 1 ? '1 selecionado' : `${marked.length} selecionados`}
+            </span>
+            <span className="block truncate text-2xs text-fg-subtle">Arraste para uma pasta · Esc limpa</span>
+          </span>
+          <Button size="sm" variant="ghost" onClick={() => void deleteItems(marked)}>
+            <Trash2 className="size-3.5" /> Excluir
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => useTreeSelection.getState().clear()}>
+            Limpar
+          </Button>
+        </div>
       )}
-    </ul>
+    </>
   );
 }
 
@@ -212,6 +249,8 @@ function TreeRow({
   const container = isContainer(node);
   const open = container && (expanded || forceOpen);
   const selected = activeItemId === node.id;
+  const marked = useTreeSelection((s) => s.ids.includes(node.id));
+  const markedCount = useTreeSelection((s) => s.ids.length);
   const drop = dnd.dropTarget?.id === node.id ? dnd.dropTarget.zone : null;
 
   function activate() {
@@ -269,13 +308,28 @@ function TreeRow({
           onDragOver={(e) => dnd.onDragOver(node, e)}
           onDrop={dnd.onDrop}
           onDragEnd={dnd.onDragEnd}
-          onClick={() => !renaming && activate()}
+          onClick={(e) => {
+            if (renaming) return;
+            // Ctrl+clique marca vários (coleções não entram: não se movem para dentro de pastas).
+            if ((e.ctrlKey || e.metaKey) && node.kind !== 'collection') {
+              const open = activeItemId ? findIn(snapshot.collections, activeItemId) : undefined;
+              useTreeSelection
+                .getState()
+                .toggle(node.id, open && open.kind !== 'collection' ? open.id : null);
+              return;
+            }
+            useTreeSelection.getState().clear();
+            activate();
+          }}
           onDoubleClick={() => container && openContainerSettings(node.id)}
           onKeyDown={(e) => {
             if (renaming) return;
             if (e.key === 'Enter') activate();
             else if (e.key === 'F2') setRenaming(node.id);
-            else if (e.key === 'Delete') void deleteItem(node);
+            else if (e.key === 'Delete')
+              void (marked && markedCount > 1
+                ? deleteItems(useTreeSelection.getState().ids)
+                : deleteItem(node));
             else if (e.key === 'ArrowRight' && container) setExpanded(node.id, true);
             else if (e.key === 'ArrowLeft' && container) setExpanded(node.id, false);
           }}
@@ -288,10 +342,11 @@ function TreeRow({
           style={{ paddingLeft: `${depth * 14 + 6}px` }}
           className={cn(
             'group relative flex h-7 cursor-pointer items-center gap-1.5 rounded-md pr-1 text-[13px] outline-none transition-colors duration-100',
-            selected
+            selected || marked
               ? 'bg-primary-soft text-fg'
               : 'text-fg-muted hover:bg-surface-2 hover:text-fg focus-visible:bg-surface-2',
-            dnd.dragId === node.id && 'opacity-40',
+            marked && 'ring-1 ring-inset ring-primary/60',
+            (dnd.dragId === node.id || (marked && dnd.dragId !== null && markedCount > 1)) && 'opacity-40',
             drop === 'inside' && 'bg-primary-soft ring-1 ring-primary',
           )}
         >

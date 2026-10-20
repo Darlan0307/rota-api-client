@@ -132,11 +132,112 @@ export async function moveItem(id: string, parentId: string, index?: number): Pr
     );
 }
 
+/** Pastas e requisições marcadas com Ctrl+clique na árvore. */
+export const useTreeSelection = create<{
+  ids: string[];
+  toggle(id: string, alsoId?: string | null): void;
+  clear(): void;
+}>()((set) => ({
+  ids: [],
+  toggle: (id, alsoId) =>
+    set((s) => {
+      if (s.ids.includes(id)) return { ids: s.ids.filter((x) => x !== id) };
+      // O primeiro Ctrl+clique leva junto o item que já estava aberto, como no Explorer.
+      const base = s.ids.length === 0 && alsoId && alsoId !== id ? [alsoId] : s.ids;
+      return { ids: [...base, id] };
+    }),
+  clear: () => set((s) => (s.ids.length ? { ids: [] } : s)),
+}));
+
+/**
+ * Move vários itens para o fim de uma coleção ou pasta, na ordem da árvore.
+ * Item cujo pai também está na seleção vai junto com o pai; pasta não entra
+ * nela mesma. Um único "Desfazer" devolve todos às posições originais.
+ */
+export async function moveItems(ids: readonly string[], parentId: string): Promise<void> {
+  const snap = snapshot();
+  if (!snap) return;
+  const order = topLevelIds(snap.collections, ids);
+  const blocked = new Set([parentId, ...ancestorsOf(snap, parentId).map((a) => a.id)]);
+  const movable = order.filter(
+    (id) => !blocked.has(id) && positionOf(snap.collections, id)?.parentId !== parentId,
+  );
+  if (movable.length === 0) {
+    toast.info('Nada para mover: os itens já estão nesse lugar.');
+    return;
+  }
+  const origins = movable.flatMap((id) => {
+    const origin = positionOf(snap.collections, id);
+    return origin ? [{ id, ...origin }] : [];
+  });
+  const moved: typeof origins = [];
+  for (const origin of origins) {
+    if (!(await runCommand({ type: 'move', id: origin.id, parentId }))) break;
+    moved.push(origin);
+  }
+  useTreeSelection.getState().clear();
+  if (moved.length === 0) return;
+  useUiStore.getState().setExpanded(parentId, true);
+  const target = findNode(snap, parentId)?.name ?? 'o destino';
+  const label = moved.length === 1 ? '1 item movido' : `${moved.length} itens movidos`;
+  // Volta em ordem crescente de posição: cada um cai no índice que tinha.
+  const back = [...moved].sort((a, b) => a.index - b.index);
+  offerUndo(`${label} para "${target}".`, async () => {
+    for (const o of back) await command({ type: 'move', id: o.id, parentId: o.parentId, index: o.index });
+  });
+}
+
+/** Exclui os itens marcados (vão para a lixeira), com um único "Desfazer". */
+export async function deleteItems(ids: readonly string[]): Promise<void> {
+  const snap = snapshot();
+  if (!snap || ids.length === 0) return;
+  const nodes = topLevelIds(snap.collections, ids).flatMap((id) => {
+    const node = findNode(snap, id);
+    return node ? [node] : [];
+  });
+  const choice = await confirmDialog({
+    title: `Excluir ${nodes.length === 1 ? '1 item' : `${nodes.length} itens`}?`,
+    description:
+      'Os itens vão para a lixeira e podem ser restaurados depois. Pastas levam tudo o que está dentro.',
+    confirmLabel: 'Excluir',
+    danger: true,
+  });
+  if (choice !== 'confirm') return;
+  const trashIds: string[] = [];
+  for (const node of nodes) {
+    const result = await runCommand({ type: 'remove', id: node.id });
+    if (result?.id) trashIds.push(result.id);
+  }
+  useTreeSelection.getState().clear();
+  if (trashIds.length)
+    offerUndo(
+      `${trashIds.length === 1 ? '1 item foi' : `${trashIds.length} itens foram`} para a lixeira.`,
+      async () => {
+        for (const id of [...trashIds].reverse()) await api.invoke('trash:restore', id);
+      },
+    );
+}
+
 export async function reorderCollections(order: string[]): Promise<void> {
   const previous = snapshot()?.collections.map((c) => c.id);
   const result = await runCommand({ type: 'reorderCollections', order });
   if (result && previous)
     offerUndo('Ordem das coleções alterada.', () => command({ type: 'reorderCollections', order: previous }));
+}
+
+/** Ids na ordem da árvore, sem os que estão dentro de outro item da lista (vão junto com ele). */
+function topLevelIds(collections: readonly TreeNode[], ids: readonly string[]): string[] {
+  const chosen = new Set(ids);
+  const order: string[] = [];
+  const walk = (nodes: readonly TreeNode[], insideChosen: boolean) => {
+    for (const node of nodes) {
+      const picked = chosen.has(node.id);
+      if (picked && !insideChosen) order.push(node.id);
+      if (node.kind !== 'request') walk(node.children, insideChosen || picked);
+    }
+  };
+  walk(collections, false);
+  return order;
 }
 
 function positionOf(nodes: readonly TreeNode[], id: string): { parentId: string; index: number } | undefined {
