@@ -1,6 +1,6 @@
 import * as Dropdown from '@radix-ui/react-dropdown-menu';
 import type { FolderInspection } from '@rota/core/shared';
-import { Check, ChevronDown, FolderGit2, FolderOpen, FolderPlus, Home, X } from 'lucide-react';
+import { Check, ChevronDown, FolderGit2, FolderOpen, FolderPlus, Home, Plus, Star, X } from 'lucide-react';
 import { useState } from 'react';
 import { create } from 'zustand';
 import { Button } from '../../components/Button';
@@ -8,6 +8,7 @@ import { Dialog } from '../../components/Dialog';
 import { Checkbox } from '../../components/form';
 import { api, errorMessage } from '../../lib/api';
 import { cn } from '../../lib/cn';
+import { promptDialog } from '../../state/dialogs';
 import { toast } from '../../state/toasts';
 import { useWorkspace } from '../../state/workspace';
 
@@ -22,7 +23,7 @@ const usePending = create<{ folder: FolderInspection | null; set(f: FolderInspec
 async function openWorkspace(path: string | null, prepare?: { gitignore: boolean; readme: boolean }) {
   try {
     await api.invoke('workspace:open', path, prepare);
-    toast.success(path ? `Workspace aberto: ${basename(path)}` : 'Workspace padrão aberto.');
+    toast.success(path ? `Workspace aberto: ${basename(path)}` : 'Workspace principal aberto.');
   } catch (error) {
     toast.error(`Não foi possível abrir o workspace: ${errorMessage(error)}`);
   }
@@ -41,19 +42,84 @@ async function openPath(path: string) {
   else usePending.getState().set(info);
 }
 
+/** Cria um workspace novo (pasta própria em %APPDATA%) e já abre. */
+export async function createWorkspace(): Promise<void> {
+  const name = await promptDialog({
+    title: 'Novo workspace',
+    label: 'Nome',
+    placeholder: 'Ex.: Trabalho, Pessoal, Freelas',
+    validate: (value) => (value.trim() === '' ? 'Informe um nome.' : null),
+  });
+  if (!name) return;
+  try {
+    const path = await api.invoke('workspace:create', name);
+    await api.invoke('workspace:open', path);
+    toast.success(`Workspace "${name.trim()}" criado.`);
+  } catch (error) {
+    toast.error(`Não foi possível criar o workspace: ${errorMessage(error)}`);
+  }
+}
+
 const basename = (p: string) => p.split(/[\\/]/).filter(Boolean).pop() ?? p;
+const samePath = (a: string | null, b: string | null) => (a ?? '').toLowerCase() === (b ?? '').toLowerCase();
+
+type Startup = { path: string | null } | null;
+
+const ITEM =
+  'group flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 outline-none data-[highlighted]:bg-surface-2';
 
 /** Seletor de workspace na barra de título. */
 export function WorkspaceMenu() {
   const state = useWorkspace((s) => s.state);
-  const [recent, setRecent] = useState<string[]>([]);
+  const [recent, setRecent] = useState<{ path: string; name: string }[]>([]);
+  const [startup, setStartup] = useState<Startup>(null);
   if (!state) return null;
   const root = state.snapshot.root;
+
+  async function toggleStartup(path: string | null) {
+    const isStartup = startup !== null && samePath(startup.path, path);
+    const next: Startup = isStartup ? null : { path };
+    try {
+      await api.invoke('workspace:setStartup', next);
+      setStartup(next);
+      toast.success(
+        next ? 'Este workspace abre ao iniciar o app.' : 'Sem workspace padrão: o app abre o último usado.',
+      );
+    } catch (error) {
+      toast.error(errorMessage(error));
+    }
+  }
+
+  const star = (path: string | null) => {
+    const isStartup = startup !== null && samePath(startup.path, path);
+    return (
+      <button
+        type="button"
+        aria-label={isStartup ? 'Deixar de abrir ao iniciar' : 'Definir como padrão (abre ao iniciar o app)'}
+        title={isStartup ? 'Padrão: abre ao iniciar o app' : 'Definir como padrão (abre ao iniciar o app)'}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          void toggleStartup(path);
+        }}
+        className={cn(
+          'flex size-5 shrink-0 items-center justify-center rounded hover:text-warning',
+          isStartup ? 'text-warning' : 'text-fg-subtle opacity-0 group-hover:opacity-100',
+        )}
+      >
+        <Star className={cn('size-3.5', isStartup && 'fill-current')} />
+      </button>
+    );
+  };
 
   return (
     <Dropdown.Root
       onOpenChange={(open) => {
-        if (open) void api.invoke('workspace:recent').then((r) => setRecent(r.recent));
+        if (open)
+          void api.invoke('workspace:recent').then((r) => {
+            setRecent(r.recent);
+            setStartup(r.startup);
+          });
       }}
     >
       <Dropdown.Trigger asChild>
@@ -67,7 +133,7 @@ export function WorkspaceMenu() {
           ) : (
             <FolderGit2 className="size-3.5 shrink-0" strokeWidth={1.75} />
           )}
-          <span className="truncate">{state.isDefault ? 'Workspace padrão' : state.snapshot.name}</span>
+          <span className="truncate">{state.isDefault ? 'Workspace principal' : state.snapshot.name}</span>
           <ChevronDown className="size-3.5 shrink-0 text-fg-subtle" />
         </button>
       </Dropdown.Trigger>
@@ -75,67 +141,71 @@ export function WorkspaceMenu() {
         <Dropdown.Content
           align="start"
           sideOffset={6}
-          className="z-50 w-80 rounded-lg border border-border bg-elevated p-1 text-[13px] shadow-xl shadow-black/40 animate-pop-in"
+          className="z-50 max-h-[70vh] w-80 overflow-y-auto rounded-lg border border-border bg-elevated p-1 text-[13px] shadow-xl shadow-black/40 animate-pop-in"
         >
-          <Dropdown.Item
-            onSelect={() => !state.isDefault && void openWorkspace(null)}
-            className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 outline-none data-[highlighted]:bg-surface-2"
-          >
-            <Check className={cn('size-3.5 text-primary', !state.isDefault && 'invisible')} />
-            <Home className="size-3.5 text-fg-subtle" />
-            <span className="flex-1">Workspace padrão</span>
+          <Dropdown.Label className="px-2 pb-1 pt-1.5 text-2xs font-medium uppercase tracking-wider text-fg-subtle">
+            Workspaces
+          </Dropdown.Label>
+          <Dropdown.Item onSelect={() => !state.isDefault && void openWorkspace(null)} className={ITEM}>
+            <Check className={cn('size-3.5 shrink-0 text-primary', !state.isDefault && 'invisible')} />
+            <Home className="size-3.5 shrink-0 text-fg-subtle" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate">Workspace principal</span>
+              <span className="block truncate text-2xs text-fg-subtle">Guardado nos dados do app</span>
+            </span>
+            {star(null)}
           </Dropdown.Item>
-          {recent.length > 0 && (
-            <>
-              <Dropdown.Label className="px-2 pb-1 pt-2 text-2xs font-medium uppercase tracking-wider text-fg-subtle">
-                Recentes
-              </Dropdown.Label>
-              {recent.map((path) => {
-                const current = !state.isDefault && path.toLowerCase() === root.toLowerCase();
-                return (
-                  <Dropdown.Item
-                    key={path}
-                    onSelect={() => !current && void openPath(path)}
-                    className="group flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 outline-none data-[highlighted]:bg-surface-2"
-                    title={path}
+          {recent.map(({ path, name }) => {
+            const current = !state.isDefault && samePath(path, root);
+            return (
+              <Dropdown.Item
+                key={path}
+                onSelect={() => !current && void openPath(path)}
+                className={ITEM}
+                title={path}
+              >
+                <Check className={cn('size-3.5 shrink-0 text-primary', !current && 'invisible')} />
+                <FolderGit2 className="size-3.5 shrink-0 text-fg-subtle" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">{name}</span>
+                  <span className="block truncate text-2xs text-fg-subtle">{path}</span>
+                </span>
+                {star(path)}
+                {!current && (
+                  <button
+                    type="button"
+                    aria-label="Remover da lista (a pasta continua no disco)"
+                    title="Remover da lista (a pasta continua no disco)"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      void api.invoke('workspace:forgetRecent', path).then(() => {
+                        setRecent((r) => r.filter((w) => w.path !== path));
+                        if (startup && samePath(startup.path, path)) void toggleStartup(path);
+                      });
+                    }}
+                    className="flex size-5 shrink-0 items-center justify-center rounded text-fg-subtle opacity-0 hover:text-fg group-hover:opacity-100"
                   >
-                    <Check className={cn('size-3.5 shrink-0 text-primary', !current && 'invisible')} />
-                    <FolderGit2 className="size-3.5 shrink-0 text-fg-subtle" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate">{basename(path)}</span>
-                      <span className="block truncate text-2xs text-fg-subtle">{path}</span>
-                    </span>
-                    {!current && (
-                      <button
-                        type="button"
-                        aria-label="Remover dos recentes"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          void api
-                            .invoke('workspace:forgetRecent', path)
-                            .then(() => setRecent((r) => r.filter((p) => p !== path)));
-                        }}
-                        className="flex size-5 shrink-0 items-center justify-center rounded text-fg-subtle opacity-0 hover:text-fg group-hover:opacity-100"
-                      >
-                        <X className="size-3" />
-                      </button>
-                    )}
-                  </Dropdown.Item>
-                );
-              })}
-            </>
-          )}
+                    <X className="size-3" />
+                  </button>
+                )}
+              </Dropdown.Item>
+            );
+          })}
+          <p className="px-2 pb-1 pt-1.5 text-2xs text-fg-subtle">
+            <Star className="mb-px inline size-3 fill-current text-warning" /> padrão: abre ao iniciar o app
+            {startup === null && ' (sem padrão, abre o último usado)'}
+          </p>
           <Dropdown.Separator className="my-1 h-px bg-border" />
-          <Dropdown.Item
-            onSelect={() => void openFolderAsWorkspace()}
-            className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 pl-[30px] outline-none data-[highlighted]:bg-surface-2"
-          >
+          <Dropdown.Item onSelect={() => void createWorkspace()} className={cn(ITEM, 'pl-[30px]')}>
+            <Plus className="size-3.5 text-fg-subtle" /> Novo workspace…
+          </Dropdown.Item>
+          <Dropdown.Item onSelect={() => void openFolderAsWorkspace()} className={cn(ITEM, 'pl-[30px]')}>
             <FolderPlus className="size-3.5 text-fg-subtle" /> Abrir pasta como workspace…
           </Dropdown.Item>
           <Dropdown.Item
             onSelect={() => void api.invoke('workspace:revealInExplorer')}
-            className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 pl-[30px] outline-none data-[highlighted]:bg-surface-2"
+            className={cn(ITEM, 'pl-[30px]')}
           >
             <FolderOpen className="size-3.5 text-fg-subtle" /> Mostrar no Explorer
           </Dropdown.Item>

@@ -60,7 +60,7 @@ export interface TitleBarColors {
 export interface WorkspaceState {
   snapshot: WorkspaceSnapshot;
   activeEnvironmentId: string | null;
-  /** true quando é o workspace padrão em %APPDATA%. */
+  /** true quando é o workspace principal em %APPDATA%. */
   isDefault: boolean;
 }
 
@@ -254,7 +254,19 @@ export interface IpcContract {
     args: [path: string | null, prepare?: { gitignore: boolean; readme: boolean }];
     result: WorkspaceState;
   };
-  'workspace:recent': { args: []; result: { current: string | null; recent: string[] } };
+  'workspace:recent': {
+    args: [];
+    result: {
+      current: string | null;
+      recent: { path: string; name: string }[];
+      /** Workspace que abre ao iniciar (path null = o principal); null = o último usado. */
+      startup: { path: string | null } | null;
+    };
+  };
+  /** Cria um workspace em %APPDATA%/Rota/meus-workspaces e devolve o caminho (não abre). */
+  'workspace:create': { args: [name: string]; result: string };
+  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
+  'workspace:setStartup': { args: [startup: { path: string | null } | null]; result: void };
   // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
   'workspace:forgetRecent': { args: [path: string]; result: void };
   'examples:save': { args: [input: SaveExampleInput]; result: string };
@@ -378,6 +390,8 @@ export const IPC_CHANNELS = [
   'workspace:inspectFolder',
   'workspace:open',
   'workspace:recent',
+  'workspace:create',
+  'workspace:setStartup',
   'workspace:forgetRecent',
   'tunnel:list',
   'tunnel:binary',

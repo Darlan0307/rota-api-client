@@ -62,7 +62,7 @@ export class WorkspaceService {
     return normalizeWorkspacePath(this.root) === normalizeWorkspacePath(defaultWorkspaceDir());
   }
 
-  /** Abre um workspace (null = workspace padrão em %APPDATA%). */
+  /** Abre um workspace (null = workspace principal em %APPDATA%). */
   async open(root: string | null): Promise<WorkspaceState> {
     // Abre o novo antes de fechar o atual: se falhar (pasta inacessível,
     // sem permissão...), o workspace que estava aberto continua funcionando.
@@ -70,7 +70,7 @@ export class WorkspaceService {
     const localDir = workspaceLocalDir(path);
     const store = await WorkspaceStore.open(path, {
       secrets: createSecretStore(localDir),
-      defaultName: root ? basename(path) : 'Workspace padrão',
+      defaultName: root ? basename(path) : 'Workspace principal',
     });
     const local = await loadWorkspaceState(path);
 

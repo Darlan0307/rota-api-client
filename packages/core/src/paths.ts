@@ -22,6 +22,11 @@ export function defaultWorkspaceDir(dataDir = appDataDir()): string {
   return join(dataDir, 'workspace');
 }
 
+/** Onde ficam os workspaces criados pelo app ("Novo workspace"), cada um numa subpasta. */
+export function createdWorkspacesDir(dataDir = appDataDir()): string {
+  return join(dataDir, 'meus-workspaces');
+}
+
 /** Normaliza o caminho de um workspace para comparação (Windows não diferencia caixa). */
 export function normalizeWorkspacePath(root: string): string {
   const abs = resolve(root);

@@ -73,11 +73,10 @@ export const useUiStore = create<UiState>()(
       name: 'rota:ui',
       version: 2,
       storage: createJSONStorage(() => localStorage),
-      // Só preferências de layout persistem; diálogos não.
+      // Só preferências de layout persistem; diálogos não. O app sempre abre em
+      // Coleções, com a sidebar visível.
       partialize: (s) => ({
         paletteId: s.paletteId,
-        sidebarCollapsed: s.sidebarCollapsed,
-        sidebarSection: s.sidebarSection,
         paneLayout: s.paneLayout,
         expanded: s.expanded,
       }),
@@ -87,6 +86,9 @@ export const useUiStore = create<UiState>()(
         return {
           ...current,
           ...p,
+          // Versões antigas gravavam a seção e a sidebar recolhida.
+          sidebarSection: current.sidebarSection,
+          sidebarCollapsed: current.sidebarCollapsed,
           paletteId: isPaletteId(p.paletteId) ? p.paletteId : current.paletteId,
         };
       },

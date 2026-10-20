@@ -19,7 +19,7 @@ const INITIAL_SYMBOL = '#A3A6C2';
 
 app.setName(APP_NAME);
 // Dados do Chromium (cache, localStorage) numa subpasta, separados dos dados do
-// app em %APPDATA%/Rota (settings.json, workspace padrão, segredos), que o MCP também lê.
+// app em %APPDATA%/Rota (settings.json, workspace principal, segredos), que o MCP também lê.
 app.setPath('userData', join(appDataDir(), 'electron'));
 
 function broadcast(state: WorkspaceState): void {
@@ -113,10 +113,13 @@ if (!app.requestSingleInstanceLock()) {
       for (const win of BrowserWindow.getAllWindows()) win.webContents.send('history:changed', null);
     });
     const loaded = await settings.load();
+    // Com um workspace marcado como padrão, ele abre ao iniciar; senão, o último usado.
+    const startup = loaded.startupWorkspace ? loaded.startupWorkspace.path : loaded.currentWorkspace;
     try {
-      await workspace.open(loaded.currentWorkspace);
+      await workspace.open(startup);
+      if (startup !== loaded.currentWorkspace) await settings.update({ currentWorkspace: startup });
     } catch {
-      // Pasta de projeto removida/inacessível: volta para o workspace padrão.
+      // Pasta de projeto removida/inacessível: volta para o workspace principal.
       await settings.update({ currentWorkspace: null });
       await workspace.open(null);
     }

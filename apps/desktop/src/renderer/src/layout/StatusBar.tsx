@@ -19,7 +19,7 @@ export function StatusBar() {
         title={snapshot.root}
       >
         <FolderOpen className="size-3" />
-        <span className="truncate">{state.isDefault ? 'Workspace padrão' : snapshot.root}</span>
+        <span className="truncate">{state.isDefault ? 'Workspace principal' : snapshot.root}</span>
       </button>
       <div className="flex-1" />
       <TunnelStatusIndicator />

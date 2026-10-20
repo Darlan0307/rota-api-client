@@ -1,20 +1,26 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 import {
   buildBackup,
   collectionToMarkdown,
+  createdWorkspacesDir,
   exportCollectionToPostman,
   exportEnvironmentToPostman,
   exportGlobalsToPostman,
   generateCode,
   importPostmanFiles,
   inspectFolder,
+  MANIFEST_FILE,
+  MemorySecretStore,
   maskSecretValues,
   prepareForDisplay,
   prepareProjectFolder,
   previewPostmanFiles,
+  readJsonIfExists,
   slugify,
+  uniqueSlug,
   variableScopeFor,
+  WorkspaceStore,
   withRecentWorkspace,
 } from '@rota/core';
 import { app, BrowserWindow, dialog, type IpcMainInvokeEvent, ipcMain, shell } from 'electron';
@@ -366,10 +372,38 @@ export function registerIpcHandlers({
     workspace.emit();
     return state;
   });
-  handle('workspace:recent', () => ({
-    current: settings.get().currentWorkspace,
-    recent: settings.get().recentWorkspaces,
-  }));
+  handle('workspace:recent', async () => {
+    const current = settings.get();
+    // Nome do rota.workspace.json; sem ele (pasta apagada, sem acesso), o nome da pasta.
+    const recent = await Promise.all(
+      current.recentWorkspaces.map(async (path) => {
+        const manifest = (await readJsonIfExists(join(path, MANIFEST_FILE)).catch(() => undefined)) as
+          | { name?: unknown }
+          | undefined;
+        const name =
+          typeof manifest?.name === 'string' && manifest.name.trim() ? manifest.name : basename(path);
+        return { path, name };
+      }),
+    );
+    return { current: current.currentWorkspace, recent, startup: current.startupWorkspace };
+  });
+  handle('workspace:create', async (_e, rawName) => {
+    const name = rawName.trim();
+    if (!name) throw new Error('Dê um nome para o workspace.');
+    const base = createdWorkspacesDir();
+    await mkdir(base, { recursive: true });
+    const existing = (await readdir(base, { withFileTypes: true }))
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
+    const path = join(base, uniqueSlug(slugify(name) || 'workspace', existing));
+    // Abrir o store cria a pasta e o rota.workspace.json com o nome escolhido.
+    await WorkspaceStore.open(path, { secrets: new MemorySecretStore(), defaultName: name });
+    await settings.update({ recentWorkspaces: withRecentWorkspace(settings.get(), path).recentWorkspaces });
+    return path;
+  });
+  handle('workspace:setStartup', async (_e, startup) => {
+    await settings.update({ startupWorkspace: startup });
+  });
   handle('workspace:forgetRecent', async (_e, path) => {
     const current = settings.get();
     await settings.update({ recentWorkspaces: current.recentWorkspaces.filter((p) => p !== path) });

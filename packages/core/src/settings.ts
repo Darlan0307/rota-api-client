@@ -17,9 +17,14 @@ export const AppSettingsSchema = z.object({
       bypass: z.string().default('localhost, 127.0.0.1'),
     })
     .default({ enabled: false, url: '', bypass: 'localhost, 127.0.0.1' }),
-  /** Workspace aberto (null = workspace padrão). */
+  /** Workspace aberto (null = workspace principal, em %APPDATA%). */
   currentWorkspace: z.string().nullable().default(null),
   recentWorkspaces: z.array(z.string()).default([]),
+  /**
+   * Workspace que abre ao iniciar o app (path null = o principal). Sem
+   * escolha (null), abre o último usado.
+   */
+  startupWorkspace: z.object({ path: z.string().nullable() }).nullable().default(null),
 });
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
 
@@ -38,7 +43,7 @@ export async function saveAppSettings(settings: AppSettings, dataDir = appDataDi
 }
 
 /** Registra um workspace como recente (o mais recente primeiro, sem duplicatas). */
-export function withRecentWorkspace(settings: AppSettings, root: string, max = 10): AppSettings {
+export function withRecentWorkspace(settings: AppSettings, root: string, max = 30): AppSettings {
   const key = normalizeWorkspacePath(root);
   const recent = [root, ...settings.recentWorkspaces.filter((r) => normalizeWorkspacePath(r) !== key)];
   return { ...settings, recentWorkspaces: recent.slice(0, max) };
