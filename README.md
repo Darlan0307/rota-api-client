@@ -8,7 +8,7 @@ Cliente de API para desktop (Windows), no estilo do Postman, que roda offline e 
 ## Funcionalidades
 
 - **Requisições HTTP** com params, headers, body (JSON, texto, form-data com arquivos, urlencoded), auth (Bearer, Basic, API Key) herdada de pasta ou coleção, e várias abas abertas.
-- **Variáveis no padrão do Postman** (global, coleção e ambiente), com destaque e tooltip do valor resolvido, e **variáveis secretas** cifradas fora do workspace.
+- **Variáveis no padrão do Postman** (global, coleção e ambiente), com destaque e, ao passar o mouse, o valor para ver e editar (o olho revela as secretas), e **variáveis secretas** cifradas fora do workspace. No corpo JSON, `{{VAR}}` pode vir sem aspas, como no Postman.
 - **Scripts de pré-requisição e pós-resposta** compatíveis com o subconjunto mais usado de `pm.*` (`pm.test`, `pm.expect`, `pm.environment`, `pm.response`...), rodando num sandbox QuickJS sem acesso a arquivos ou rede.
 - **Resposta** formatada, em texto puro ou em **tabela** (ordenar, filtrar, exportar CSV). Clique num campo e salve o valor numa variável.
 - **Exemplos e contrato**: salve uma resposta boa como exemplo; nas próximas, o app avisa se um campo sumiu ou mudou de tipo. Também dá para comparar com um envio anterior.
@@ -20,7 +20,7 @@ Cliente de API para desktop (Windows), no estilo do Postman, que roda offline e 
 - **Túneis para webhooks**: cria uma URL `https://….trycloudflare.com` (via cloudflared) que entrega as chamadas na porta da sua API local e registra cada chamada para inspecionar e reenviar.
 - **Simulador de webhooks**: dispara eventos de exemplo do Stripe, Mercado Pago, GitHub, Asaas, Shopify, Standard Webhooks (Svix, Clerk, Resend) ou de qualquer serviço com HMAC, com a assinatura correta, direto na sua API. As chamadas reais recebidas pelo túnel mostram se a assinatura confere com o seu segredo.
 - **Bancos de dados**: conecta em Firebird (2.5+), PostgreSQL, MySQL/MariaDB e SQL Server sem instalar cliente. Mostra tabelas, views, colunas e chaves, tem editor SQL com autocomplete (inclusive por alias) e resultado em tabela com filtro e CSV. No Firebird detecta o charset sozinho (inclusive bancos antigos em NONE/WIN1252). Conexões de produção começam somente leitura: o próprio banco recusa alterações (no SQL Server, que não tem esse recurso, o Rota bloqueia os comandos de escrita). Credenciais salvas servem para vários clientes com a mesma senha.
-- **Workspaces de projeto**: abra qualquer pasta como workspace e versione as coleções junto com o código. Alterações feitas por fora (Git, MCP) aparecem na hora.
+- **Workspaces**: crie quantos quiser (trabalho, pessoal...) e escolha qual abre ao iniciar, ou abra qualquer pasta como workspace e versione as coleções junto com o código. Alterações feitas por fora (Git, MCP) aparecem na hora.
 - **Servidor MCP** embutido no próprio executável, com configuração automática do Claude Desktop e comando pronto para o Claude Code.
 
 ## Screenshots
