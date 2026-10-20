@@ -1,8 +1,9 @@
 import Editor, { type OnMount } from '@monaco-editor/react';
-import { findVariableRefs } from '@rota/core/shared';
+import { findVariableRefs, jsonSyntaxError, variableRefAt } from '@rota/core/shared';
 import { useEffect, useRef } from 'react';
 import { monaco, ROTA_THEME } from '../lib/monaco';
 import { DYNAMIC_SUGGESTIONS, useVariableNames, useVariableResolver } from '../lib/variables';
+import { useVariableHover, VariablePopover } from './VariablePopover';
 
 export type EditorLanguage = 'json' | 'javascript' | 'xml' | 'html' | 'plaintext' | 'css' | 'sql';
 
@@ -89,30 +90,52 @@ export function CodeEditor({
   namesRef.current = names;
   const shortcutRef = useRef(onShortcut);
   shortcutRef.current = onShortcut;
+  const popover = useVariableHover();
+  const popoverRef = useRef(popover);
+  popoverRef.current = popover;
 
   const updateDecorations = () => {
     const editor = editorRef.current;
     const model = editor?.getModel();
-    if (!editor || !model || !variables) return;
+    if (!editor || !model) return;
     const text = model.getValue();
-    const decorations = findVariableRefs(text).map((ref) => {
-      const start = model.getPositionAt(ref.start);
-      const end = model.getPositionAt(ref.end);
-      const info = resolveRef.current(ref.name);
-      return {
-        range: new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column),
-        options: {
-          inlineClassName: info ? 'rota-var' : 'rota-var rota-var-missing',
-          hoverMessage: {
-            value: info
-              ? `**${ref.name}**${info.description ? ` — ${info.description}` : ''} = \`${info.display}\` _(${info.sourceLabel})_`
-              : `**${ref.name}**: variável não definida`,
+    if (variables) {
+      // O valor aparece no VariablePopover (com edição), não no hover do Monaco.
+      const decorations = findVariableRefs(text).map((ref) => {
+        const start = model.getPositionAt(ref.start);
+        const end = model.getPositionAt(ref.end);
+        return {
+          range: new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column),
+          options: {
+            inlineClassName: resolveRef.current(ref.name) ? 'rota-var' : 'rota-var rota-var-missing',
           },
-        },
-      };
-    });
-    decorationsRef.current ??= editor.createDecorationsCollection();
-    decorationsRef.current.set(decorations);
+        };
+      });
+      decorationsRef.current ??= editor.createDecorationsCollection();
+      decorationsRef.current.set(decorations);
+    }
+
+    if (language === 'json' && !readOnly) {
+      const syntax = jsonSyntaxError(text);
+      const start = syntax ? model.getPositionAt(syntax.offset) : null;
+      const end = syntax ? model.getPositionAt(syntax.offset + 1) : null;
+      monaco.editor.setModelMarkers(
+        model,
+        'rota-json',
+        syntax && start && end
+          ? [
+              {
+                severity: monaco.MarkerSeverity.Error,
+                message: syntax.message,
+                startLineNumber: start.lineNumber,
+                startColumn: start.column,
+                endLineNumber: end.lineNumber,
+                endColumn: end.column === start.column ? start.column + 1 : end.column,
+              },
+            ]
+          : [],
+      );
+    }
   };
 
   const handleMount: OnMount = (editor) => {
@@ -128,6 +151,24 @@ export function CodeEditor({
         ...DYNAMIC_SUGGESTIONS.map((v) => ({ name: v.name, detail: `${v.description} (novo a cada envio)` })),
       ]);
       editor.onDidDispose(() => completionSources.delete(key));
+
+      editor.onMouseMove((event) => {
+        const position = event.target.position;
+        const ref = position ? variableRefAt(model.getValue(), model.getOffsetAt(position)) : undefined;
+        const at = ref ? editor.getScrolledVisiblePosition(model.getPositionAt(ref.start)) : null;
+        const dom = editor.getDomNode();
+        if (!ref || !at || !dom) {
+          popoverRef.current.scheduleClose();
+          return;
+        }
+        const rect = dom.getBoundingClientRect();
+        popoverRef.current.show({
+          name: ref.name,
+          x: rect.left + at.left,
+          y: rect.top + at.top + at.height + 4,
+        });
+      });
+      editor.onMouseLeave(() => popoverRef.current.scheduleClose());
     }
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => shortcutRef.current?.('send'));
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => shortcutRef.current?.('save'));
@@ -179,6 +220,15 @@ export function CodeEditor({
           renderValidationDecorations: readOnly ? 'off' : 'on',
         }}
       />
+      {popover.hover && (
+        <VariablePopover
+          hover={popover.hover}
+          onEnter={popover.enter}
+          onLeave={popover.leave}
+          onClose={popover.close}
+          onPin={popover.pin}
+        />
+      )}
     </div>
   );
 }

@@ -54,6 +54,16 @@ export function ResponsePane({
 
   return (
     <section className="flex h-full min-w-0 flex-col bg-bg" aria-label="Resposta">
+      {!sending &&
+        result?.warnings?.map((warning) => (
+          <div
+            key={warning}
+            className="flex shrink-0 items-start gap-2 border-b border-warning/30 bg-warning/10 px-4 py-2 text-xs text-fg"
+          >
+            <AlertTriangle className="mt-px size-3.5 shrink-0 text-warning" strokeWidth={2} />
+            <span className="select-text">{warning}</span>
+          </div>
+        ))}
       {sending && !result ? (
         <Sending startedAt={run.startedAt} onCancel={() => cancelRequest(tab.id)} />
       ) : !result ? (

@@ -180,6 +180,9 @@ export class WorkspaceService {
       case 'updateGlobals':
         await store.updateGlobals(command.variables);
         break;
+      case 'setVariable':
+        await store.setVariable(command.target, command.key, command.value);
+        break;
     }
     this.emit();
     return id ? { id } : {};

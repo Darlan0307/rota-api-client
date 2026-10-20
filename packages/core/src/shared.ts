@@ -21,6 +21,7 @@ export type {
   ResponseBody,
   ResponseTimings,
 } from './http/execute';
+export * from './http/json-template';
 export type { PreparedBody, PreparedRequest } from './http/prepare';
 export * from './http/url';
 export type { ImportFileKind, ImportPreview, ImportReport, ImportResultItem } from './import/import-postman';

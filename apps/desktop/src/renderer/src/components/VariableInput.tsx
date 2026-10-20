@@ -14,12 +14,8 @@ import {
 import { createPortal } from 'react-dom';
 import { openDynamicVariables } from '../features/dynamic/DynamicVariablesDialog';
 import { cn } from '../lib/cn';
-import {
-  DYNAMIC_SUGGESTIONS,
-  useVariableNames,
-  useVariableResolver,
-  type VariableInfo,
-} from '../lib/variables';
+import { DYNAMIC_SUGGESTIONS, useVariableNames, useVariableResolver } from '../lib/variables';
+import { useVariableHover, VariablePopover } from './VariablePopover';
 
 interface Suggestion {
   name: string;
@@ -61,8 +57,8 @@ function charWidth(fontSize: number): number {
 
 /**
  * Campo de texto de uma linha que destaca `{{variáveis}}`: verde-primário se
- * definidas, vermelho se não; mostra o valor resolvido ao passar o mouse e
- * sugere nomes ao digitar `{{`.
+ * definidas, vermelho se não; ao passar o mouse mostra o valor (com edição e,
+ * nas secretas, o olho para revelar) e sugere nomes ao digitar `{{`.
  */
 export const VariableInput = forwardRef<HTMLInputElement, VariableInputProps>(function VariableInput(
   {
@@ -86,12 +82,7 @@ export const VariableInput = forwardRef<HTMLInputElement, VariableInputProps>(fu
 
   const resolve = useVariableResolver();
   const names = useVariableNames();
-  const [hover, setHover] = useState<{
-    info: VariableInfo | undefined;
-    name: string;
-    x: number;
-    y: number;
-  } | null>(null);
+  const popover = useVariableHover();
   const [suggest, setSuggest] = useState<{ start: number; query: string; index: number } | null>(null);
 
   const syncScroll = useCallback(() => {
@@ -203,12 +194,11 @@ export const VariableInput = forwardRef<HTMLInputElement, VariableInputProps>(fu
     const index = Math.floor(x / charWidth(FONT_SIZE[size]));
     const ref = variableRefAt(value, index);
     if (!ref) {
-      if (hover) setHover(null);
+      if (popover.hover) popover.scheduleClose();
       return;
     }
-    if (hover?.name === ref.name) return;
     const refX = rect.left + PADDING_X[size] + ref.start * charWidth(FONT_SIZE[size]) - input.scrollLeft;
-    setHover({ info: resolve(ref.name), name: ref.name, x: Math.max(8, refX), y: rect.bottom + 6 });
+    popover.show({ name: ref.name, x: Math.max(8, refX), y: rect.bottom + 6 });
   }
 
   const inputRect = inputRef.current?.getBoundingClientRect();
@@ -241,7 +231,7 @@ export const VariableInput = forwardRef<HTMLInputElement, VariableInputProps>(fu
         onScroll={syncScroll}
         onPaste={onPaste}
         onMouseMove={handleMouseMove}
-        onMouseLeave={() => setHover(null)}
+        onMouseLeave={popover.scheduleClose}
         onBlur={() => {
           setSuggest(null);
           onBlur?.();
@@ -254,32 +244,15 @@ export const VariableInput = forwardRef<HTMLInputElement, VariableInputProps>(fu
         style={{ fontSize: FONT_SIZE[size], paddingLeft: PADDING_X[size], paddingRight: PADDING_X[size] }}
       />
 
-      {hover &&
-        createPortal(
-          <div
-            className="pointer-events-none fixed z-50 max-w-md rounded-md border border-border bg-elevated px-2.5 py-1.5 text-xs shadow-lg shadow-black/30 animate-fade-in"
-            style={{ left: hover.x, top: hover.y }}
-          >
-            {hover.info ? (
-              <>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-primary">{hover.name}</span>
-                  <span className="text-2xs text-fg-subtle">{hover.info.sourceLabel}</span>
-                </div>
-                {hover.info.description && (
-                  <div className="mt-0.5 text-fg-muted">{hover.info.description}</div>
-                )}
-                <div className="mt-0.5 break-all font-mono text-fg">{hover.info.display || '(vazio)'}</div>
-              </>
-            ) : (
-              <div>
-                <span className="font-mono text-danger">{hover.name}</span>
-                <span className="text-fg-muted">: variável não definida no ambiente ativo</span>
-              </div>
-            )}
-          </div>,
-          document.body,
-        )}
+      {popover.hover && (
+        <VariablePopover
+          hover={popover.hover}
+          onEnter={popover.enter}
+          onLeave={popover.leave}
+          onClose={popover.close}
+          onPin={popover.pin}
+        />
+      )}
 
       {suggest &&
         suggestions.length > 0 &&

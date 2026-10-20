@@ -22,6 +22,10 @@ self.MonacoEnvironment = {
 
 loader.config({ monaco });
 
+// O corpo JSON aceita {{variáveis}} sem aspas, como no Postman; o validador do
+// Monaco marcaria erro nelas. Quem valida é o CodeEditor (jsonSyntaxError).
+monaco.json.jsonDefaults.setDiagnosticsOptions({ validate: false });
+
 export { monaco };
 
 export const ROTA_THEME = 'rota-dark';

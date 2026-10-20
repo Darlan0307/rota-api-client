@@ -86,7 +86,9 @@ export type WorkspaceCommand =
   | { type: 'reorderCollections'; order: string[] }
   | { type: 'createEnvironment'; name: string }
   | { type: 'updateEnvironment'; id: string; variables: VariableInput[] }
-  | { type: 'updateGlobals'; variables: VariableInput[] };
+  | { type: 'updateGlobals'; variables: VariableInput[] }
+  /** Valor de uma variável (cria se não existir); secreta continua secreta, com o valor no cofre. */
+  | { type: 'setVariable'; target: VariableTarget; key: string; value: string };
 
 export interface CommandResult {
   /** Id do item criado/duplicado ou, ao excluir, da entrada na lixeira. */

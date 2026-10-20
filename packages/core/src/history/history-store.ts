@@ -223,6 +223,7 @@ function buildEntry(
       ...(result.scriptErrors
         ? { scriptErrors: result.scriptErrors.map((e) => ({ ...e, message: mask(e.message) })) }
         : {}),
+      ...(result.warnings ? { warnings: result.warnings.map(mask) } : {}),
     },
   };
 }

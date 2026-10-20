@@ -130,6 +130,31 @@ describe('runRequest com scripts', () => {
   });
 });
 
+describe('corpo JSON com variáveis', () => {
+  it('envia o texto como está e avisa quando o JSON fica inválido depois das variáveis', async () => {
+    await store.setVariable(
+      { kind: 'environment', id: envId },
+      'LOJA_ID',
+      '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+    );
+    await store.setVariable({ kind: 'environment', id: envId }, 'PEDIDO_ID', '42');
+    const id = await store.createRequest(colId, 'Pedido', {
+      method: 'POST',
+      url: '{{base}}/pedidos',
+      body: { mode: 'json', text: '{ "LojaId": "{{LOJA_ID}}", "PedidoId": {{PEDIDO_ID}} }' },
+    });
+    const node = findNode(store.snapshot(), id);
+    if (node?.kind !== 'request') throw new Error('node');
+    const ok = await runRequest(node.data, { store, requestId: id, environmentId: envId, settings });
+    expect(ok.result.warnings).toBeUndefined();
+
+    const broken = { ...node.data, body: { mode: 'json' as const, text: '{ "LojaId": {{LOJA_ID}} }' } };
+    const { result } = await runRequest(broken, { store, requestId: id, environmentId: envId, settings });
+    expect(result.response?.status).toBe(200);
+    expect(result.warnings?.[0]).toMatch(/linha 1, coluna 13.*precisam estar entre aspas/);
+  });
+});
+
 describe('beforeSend', () => {
   it('recebe o método final (alterado pelo pré-script) e pode impedir o envio', async () => {
     let hits = 0;

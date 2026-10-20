@@ -6,6 +6,7 @@ import {
   type HttpResponse,
   type ProxySettings,
 } from '../http/execute';
+import { jsonSyntaxError, lineColumnAt } from '../http/json-template';
 import { type PreparedRequest, prepareRequest } from '../http/prepare';
 import { applyUrlText, composeUrl } from '../http/url';
 import { HTTP_METHODS, type HttpMethod, type RequestData, type Scripts } from '../model/schemas';
@@ -80,6 +81,8 @@ export interface RunResult {
   tests?: RunTest[];
   console?: RunConsoleEntry[];
   scriptErrors?: RunScriptError[];
+  /** Problemas que não impediram o envio (ex.: corpo JSON inválido depois das variáveis). */
+  warnings?: string[];
 }
 
 /**
@@ -301,6 +304,7 @@ export async function runRequest(original: RequestData, ctx: RunContext): Promis
   let response: HttpResponse | null = null;
   let runError: RunError | null = null;
   let refused: unknown;
+  const warnings: string[] = [];
   const requestName = ctx.requestName ?? 'Requisição';
 
   try {
@@ -325,6 +329,18 @@ export async function runRequest(original: RequestData, ctx: RunContext): Promis
       }
     }
     const prepared = prepareRequest(data, prepareOpts);
+    const isJson = data.body.mode === 'json' || (data.body.mode === 'raw' && data.body.language === 'json');
+    if (isJson && prepared.body.kind === 'text') {
+      // Como no Postman, envia assim mesmo; mas a API costuma tratar um JSON
+      // quebrado como texto (ou recusar), então avisa onde está o problema.
+      const syntax = jsonSyntaxError(prepared.body.text);
+      if (syntax) {
+        const { line, column } = lineColumnAt(prepared.body.text, syntax.offset);
+        warnings.push(
+          `O corpo enviado não é um JSON válido depois de trocar as variáveis (linha ${line}, coluna ${column}): ${syntax.message} Variáveis de texto precisam de aspas: "{{NOME}}".`,
+        );
+      }
+    }
     const execOptions: ExecuteOptions = {
       ...(ctx.signal ? { signal: ctx.signal } : {}),
       ...(ctx.settings.proxy ? { proxy: ctx.settings.proxy } : {}),
@@ -371,6 +387,8 @@ export async function runRequest(original: RequestData, ctx: RunContext): Promis
       tests,
       console: consoleEntries,
       scriptErrors,
+      // O aviso cita o trecho com erro, que pode ser um valor secreto.
+      ...(warnings.length ? { warnings: warnings.map((w) => maskSecretValues(w, secretValues)) } : {}),
     },
     secretValues,
   };

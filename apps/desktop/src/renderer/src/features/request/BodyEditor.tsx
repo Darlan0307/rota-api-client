@@ -1,4 +1,13 @@
-import type { Body, BodyMode, FormDataField, KeyValue, RawLanguage } from '@rota/core/shared';
+import {
+  type Body,
+  type BodyMode,
+  type FormDataField,
+  formatJsonTemplate,
+  jsonSyntaxError,
+  type KeyValue,
+  lineColumnAt,
+  type RawLanguage,
+} from '@rota/core/shared';
 import { FileUp, Paperclip, WandSparkles, X } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '../../components/Button';
@@ -49,14 +58,6 @@ export function switchBodyMode(body: Body, mode: BodyMode): Body {
   }
 }
 
-export function formatJson(text: string): string | null {
-  try {
-    return JSON.stringify(JSON.parse(text), null, 2);
-  } catch {
-    return null;
-  }
-}
-
 interface BodyEditorProps {
   body: Body;
   onChange: (body: Body) => void;
@@ -95,9 +96,13 @@ export function BodyEditor({ body, onChange, onShortcut }: BodyEditorProps) {
             size="sm"
             variant="ghost"
             onClick={() => {
-              const formatted = formatJson(body.text);
-              if (formatted === null) toast.error('O JSON tem erros de sintaxe; não foi possível formatar.');
-              else onChange({ ...body, text: formatted });
+              const formatted = formatJsonTemplate(body.text);
+              const syntax = formatted === null ? jsonSyntaxError(body.text) : null;
+              if (formatted !== null) onChange({ ...body, text: formatted });
+              else if (syntax) {
+                const { line, column } = lineColumnAt(body.text, syntax.offset);
+                toast.error(`Não deu para formatar: ${syntax.message} (linha ${line}, coluna ${column})`);
+              } else toast.error('O JSON tem erros de sintaxe; não foi possível formatar.');
             }}
           >
             <WandSparkles className="size-3.5" /> Formatar
