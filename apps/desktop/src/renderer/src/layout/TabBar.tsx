@@ -7,8 +7,11 @@ import {
   Globe,
   Library,
   PanelLeftOpen,
+  Pin,
+  PinOff,
   Plus,
   Rows2,
+  SquareX,
   Webhook,
   X,
 } from 'lucide-react';
@@ -17,7 +20,7 @@ import { ContextActions } from '../components/ActionMenu';
 import { IconButton } from '../components/IconButton';
 import { MethodBadge } from '../components/MethodBadge';
 import { cn } from '../lib/cn';
-import { closeTab } from '../state/actions';
+import { closeTab, closeUnpinnedTabs } from '../state/actions';
 import { isDirty, type Tab, useTabs } from '../state/tabs';
 import { useUiStore } from '../state/ui';
 
@@ -27,6 +30,8 @@ export function TabBar() {
   const setActive = useTabs((s) => s.setActive);
   const openNewRequest = useTabs((s) => s.openNewRequest);
   const moveTab = useTabs((s) => s.move);
+  const togglePin = useTabs((s) => s.togglePin);
+  const hasUnpinned = tabs.some((t) => !t.pinned);
   const paneLayout = useUiStore((s) => s.paneLayout);
   const togglePaneLayout = useUiStore((s) => s.togglePaneLayout);
   const sidebarCollapsed = useUiStore((s) => s.sidebarCollapsed);
@@ -52,8 +57,21 @@ export function TabBar() {
             <ContextActions
               key={tab.id}
               entries={[
-                { label: 'Fechar', onSelect: () => void closeTab(tab.id), shortcut: 'Ctrl+W' },
-                { label: 'Fechar as outras', onSelect: () => closeOthers(tab.id) },
+                {
+                  label: tab.pinned ? 'Desafixar' : 'Fixar',
+                  icon: tab.pinned ? PinOff : Pin,
+                  onSelect: () => togglePin(tab.id),
+                },
+                'separator',
+                tab.pinned
+                  ? { label: 'Fechar (aba fixada)', onSelect: () => void closeTab(tab.id, { force: true }) }
+                  : { label: 'Fechar', onSelect: () => void closeTab(tab.id), shortcut: 'Ctrl+W' },
+                { label: 'Fechar as outras', onSelect: () => void closeUnpinnedTabs(tab.id) },
+                {
+                  label: 'Fechar todas',
+                  onSelect: () => void closeUnpinnedTabs(),
+                  disabled: !hasUnpinned,
+                },
               ]}
             >
               <div
@@ -70,12 +88,14 @@ export function TabBar() {
                 onDragEnd={() => setDragId(null)}
                 onClick={() => setActive(tab.id)}
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActive(tab.id)}
-                onAuxClick={(e) => e.button === 1 && void closeTab(tab.id)}
-                title={tab.title}
+                onAuxClick={(e) => e.button === 1 && !tab.pinned && void closeTab(tab.id)}
+                title={tab.pinned ? `${tab.title} (fixada)` : tab.title}
                 className={cn(
                   'group relative flex w-48 min-w-28 shrink cursor-pointer items-center gap-1.5 border-r border-border pl-3 pr-1.5 text-[13px] transition-colors duration-100',
                   active ? 'bg-bg text-fg' : 'text-fg-muted hover:bg-surface-2/60 hover:text-fg',
                   dragId === tab.id && 'opacity-50',
+                  // Separa visualmente o grupo das fixadas.
+                  tab.pinned && !tabs[index + 1]?.pinned && 'border-r-border-strong',
                 )}
               >
                 {active && <span className="absolute inset-x-0 top-0 h-0.5 bg-primary" />}
@@ -86,24 +106,54 @@ export function TabBar() {
                 {tab.conflict && (
                   <span className="size-1.5 shrink-0 rounded-full bg-warning" title="Alterado fora do app" />
                 )}
-                <button
-                  type="button"
-                  aria-label={`Fechar ${tab.title}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void closeTab(tab.id);
-                  }}
-                  className="relative flex size-5 shrink-0 items-center justify-center rounded text-fg-subtle hover:bg-surface-2 hover:text-fg"
-                >
-                  {/* Alterado: mostra um ponto; ao passar o mouse vira o "x". */}
-                  {dirty && <span className="absolute size-2 rounded-full bg-fg-muted group-hover:hidden" />}
-                  <X
-                    className={cn(
-                      'size-3.5',
-                      dirty ? 'hidden group-hover:block' : active ? '' : 'opacity-0 group-hover:opacity-100',
+                {tab.pinned ? (
+                  <>
+                    {dirty && (
+                      <span
+                        className="size-2 shrink-0 rounded-full bg-fg-muted"
+                        title="Alterações não salvas"
+                      />
                     )}
-                  />
-                </button>
+                    <button
+                      type="button"
+                      aria-label={`Desafixar ${tab.title}`}
+                      title="Desafixar"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        togglePin(tab.id);
+                      }}
+                      className="flex size-5 shrink-0 items-center justify-center rounded text-primary hover:bg-surface-2"
+                    >
+                      <Pin className="size-3.5 group-hover:hidden" />
+                      <PinOff className="hidden size-3.5 group-hover:block" />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    aria-label={`Fechar ${tab.title}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void closeTab(tab.id);
+                    }}
+                    className="relative flex size-5 shrink-0 items-center justify-center rounded text-fg-subtle hover:bg-surface-2 hover:text-fg"
+                  >
+                    {/* Alterado: mostra um ponto; ao passar o mouse vira o "x". */}
+                    {dirty && (
+                      <span className="absolute size-2 rounded-full bg-fg-muted group-hover:hidden" />
+                    )}
+                    <X
+                      className={cn(
+                        'size-3.5',
+                        dirty
+                          ? 'hidden group-hover:block'
+                          : active
+                            ? ''
+                            : 'opacity-0 group-hover:opacity-100',
+                      )}
+                    />
+                  </button>
+                )}
               </div>
             </ContextActions>
           );
@@ -119,7 +169,14 @@ export function TabBar() {
         </div>
       </div>
 
-      <div className="flex items-center px-1.5">
+      <div className="flex items-center gap-0.5 px-1.5">
+        <IconButton
+          icon={SquareX}
+          label="Fechar todas as abas (menos as fixadas)"
+          size="sm"
+          disabled={!hasUnpinned}
+          onClick={() => void closeUnpinnedTabs()}
+        />
         <IconButton
           icon={paneLayout === 'horizontal' ? Rows2 : Columns2}
           label={paneLayout === 'horizontal' ? 'Empilhar requisição e resposta' : 'Colocar lado a lado'}
@@ -129,12 +186,6 @@ export function TabBar() {
       </div>
     </div>
   );
-}
-
-async function closeOthers(id: string) {
-  for (const tab of useTabs.getState().tabs) {
-    if (tab.id !== id) await closeTab(tab.id);
-  }
 }
 
 function TabIcon({ tab }: { tab: Tab }) {

@@ -157,10 +157,17 @@ export async function saveRequestAs(tabId: string, parentId: string, name: strin
 // Fechar
 
 /** Fecha a aba perguntando antes se houver alterações não salvas. */
-export async function closeTab(tabId: string): Promise<void> {
+export async function closeTab(
+  tabId: string,
+  options: { force?: boolean; discard?: boolean } = {},
+): Promise<void> {
   const tab = getTab(tabId);
   if (!tab) return;
-  if (isDirty(tab)) {
+  if (tab.pinned && !options.force) {
+    toast.info('Aba fixada: desafixe-a (ou use "Fechar" no menu da aba) para fechar.');
+    return;
+  }
+  if (isDirty(tab) && !options.discard) {
     const choice = await confirmDialog({
       title: `Salvar alterações em "${tab.title}"?`,
       description: 'Se você não salvar, as alterações feitas nesta aba serão perdidas.',
@@ -182,4 +189,31 @@ export async function closeTab(tabId: string): Promise<void> {
     void api.invoke('loadtest:cancel', tab.runId);
   }
   useTabs.getState().close(tabId);
+}
+
+/**
+ * Fecha as abas não fixadas (exceto `keepId`). Com uma só alterada, pergunta
+ * como no fechamento normal; com várias, pergunta uma vez em vez de abrir um
+ * diálogo por aba.
+ */
+export async function closeUnpinnedTabs(keepId?: string): Promise<void> {
+  const targets = useTabs.getState().tabs.filter((t) => !t.pinned && t.id !== keepId);
+  const dirty = targets.filter(isDirty);
+  let discard = false;
+  if (dirty.length > 1) {
+    const choice = await confirmDialog({
+      title: `${dirty.length} abas têm alterações não salvas`,
+      description: `Fechar descarta as alterações em: ${dirty
+        .slice(0, 6)
+        .map((t) => `"${t.title}"`)
+        .join(
+          ', ',
+        )}${dirty.length > 6 ? ` e mais ${dirty.length - 6}` : ''}. Para manter alguma, cancele e salve-a antes (Ctrl+S).`,
+      confirmLabel: 'Descartar e fechar',
+      danger: true,
+    });
+    if (choice !== 'confirm') return;
+    discard = true;
+  }
+  for (const tab of targets) await closeTab(tab.id, { discard });
 }

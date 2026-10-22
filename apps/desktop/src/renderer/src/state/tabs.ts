@@ -43,6 +43,8 @@ interface TabCommon {
   /** Item salvo correspondente (null = requisição nova ainda não salva). */
   itemId: string | null;
   conflict: Conflict | null;
+  /** Fixada: fica no início da barra e não fecha por Ctrl+W, clique do meio ou "Fechar todas". */
+  pinned?: true;
 }
 
 export interface RequestTab extends TabCommon {
@@ -352,6 +354,8 @@ interface TabsState {
   }): string;
   close(id: string): void;
   closeOthers(id: string): void;
+  /** Fixa ou desafixa; as fixadas ficam sempre antes das outras. */
+  togglePin(id: string): void;
   setActive(id: string): void;
   activateRelative(delta: number): void;
   move(id: string, toIndex: number): void;
@@ -540,6 +544,19 @@ export const useTabs = create<TabsState>()((set, get) => ({
     set((s) => ({ tabs: s.tabs.filter((t) => t.id === id), activeId: id }));
   },
 
+  togglePin(id) {
+    set((s) => {
+      const tab = s.tabs.find((t) => t.id === id);
+      if (!tab) return s;
+      const { pinned, ...rest } = tab;
+      const toggled = (pinned ? rest : { ...rest, pinned: true }) as Tab;
+      const others = s.tabs.filter((t) => t.id !== id);
+      // Fixar leva para o fim do grupo fixado; desafixar, para o início das outras.
+      const at = others.filter((t) => t.pinned).length;
+      return { tabs: [...others.slice(0, at), toggled, ...others.slice(at)] };
+    });
+  },
+
   setActive(id) {
     set({ activeId: id });
   },
@@ -561,7 +578,13 @@ export const useTabs = create<TabsState>()((set, get) => ({
       if (from === -1) return s;
       const tabs = [...s.tabs];
       const [tab] = tabs.splice(from, 1);
-      if (tab) tabs.splice(Math.min(toIndex, tabs.length), 0, tab);
+      if (!tab) return s;
+      // Arrastar não cruza a fronteira entre fixadas e não fixadas.
+      const pinnedCount = tabs.filter((t) => t.pinned).length;
+      const index = tab.pinned
+        ? Math.min(toIndex, pinnedCount)
+        : Math.max(pinnedCount, Math.min(toIndex, tabs.length));
+      tabs.splice(index, 0, tab);
       return { tabs };
     });
   },
