@@ -143,6 +143,16 @@ export interface McpSetupInfo {
   development: boolean;
 }
 
+/** Verificação do MCP feita ao abrir o app (ou ao pedir de novo nas configurações). */
+export interface McpStatus {
+  /** O servidor iniciou e listou as ferramentas, como o Claude faria. */
+  server: { ok: true; tools: number; ms: number } | { ok: false; error: string };
+  claudeDesktop: McpSetupInfo['claudeDesktop'];
+  /** Só os `.claude.json` encontrados (um por pasta de configuração do Claude Code). */
+  claudeCode: { path: string; status: 'not-installed' | 'installed' | 'outdated' | 'invalid' }[];
+  checkedAt: number;
+}
+
 export interface McpConfirmRequest {
   id: string;
   title: string;
@@ -236,6 +246,8 @@ export interface IpcContract {
   'mcp:setup': { args: []; result: McpSetupInfo };
   /** Inclui o Rota no Claude Desktop (com cópia de segurança do arquivo). */
   'mcp:installClaudeDesktop': { args: []; result: { backupPath: string | null } };
+  /** Resultado da verificação desta execução do app; `refresh` verifica de novo. */
+  'mcp:status': { args: [refresh?: boolean]; result: McpStatus };
   // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
   'loadtest:cancel': { args: [runId: string]; result: void };
 
@@ -382,6 +394,7 @@ export const IPC_CHANNELS = [
   'mcp:respond',
   'mcp:setup',
   'mcp:installClaudeDesktop',
+  'mcp:status',
   'trash:list',
   'trash:restore',
   'trash:remove',

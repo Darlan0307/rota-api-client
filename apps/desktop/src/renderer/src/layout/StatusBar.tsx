@@ -1,5 +1,6 @@
 import * as Popover from '@radix-ui/react-popover';
 import { AlertTriangle, FolderOpen } from 'lucide-react';
+import { McpStatusIndicator } from '../features/mcp/McpStatusIndicator';
 import { TunnelStatusIndicator } from '../features/tunnels/TunnelsPanel';
 import { api } from '../lib/api';
 import { useWorkspace } from '../state/workspace';
@@ -23,6 +24,7 @@ export function StatusBar() {
       </button>
       <div className="flex-1" />
       <TunnelStatusIndicator />
+      <McpStatusIndicator />
       {snapshot.problems.length > 0 && (
         <Popover.Root>
           <Popover.Trigger asChild>

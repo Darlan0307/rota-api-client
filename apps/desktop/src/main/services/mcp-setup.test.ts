@@ -1,14 +1,18 @@
-import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   claudeCodeCommand,
+  claudeCodeStatuses,
+  claudeDesktopConfigPath,
   claudeDesktopSnippet,
   claudeDesktopStatus,
+  findClaudeDesktopConfigPath,
   installInClaudeDesktop,
   mcpLaunchConfig,
   mergeClaudeDesktopConfig,
+  testMcpServer,
 } from './mcp-setup';
 
 const config = mcpLaunchConfig(
@@ -76,6 +80,65 @@ describe('configuração do MCP para o Claude', () => {
         '{"mcpServers": {"outro": {"command": "npx"}}}',
       );
       expect(JSON.parse(await readFile(path, 'utf8')).mcpServers.outro).toEqual({ command: 'npx' });
+    });
+
+    it('usa o arquivo de dentro do pacote MSIX quando o Claude Desktop está instalado assim', async () => {
+      const appData = join(dir, 'Roaming');
+      const local = join(dir, 'Local');
+      expect(await findClaudeDesktopConfigPath(appData, local)).toBe(claudeDesktopConfigPath(appData));
+
+      const pkg = join(local, 'Packages', 'Claude_abc123', 'LocalCache', 'Roaming', 'Claude');
+      await mkdir(pkg, { recursive: true });
+      // Sem arquivo em lugar nenhum: o Claude vai ler (e criar) o do pacote.
+      expect(await findClaudeDesktopConfigPath(appData, local)).toBe(join(pkg, 'claude_desktop_config.json'));
+      // Só o real existe: o pacote enxerga ele, então é nele que se grava.
+      await mkdir(join(appData, 'Claude'), { recursive: true });
+      await writeFile(claudeDesktopConfigPath(appData), '{}');
+      expect(await findClaudeDesktopConfigPath(appData, local)).toBe(claudeDesktopConfigPath(appData));
+      // A cópia do pacote tem prioridade.
+      await writeFile(join(pkg, 'claude_desktop_config.json'), '{}');
+      expect(await findClaudeDesktopConfigPath(appData, local)).toBe(join(pkg, 'claude_desktop_config.json'));
+    });
+
+    it('procura o Rota em todas as pastas de configuração do Claude Code', async () => {
+      const entry = { type: 'stdio', ...config };
+      await mkdir(join(dir, '.claude-b'));
+      await mkdir(join(dir, '.claude-c'));
+      await mkdir(join(dir, '.outra'));
+      await writeFile(join(dir, '.claude.json'), JSON.stringify({ mcpServers: { rota: entry } }));
+      await writeFile(join(dir, '.claude-b', '.claude.json'), JSON.stringify({ projects: {} }));
+      await writeFile(join(dir, '.outra', '.claude.json'), '{}');
+      const statuses = await claudeCodeStatuses(config, dir, '');
+      expect(statuses).toEqual([
+        { path: join(dir, '.claude.json'), status: 'installed' },
+        { path: join(dir, '.claude-b', '.claude.json'), status: 'not-installed' },
+      ]);
+    });
+
+    it('verifica o servidor iniciando-o como o Claude faria', async () => {
+      const script = join(dir, 'fake-mcp.mjs');
+      await writeFile(
+        script,
+        [
+          "import { createInterface } from 'node:readline';",
+          'const out = (m) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...m }) + "\\n");',
+          'createInterface({ input: process.stdin }).on("line", (line) => {',
+          '  const m = JSON.parse(line);',
+          '  if (m.method === "initialize") out({ id: m.id, result: { capabilities: {} } });',
+          '  if (m.method === "tools/list") out({ id: m.id, result: { tools: [{ name: "a" }, { name: "b" }] } });',
+          '});',
+        ].join('\n'),
+      );
+      const fake = { command: process.execPath, args: [script], env: {} };
+      expect(await testMcpServer(fake)).toMatchObject({ ok: true, tools: 2 });
+
+      await writeFile(script, 'process.stderr.write("falhou ao abrir"); process.exit(3);');
+      const failed = await testMcpServer(fake);
+      expect(failed.ok).toBe(false);
+      expect(!failed.ok && failed.error).toMatch(/código 3.*falhou ao abrir/);
+
+      const missing = await testMcpServer({ ...fake, args: [join(dir, 'nao-existe.mjs')] });
+      expect(!missing.ok && missing.error).toMatch(/não foi encontrado/);
     });
 
     it('não mexe em arquivo inválido', async () => {

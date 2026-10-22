@@ -1,10 +1,12 @@
-import { Check, Copy, Info } from 'lucide-react';
+import { Check, Copy, Info, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import type { McpSetupInfo } from '../../../../shared/ipc';
+import type { McpSetupInfo, McpStatus } from '../../../../shared/ipc';
 import { Button } from '../../components/Button';
 import { api, errorMessage } from '../../lib/api';
+import { cn } from '../../lib/cn';
 import { confirmDialog } from '../../state/dialogs';
 import { toast } from '../../state/toasts';
+import { checkMcp, useMcpStatus } from './mcp-status';
 
 const STATUS_TEXT: Record<McpSetupInfo['claudeDesktop']['status'], { label: string; tone: string }> = {
   missing: { label: 'Claude Desktop sem arquivo de configuração (será criado)', tone: 'text-fg-muted' },
@@ -57,6 +59,7 @@ export function McpSettings() {
           : 'Claude Desktop configurado. Reinicie o Claude Desktop.',
       );
       load();
+      void checkMcp(true);
     } catch (e) {
       toast.error(errorMessage(e));
     }
@@ -85,6 +88,8 @@ export function McpSettings() {
           </p>
         </div>
       )}
+
+      <McpCheck />
 
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-4">
@@ -119,6 +124,67 @@ export function McpSettings() {
         />
       </section>
     </div>
+  );
+}
+
+const CODE_STATUS: Record<McpStatus['claudeCode'][number]['status'], { label: string; tone: string }> = {
+  'not-installed': { label: 'não configurado', tone: 'text-fg-muted' },
+  installed: { label: 'configurado', tone: 'text-success' },
+  outdated: { label: 'configurado com outro caminho: rode o comando de novo', tone: 'text-warning' },
+  invalid: { label: 'arquivo não é um JSON válido', tone: 'text-danger' },
+};
+
+/** Resultado da verificação feita ao abrir o app (servidor + onde está configurado). */
+function McpCheck() {
+  const status = useMcpStatus((s) => s.status);
+  const checking = useMcpStatus((s) => s.checking);
+  const error = useMcpStatus((s) => s.error);
+  useEffect(() => {
+    void checkMcp();
+  }, []);
+
+  return (
+    <section className="space-y-2 rounded-lg border border-border bg-surface p-3 text-[13px]">
+      <div className="flex items-center justify-between gap-4">
+        <h4 className="font-semibold">Verificação</h4>
+        <Button size="sm" disabled={checking} onClick={() => void checkMcp(true)}>
+          <RefreshCw className={cn('size-3.5', checking && 'animate-spin')} />
+          Verificar de novo
+        </Button>
+      </div>
+      {error && <p className="text-danger">Não foi possível verificar: {error}</p>}
+      {!status ? (
+        <p className="text-fg-muted">Verificando…</p>
+      ) : (
+        <ul className="space-y-1.5 text-xs">
+          <li className={status.server.ok ? 'text-success' : 'text-danger'}>
+            {status.server.ok
+              ? `Servidor MCP funcionando: ${status.server.tools} ferramentas (${status.server.ms} ms para iniciar)`
+              : `Servidor MCP com problema: ${status.server.error}`}
+          </li>
+          <li className={STATUS_TEXT[status.claudeDesktop.status].tone}>
+            {STATUS_TEXT[status.claudeDesktop.status].label}
+            <span className="block break-all font-mono text-2xs text-fg-subtle">
+              {status.claudeDesktop.path}
+            </span>
+          </li>
+          {status.claudeCode.length === 0 ? (
+            <li className="text-fg-muted">Claude Code: nenhuma configuração encontrada</li>
+          ) : (
+            status.claudeCode.map((c) => (
+              <li key={c.path} className={CODE_STATUS[c.status].tone}>
+                Claude Code: {CODE_STATUS[c.status].label}
+                <span className="block break-all font-mono text-2xs text-fg-subtle">{c.path}</span>
+              </li>
+            ))
+          )}
+          <li className="text-fg-subtle">
+            Verificado às {new Date(status.checkedAt).toLocaleTimeString('pt-BR')}. A verificação roda só aqui
+            no computador, sem usar o Claude.
+          </li>
+        </ul>
+      )}
+    </section>
   );
 }
 

@@ -24,18 +24,27 @@ import {
   withRecentWorkspace,
 } from '@rota/core';
 import { app, BrowserWindow, dialog, type IpcMainInvokeEvent, ipcMain, shell } from 'electron';
-import { IPC_ERROR_PREFIX, type IpcArgs, type IpcChannel, type IpcResult } from '../shared/ipc';
+import {
+  IPC_ERROR_PREFIX,
+  type IpcArgs,
+  type IpcChannel,
+  type IpcResult,
+  type McpLaunchConfig,
+  type McpStatus,
+} from '../shared/ipc';
 import type { DatabaseService } from './services/database-service';
 import type { LoadTestService } from './services/loadtest-service';
 import type { McpBridge } from './services/mcp-bridge';
 import {
   claudeCodeCommand,
-  claudeDesktopConfigPath,
+  claudeCodeStatuses,
   claudeDesktopSnippet,
   claudeDesktopStatus,
+  findClaudeDesktopConfigPath,
   installInClaudeDesktop,
   mcpLaunchConfig,
   readIfExists,
+  testMcpServer,
 } from './services/mcp-setup';
 import type { RequestService } from './services/request-service';
 import type { SettingsService } from './services/settings-service';
@@ -119,18 +128,42 @@ export function registerIpcHandlers({
   handle('mcp:respond', (_e, id, approved) => mcp.respond(id, approved));
 
   const launchConfig = () => mcpLaunchConfig(process.execPath, app.getAppPath(), process.env.ROTA_DATA_DIR);
+  const desktopStatus = async (config: McpLaunchConfig) => {
+    const path = await findClaudeDesktopConfigPath();
+    return { path, status: claudeDesktopStatus(await readIfExists(path), config) };
+  };
   handle('mcp:setup', async () => {
     const config = launchConfig();
-    const path = claudeDesktopConfigPath();
     return {
       config,
       desktopSnippet: claudeDesktopSnippet(config),
       claudeCodeCommand: claudeCodeCommand(config),
-      claudeDesktop: { path, status: claudeDesktopStatus(await readIfExists(path), config) },
+      claudeDesktop: await desktopStatus(config),
       development: !app.isPackaged,
     };
   });
-  handle('mcp:installClaudeDesktop', () => installInClaudeDesktop(claudeDesktopConfigPath(), launchConfig()));
+  handle('mcp:installClaudeDesktop', async () =>
+    installInClaudeDesktop(await findClaudeDesktopConfigPath(), launchConfig()),
+  );
+  // Uma verificação por execução do app: a barra de status pede ao abrir e a
+  // tela de configurações só repete quando o usuário pede.
+  let mcpStatus: Promise<McpStatus> | undefined;
+  handle('mcp:status', (_e, refresh) => {
+    if (!mcpStatus || refresh) {
+      const config = launchConfig();
+      mcpStatus = Promise.all([
+        testMcpServer(config),
+        desktopStatus(config),
+        claudeCodeStatuses(config),
+      ]).then(([server, claudeDesktop, claudeCode]) => ({
+        server,
+        claudeDesktop,
+        claudeCode,
+        checkedAt: Date.now(),
+      }));
+    }
+    return mcpStatus;
+  });
 
   handle('app:getInfo', () => ({
     name: app.getName(),
