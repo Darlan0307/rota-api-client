@@ -2,6 +2,7 @@ import type {
   DbConnectionConfig,
   DbConnectionView,
   DbCredentialView,
+  DbEngine,
   DbQueryResult,
   DbSchema,
 } from '@rota/core/shared';
@@ -32,6 +33,8 @@ interface DatabaseStore {
   /** Janela de conexão aberta: null = nova; string = editar. */
   editing: { id: string | null } | null;
   credentialsOpen: boolean;
+  /** Guia de conexão aberto, no tipo de banco mostrado. */
+  guideEngine: DbEngine | null;
 }
 
 export const useDatabases = create<DatabaseStore>()(() => ({
@@ -43,6 +46,7 @@ export const useDatabases = create<DatabaseStore>()(() => ({
   queries: {},
   editing: null,
   credentialsOpen: false,
+  guideEngine: null,
 }));
 
 let subscribed = false;

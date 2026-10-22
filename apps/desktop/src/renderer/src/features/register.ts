@@ -12,6 +12,7 @@ import { compareSections } from './compare/ResponseCompare';
 import { handleUrlPaste } from './curl/paste-curl';
 import { ConnectionDialog } from './databases/ConnectionDialog';
 import { CredentialsDialog } from './databases/CredentialsDialog';
+import { DatabaseGuideDialog } from './databases/DatabaseGuide';
 import { DatabasesActions, DatabasesPanel } from './databases/DatabasesPanel';
 import { subscribeDatabaseEvents } from './databases/state';
 import { DynamicVariablesButton, DynamicVariablesDialog } from './dynamic/DynamicVariablesDialog';
@@ -109,6 +110,8 @@ export function registerFeatures(): void {
   });
   registerOverlay(ConnectionDialog);
   registerOverlay(CredentialsDialog);
+  // Depois do ConnectionDialog: abre por cima dele.
+  registerOverlay(DatabaseGuideDialog);
   subscribeDatabaseEvents();
 
   // Backup completo no formato do Postman.

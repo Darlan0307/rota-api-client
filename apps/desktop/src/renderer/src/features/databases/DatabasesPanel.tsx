@@ -4,11 +4,12 @@ import {
   type DbEnvironment,
   engineInfo,
 } from '@rota/core/shared';
-import { KeyRound, Lock, Pencil, Plus } from 'lucide-react';
+import { CircleHelp, KeyRound, Lock, Pencil, Plus } from 'lucide-react';
 import { Button } from '../../components/Button';
 import { IconButton } from '../../components/IconButton';
 import { cn } from '../../lib/cn';
 import { useActiveTab } from '../../state/tabs';
+import { openDatabaseGuide } from './DatabaseGuide';
 import { openConnection, openConnectionDialog, setCredentialsOpen, useDatabases } from './state';
 
 export const ENVIRONMENT_LABEL: Record<DbEnvironment, string> = {
@@ -86,6 +87,9 @@ export function DatabasesPanel({ filter }: { filter: string }) {
           <Button size="sm" variant="ghost" onClick={() => setCredentialsOpen(true)}>
             <KeyRound className="size-3.5" /> Credenciais salvas
           </Button>
+          <Button size="sm" variant="ghost" onClick={() => openDatabaseGuide()}>
+            <CircleHelp className="size-3.5" /> Como achar os dados de conexão
+          </Button>
         </div>
       </div>
     );
@@ -160,6 +164,12 @@ function ConnectionItem({ view, selected }: { view: DbConnectionView; selected: 
 export function DatabasesActions() {
   return (
     <>
+      <IconButton
+        icon={CircleHelp}
+        label="Como achar os dados de conexão"
+        size="sm"
+        onClick={() => openDatabaseGuide()}
+      />
       <IconButton
         icon={KeyRound}
         label="Credenciais salvas"

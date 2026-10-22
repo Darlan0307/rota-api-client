@@ -7,7 +7,16 @@ import {
   engineInfo,
   type FirebirdCharset,
 } from '@rota/core/shared';
-import { AlertTriangle, CircleAlert, CircleCheck, Copy, LoaderCircle, Plug, Trash2 } from 'lucide-react';
+import {
+  AlertTriangle,
+  CircleAlert,
+  CircleCheck,
+  CircleHelp,
+  Copy,
+  LoaderCircle,
+  Plug,
+  Trash2,
+} from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '../../components/Button';
 import { Dialog } from '../../components/Dialog';
@@ -15,6 +24,7 @@ import { Field, Select, Switch, TextInput } from '../../components/form';
 import { api, errorMessage } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import { confirmDialog } from '../../state/dialogs';
+import { openDatabaseGuide } from './DatabaseGuide';
 import {
   closeConnectionDialog,
   duplicateConnection,
@@ -159,7 +169,19 @@ function ConnectionForm({ id }: { id: string | null }) {
   return (
     <div className="flex min-h-0 flex-col">
       <div className="max-h-[70vh] space-y-4 overflow-y-auto px-5 py-4">
-        <Field label="Banco de dados">
+        <Field
+          label="Banco de dados"
+          hint={
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-primary hover:underline"
+              onClick={() => openDatabaseGuide(form.engine)}
+            >
+              <CircleHelp className="size-3" />
+              Onde acho servidor, porta, usuário e senha do {engine.label}?
+            </button>
+          }
+        >
           <div className="grid grid-cols-4 gap-1 rounded-lg bg-surface-2 p-1">
             {DB_ENGINES.map((e) => (
               <button
