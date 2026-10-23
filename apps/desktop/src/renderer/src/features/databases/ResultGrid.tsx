@@ -5,6 +5,7 @@ import {
   type DbValue,
   resultToInserts,
   resultToJson,
+  resultToMarkdown,
   resultToTsv,
   tableFromSql,
 } from '@rota/core/shared';
@@ -16,6 +17,7 @@ import {
   Copy,
   Database,
   Download,
+  FileText,
   Search,
   Table2,
 } from 'lucide-react';
@@ -99,7 +101,7 @@ export function ResultGrid({
     }
   }
 
-  function copyAs(format: 'json' | 'tsv' | 'insert', onlySelected = false) {
+  function copyAs(format: 'json' | 'tsv' | 'insert' | 'markdown', onlySelected = false) {
     const names = result.columns.map((c) => c.name);
     const source = onlySelected && selected ? [result.rows[selected.row] ?? []] : rows.map((r) => r.row);
     const text =
@@ -107,10 +109,12 @@ export function ResultGrid({
         ? resultToJson(names, source)
         : format === 'tsv'
           ? resultToTsv(names, source)
-          : resultToInserts(engine, tableFromSql(sql) ?? 'TABELA', names, source);
+          : format === 'markdown'
+            ? resultToMarkdown(names, source)
+            : resultToInserts(engine, tableFromSql(sql) ?? 'TABELA', names, source);
     void navigator.clipboard.writeText(text);
     const count = source.length === 1 ? '1 linha copiada' : `${source.length} linhas copiadas`;
-    const label = format === 'json' ? 'JSON' : format === 'tsv' ? 'tabela' : 'INSERT';
+    const label = { json: 'JSON', tsv: 'tabela', markdown: 'Markdown', insert: 'INSERT' }[format];
     toast.success(
       format === 'insert' && !tableFromSql(sql)
         ? `${count} como INSERT (troque TABELA pelo nome da tabela).`
@@ -151,6 +155,11 @@ export function ResultGrid({
             { label: 'Como JSON', icon: Braces, onSelect: () => copyAs('json') },
             { label: 'Como tabela (colar no Excel)', icon: Table2, onSelect: () => copyAs('tsv') },
             { label: 'Como INSERT', icon: Database, onSelect: () => copyAs('insert') },
+            {
+              label: 'Como Markdown (para o Claude)',
+              icon: FileText,
+              onSelect: () => copyAs('markdown'),
+            },
             ...(selected
               ? [
                   'separator' as const,

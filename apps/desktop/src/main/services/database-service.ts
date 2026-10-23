@@ -382,7 +382,14 @@ export class DatabaseService {
     return this.withSession(id, (s) => s.schema());
   }
 
-  async run(id: string, sql: string, limit = DEFAULT_ROW_LIMIT): Promise<DbQueryResult> {
+  /** history: false para consultas internas (amostras, perfil), que não interessam no histórico. */
+  async run(
+    id: string,
+    sql: string,
+    limit = DEFAULT_ROW_LIMIT,
+    options: { history?: boolean } = {},
+  ): Promise<DbQueryResult> {
+    const recordHistory = options.history ?? true;
     const config = this.connection(id);
     if (!sql.trim()) throw new Error('Escreva uma consulta.');
     const rt = this.runtime(id);
@@ -396,18 +403,20 @@ export class DatabaseService {
         (s) => s.run(sql, { readOnly: config.readOnly, limit: Math.min(Math.max(1, limit), MAX_ROW_LIMIT) }),
         config.readOnly,
       );
-      void this.record(id, {
-        sql,
-        durationMs: result.durationMs,
-        ...(result.affected !== undefined ? { affected: result.affected } : { rows: result.rows.length }),
-      });
+      if (recordHistory)
+        void this.record(id, {
+          sql,
+          durationMs: result.durationMs,
+          ...(result.affected !== undefined ? { affected: result.affected } : { rows: result.rows.length }),
+        });
       return result;
     } catch (error) {
-      void this.record(id, {
-        sql,
-        durationMs: Date.now() - started,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      if (recordHistory)
+        void this.record(id, {
+          sql,
+          durationMs: Date.now() - started,
+          error: error instanceof Error ? error.message : String(error),
+        });
       throw error;
     } finally {
       rt.running = Math.max(0, rt.running - 1);

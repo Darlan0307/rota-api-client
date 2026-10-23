@@ -21,15 +21,13 @@ export async function sendRequest(tabId: string): Promise<void> {
   }
 
   const runId = crypto.randomUUID();
-  useTabs.getState().update<RequestTab>(tabId, (t) => ({
-    ...t,
-    run: {
-      runId,
-      status: 'sending',
-      startedAt: Date.now(),
-      ...(t.run?.result ? { result: t.run.result } : {}),
-    },
-  }));
+  useTabs.getState().update<RequestTab>(tabId, (t) => {
+    const shown = t.run?.viewing ? t.run.viewing.latest : t.run?.result;
+    return {
+      ...t,
+      run: { runId, status: 'sending', startedAt: Date.now(), ...(shown ? { result: shown } : {}) },
+    };
+  });
 
   try {
     const result = await api.invoke('request:send', {

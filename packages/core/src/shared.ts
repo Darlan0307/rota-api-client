@@ -5,10 +5,12 @@
 
 export * from './bridge/approval';
 export { CODEGEN_LABELS, CODEGEN_TARGETS, type CodegenTarget } from './codegen/codegen';
+export * from './codegen/types';
 export * from './contract/reference';
 export * from './contract/shape';
 export { type CurlParseResult, looksLikeCurl, parseCurl } from './curl/parse-curl';
 export * from './database/connection-string';
+export * from './database/describe';
 export * from './database/sql';
 export * from './database/types';
 export * from './export/backup';
@@ -53,6 +55,7 @@ export * from './util/json-path';
 export * from './util/json-table';
 export { slugify, uniqueSlug } from './util/slug';
 export * from './variables/dynamic';
+export * from './variables/fill';
 export type { VariableInput } from './variables/persist';
 export * from './variables/template';
 export * from './webhooks/providers';

@@ -214,23 +214,32 @@ interface Side {
   body: string;
 }
 
+/** Com o que cada aba compara ("example:<id>" ou "history:<id>"); outras features podem escolher. */
+const useCompareSources = create<{ byTab: Record<string, string> }>()(() => ({ byTab: {} }));
+
+export function setCompareSource(tabId: string, source: string): void {
+  useCompareSources.setState((s) => ({ byTab: { ...s.byTab, [tabId]: source } }));
+}
+
 function CompareView({ tab }: { tab: RequestTab }) {
   const examples = useExamples(tab);
   const response = tab.run?.result?.response;
   const [history, setHistory] = useState<HistorySummary[]>([]);
-  const [source, setSource] = useState('');
+  const source = useCompareSources((s) => s.byTab[tab.id] ?? '');
+  const setSource = (value: string) => setCompareSource(tab.id, value);
   const [base, setBase] = useState<Side | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sortKeys, setSortKeys] = useState(true);
   const ref = useRef<HTMLDivElement>(null);
   const width = useElementWidth(ref);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: recarrega a lista a cada envio novo
   useEffect(() => {
     if (!tab.itemId) return;
     api
       .invoke('history:list', '', 30, tab.itemId)
       .then(({ items }) => setHistory(items.filter((h) => h.status !== null)))
       .catch(() => setHistory([]));
-  }, [tab.itemId]);
+  }, [tab.itemId, tab.run?.result]);
 
   useEffect(() => {
     setError(null);

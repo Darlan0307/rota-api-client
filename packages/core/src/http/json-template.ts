@@ -38,7 +38,7 @@ function bareVariables(text: string): VariableRef[] {
 }
 
 /** Troca as variáveis sem aspas por 0 com o mesmo tamanho (as posições continuam valendo). */
-function withPlaceholders(text: string): string {
+export function withPlaceholders(text: string): string {
   let out = '';
   let last = 0;
   for (const ref of bareVariables(text)) {

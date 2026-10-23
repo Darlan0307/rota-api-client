@@ -42,18 +42,24 @@ export function ResponsePane({
   tab,
   extraSections,
   actions,
+  banner,
 }: {
   tab: RequestTab;
   extraSections?: ResponseExtraSection[];
   /** Ações extras no cabeçalho da resposta (ex.: salvar como exemplo). */
   actions?: ReactNode;
+  banner?: ReactNode;
 }) {
   const run = tab.run;
   const result = run?.result;
   const sending = run?.status === 'sending';
 
   return (
-    <section className="flex h-full min-w-0 flex-col bg-bg" aria-label="Resposta">
+    <section className="relative flex h-full min-w-0 flex-col bg-bg" aria-label="Resposta">
+      {banner}
+      {!sending && !result?.response && !run?.viewing && actions && (
+        <div className="absolute top-2 right-3 z-10 flex items-center gap-2">{actions}</div>
+      )}
       {!sending &&
         result?.warnings?.map((warning) => (
           <div

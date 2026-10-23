@@ -16,6 +16,7 @@ import { DatabaseGuideDialog } from './databases/DatabaseGuide';
 import { DatabasesActions, DatabasesPanel } from './databases/DatabasesPanel';
 import { subscribeDatabaseEvents } from './databases/state';
 import { DynamicVariablesButton, DynamicVariablesDialog } from './dynamic/DynamicVariablesDialog';
+import { FillTestDataDialog } from './dynamic/FillTestDataDialog';
 import { SaveExampleButton } from './examples/ExampleTabView';
 import { HistoryActions, HistoryPanel } from './history/HistoryPanel';
 import { ImportDialog, openImportDialog } from './import/ImportDialog';
@@ -27,11 +28,13 @@ import { SaveToVariableDialog } from './response/SaveToVariableDialog';
 import { scriptResultSections } from './scripts/ScriptResults';
 import { ScriptsEditor } from './scripts/ScriptsEditor';
 import { SearchPalette } from './search/SearchPalette';
+import { SendHistoryBanner, SendHistoryButton } from './send-history/SendHistory';
 import { TrashActions, TrashPanel } from './trash/TrashPanel';
 import { subscribeTunnelEvents } from './tunnels/state';
 import { TunnelGuideDialog } from './tunnels/TunnelGuide';
 import { TunnelsActions, TunnelsPanel } from './tunnels/TunnelsPanel';
 import { WebhookSimulatorDialog } from './tunnels/WebhookSimulator';
+import { GenerateTypesButton, TypesDialog } from './types/TypesDialog';
 import { NewWorkspaceDialog, openFolderAsWorkspace, WorkspaceMenu } from './workspaces/WorkspaceMenu';
 
 /**
@@ -50,6 +53,7 @@ export function registerFeatures(): void {
     historyActions: () => createElement(HistoryActions),
   });
   registerOverlay(CodegenDialog);
+  registerOverlay(TypesDialog);
   registerRequestEditorExtensions({
     onUrlPaste: handleUrlPaste,
     headerActions: (tab) =>
@@ -61,7 +65,15 @@ export function registerFeatures(): void {
         createElement(AskClaudeButton, { tab }),
         createElement(DynamicVariablesButton),
       ),
-    responseActions: (tab) => createElement(SaveExampleButton, { tab }),
+    responseActions: (tab) =>
+      createElement(
+        Fragment,
+        null,
+        createElement(SendHistoryButton, { tab }),
+        createElement(GenerateTypesButton, { tab }),
+        createElement(SaveExampleButton, { tab }),
+      ),
+    responseBanner: (tab) => createElement(SendHistoryBanner, { tab }),
   });
   registerSearchContent((close) => createElement(SearchPalette, { close }));
 
@@ -92,6 +104,7 @@ export function registerFeatures(): void {
 
   // Dados de teste e salvar em variável.
   registerOverlay(DynamicVariablesDialog);
+  registerOverlay(FillTestDataDialog);
   registerOverlay(SaveToVariableDialog);
 
   // Túneis (cloudflared) para receber webhooks.

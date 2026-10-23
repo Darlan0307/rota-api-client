@@ -96,7 +96,7 @@ export function registerIpcHandlers({
   handle('db:connect', (_e, id) => databases.connect(id));
   handle('db:disconnect', (_e, id) => databases.disconnect(id));
   handle('db:schema', (_e, id) => databases.schema(id));
-  handle('db:run', (_e, id, sql, limit) => databases.run(id, sql, limit));
+  handle('db:run', (_e, id, sql, limit, options) => databases.run(id, sql, limit, options));
   handle('db:cancel', (_e, id) => databases.cancel(id));
   handle('db:history', (_e, id) => databases.history(id));
   handle('db:clearHistory', (_e, id) => databases.clearHistory(id));

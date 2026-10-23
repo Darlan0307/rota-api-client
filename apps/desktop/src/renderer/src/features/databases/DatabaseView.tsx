@@ -9,13 +9,16 @@ import {
 } from '@rota/core/shared';
 import {
   AlertTriangle,
+  Braces,
   ChevronRight,
   Database,
   Eye,
+  FileText,
   KeyRound,
   Link2,
   LoaderCircle,
   Lock,
+  MoreHorizontal,
   Pencil,
   Play,
   RefreshCw,
@@ -26,6 +29,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Group, Panel, useDefaultLayout } from 'react-resizable-panels';
+import { ContextActions, DropdownActions, type MenuEntry } from '../../components/ActionMenu';
 import { Button } from '../../components/Button';
 import { CodeEditor } from '../../components/CodeEditor';
 import { EmptyState } from '../../components/EmptyState';
@@ -37,6 +41,7 @@ import { cn } from '../../lib/cn';
 import type { monaco } from '../../lib/monaco';
 import { confirmDialog } from '../../state/dialogs';
 import { type DatabaseTab, useTabs } from '../../state/tabs';
+import { openTypesForTable } from '../types/TypesDialog';
 import { ConnectionDot, EnvironmentBadge } from './DatabasesPanel';
 import { QueryHistory } from './QueryHistory';
 import { ResultGrid } from './ResultGrid';
@@ -52,6 +57,7 @@ import {
   useConnection,
   useDatabases,
 } from './state';
+import { copyTablesMarkdown } from './table-actions';
 
 const LIMITS = ['100', '500', '1000', '5000'] as const;
 const LIMIT_KEY = 'rota:db-limit';
@@ -235,6 +241,8 @@ function SchemaTree({
 }) {
   const [filter, setFilter] = useState('');
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  // Ctrl+clique marca várias tabelas para as ações em lote (copiar estrutura...).
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   // Nomes vêm em maiúsculas (Firebird) ou minúsculas (PostgreSQL): compara sem caixa.
   const q = filter.trim().toLowerCase();
   const tables = useMemo(
@@ -249,6 +257,48 @@ function SchemaTree({
     const sql = previewSql(engine, table.ref);
     updateQuery(connectionId, { sql });
     void runQuery(connectionId, sql, 100);
+  }
+
+  /** A tabela clicada, ou todas as marcadas se ela estiver entre elas. */
+  function targetsOf(table: DbTable): DbTable[] {
+    if (!selected.has(table.name) || selected.size < 2) return [table];
+    return (schema?.tables ?? []).filter((t) => selected.has(t.name));
+  }
+
+  function entriesFor(table: DbTable): MenuEntry[] {
+    const targets = targetsOf(table);
+    const many = targets.length > 1;
+    const suffix = many ? ` (${targets.length} tabelas)` : '';
+    return [
+      ...(many
+        ? []
+        : [
+            { label: 'Consultar (100 linhas)', icon: Play, onSelect: () => query(table) },
+            'separator' as const,
+          ]),
+      {
+        label: `Copiar estrutura em Markdown${suffix}`,
+        icon: FileText,
+        onSelect: () => void copyTablesMarkdown(connectionId, engine, targets),
+      },
+      {
+        label: `Copiar estrutura + 10 linhas${suffix}`,
+        icon: FileText,
+        onSelect: () => void copyTablesMarkdown(connectionId, engine, targets, 10),
+      },
+      ...(many
+        ? []
+        : [{ label: 'Gerar tipo TypeScript', icon: Braces, onSelect: () => openTypesForTable(table) }]),
+    ];
+  }
+
+  function toggleSelected(name: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
   }
 
   let body: React.ReactNode;
@@ -291,31 +341,57 @@ function SchemaTree({
                 const Icon = table.kind === 'view' ? Eye : Table2;
                 return (
                   <li key={table.name}>
-                    <div className="group flex items-center gap-1 pr-1 hover:bg-surface-2/60">
-                      <button
-                        type="button"
-                        onClick={() => setOpen((o) => ({ ...o, [table.name]: !expanded }))}
-                        onDoubleClick={() => onInsert(table.ref)}
-                        title="Clique para ver as colunas; duplo clique insere o nome no editor"
-                        className="flex min-w-0 flex-1 items-center gap-1.5 py-1 pl-2 text-left"
+                    <ContextActions entries={entriesFor(table)}>
+                      <div
+                        className={cn(
+                          'group flex items-center gap-1 pr-1 hover:bg-surface-2/60',
+                          selected.has(table.name) && 'bg-primary-soft hover:bg-primary-soft',
+                        )}
                       >
-                        <ChevronRight
-                          className={cn(
-                            'size-3 shrink-0 text-fg-subtle transition-transform',
-                            expanded && 'rotate-90',
-                          )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            if (e.ctrlKey || e.metaKey) toggleSelected(table.name);
+                            else {
+                              if (selected.size > 0) setSelected(new Set());
+                              setOpen((o) => ({ ...o, [table.name]: !expanded }));
+                            }
+                          }}
+                          onDoubleClick={() => onInsert(table.ref)}
+                          title="Clique para ver as colunas; duplo clique insere o nome no editor; Ctrl+clique marca várias; botão direito mostra as ações"
+                          className="flex min-w-0 flex-1 items-center gap-1.5 py-1 pl-2 text-left"
+                        >
+                          <ChevronRight
+                            className={cn(
+                              'size-3 shrink-0 text-fg-subtle transition-transform',
+                              expanded && 'rotate-90',
+                            )}
+                          />
+                          <Icon className="size-3.5 shrink-0 text-fg-subtle" />
+                          <span className="truncate font-mono text-xs text-fg">{table.name}</span>
+                        </button>
+                        <IconButton
+                          icon={Play}
+                          label={`Consultar ${table.name} (100 linhas)`}
+                          size="sm"
+                          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                          onClick={() => query(table)}
                         />
-                        <Icon className="size-3.5 shrink-0 text-fg-subtle" />
-                        <span className="truncate font-mono text-xs text-fg">{table.name}</span>
-                      </button>
-                      <IconButton
-                        icon={Play}
-                        label={`Consultar ${table.name} (100 linhas)`}
-                        size="sm"
-                        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                        onClick={() => query(table)}
-                      />
-                    </div>
+                        <DropdownActions
+                          align="end"
+                          entries={entriesFor(table)}
+                          trigger={
+                            <button
+                              type="button"
+                              aria-label={`Ações de ${table.name}`}
+                              className="flex size-6 shrink-0 items-center justify-center rounded text-fg-subtle opacity-0 transition-opacity hover:bg-surface hover:text-fg focus:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+                            >
+                              <MoreHorizontal className="size-3.5" />
+                            </button>
+                          }
+                        />
+                      </div>
+                    </ContextActions>
                     {expanded && (
                       <ul className="pb-1">
                         {table.columns.map((column) => (

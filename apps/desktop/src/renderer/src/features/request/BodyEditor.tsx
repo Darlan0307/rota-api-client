@@ -8,7 +8,7 @@ import {
   lineColumnAt,
   type RawLanguage,
 } from '@rota/core/shared';
-import { FileUp, Paperclip, WandSparkles, X } from 'lucide-react';
+import { Dices, FileUp, Paperclip, WandSparkles, X } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '../../components/Button';
 import { CodeEditor, type EditorLanguage } from '../../components/CodeEditor';
@@ -18,6 +18,7 @@ import { KeyValueTable } from '../../components/KeyValueTable';
 import { api } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import { toast } from '../../state/toasts';
+import { openFillTestData } from '../dynamic/FillTestDataDialog';
 
 const MODES: { value: BodyMode; label: string }[] = [
   { value: 'none', label: 'Nenhum' },
@@ -62,9 +63,14 @@ interface BodyEditorProps {
   body: Body;
   onChange: (body: Body) => void;
   onShortcut?: (shortcut: 'send' | 'save') => void;
+  /**
+   * Troca o texto do corpo lendo o estado atual (não o desta renderização):
+   * usado depois de diálogos e no "Desfazer", quando o resto já pode ter mudado.
+   */
+  setText?: (text: string) => void;
 }
 
-export function BodyEditor({ body, onChange, onShortcut }: BodyEditorProps) {
+export function BodyEditor({ body, onChange, onShortcut, setText }: BodyEditorProps) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 flex-wrap items-center gap-1 px-4 py-2">
@@ -90,6 +96,16 @@ export function BodyEditor({ body, onChange, onShortcut }: BodyEditorProps) {
             align="end"
             ariaLabel="Linguagem do body"
           />
+        )}
+        {(body.mode === 'json' || (body.mode === 'raw' && body.language === 'json')) && (
+          <Button
+            size="sm"
+            variant="ghost"
+            title="Troca nome, CPF, e-mail, telefone, CEP... por variáveis que geram um valor novo a cada envio"
+            onClick={() => openFillTestData(body.text, setText ?? ((text) => onChange({ ...body, text })))}
+          >
+            <Dices className="size-3.5" /> Dados de teste
+          </Button>
         )}
         {(body.mode === 'json' || (body.mode === 'raw' && body.language === 'json')) && (
           <Button

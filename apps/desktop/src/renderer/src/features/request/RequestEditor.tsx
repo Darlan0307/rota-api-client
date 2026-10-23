@@ -33,6 +33,8 @@ export interface RequestEditorExtensions {
   renderScripts?: (tab: RequestTab, onChange: (data: RequestData) => void) => ReactNode;
   responseSections?: (tab: RequestTab) => ResponseExtraSection[];
   responseActions?: (tab: RequestTab) => ReactNode;
+  /** Faixa acima da resposta (ex.: vendo um envio anterior). */
+  responseBanner?: (tab: RequestTab) => ReactNode;
   headerActions?: (tab: RequestTab) => ReactNode;
 }
 
@@ -82,6 +84,7 @@ export function RequestEditor({ tab }: { tab: RequestTab }) {
                 tab={tab}
                 extraSections={extensions.responseSections?.(tab) ?? []}
                 actions={extensions.responseActions?.(tab)}
+                banner={extensions.responseBanner?.(tab)}
               />
             </Panel>
           </Group>
@@ -329,6 +332,13 @@ function RequestSections({
             body={data.body}
             onChange={(body) => onChange({ ...data, body })}
             onShortcut={onShortcut}
+            setText={(text) =>
+              update<RequestTab>(tab.id, (t) =>
+                t.draft.body.mode === 'json' || t.draft.body.mode === 'raw'
+                  ? { ...t, draft: { ...t.draft, body: { ...t.draft.body, text } } }
+                  : t,
+              )
+            }
           />
         )}
         {section === 'scripts' &&

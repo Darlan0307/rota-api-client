@@ -339,7 +339,10 @@ export interface IpcContract {
   // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
   'db:disconnect': { args: [id: string]; result: void };
   'db:schema': { args: [id: string]; result: DbSchema };
-  'db:run': { args: [id: string, sql: string, limit?: number]; result: DbQueryResult };
+  'db:run': {
+    args: [id: string, sql: string, limit?: number, options?: { history?: boolean }];
+    result: DbQueryResult;
+  };
   // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
   'db:cancel': { args: [id: string]; result: void };
   /** Consultas executadas na conexão (mais recentes primeiro). */

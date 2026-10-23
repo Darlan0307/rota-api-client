@@ -33,6 +33,18 @@ export interface RunState {
   status: 'sending' | 'done';
   startedAt: number;
   result?: RunResult;
+  /** Mostrando um envio anterior do histórico no lugar da resposta mais recente. */
+  viewing?: HistoryViewing;
+}
+
+export interface HistoryViewing {
+  historyId: string;
+  at: string;
+  source: 'app' | 'mcp';
+  /** A requisição como estava naquele envio (para restaurar). */
+  data: RequestData;
+  /** A resposta mais recente, para voltar a ela. */
+  latest?: RunResult;
 }
 
 export type Conflict = { type: 'changed'; incoming: unknown; changes: FieldChange[] } | { type: 'deleted' };
