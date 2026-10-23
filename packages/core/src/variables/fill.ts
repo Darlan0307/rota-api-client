@@ -35,8 +35,6 @@ type ValueKind = 'string' | 'number' | 'null';
 interface Rule {
   test: (key: string) => boolean;
   pick: (current: string, kind: ValueKind) => string;
-  /** Pode ir sem aspas quando o valor atual é número. */
-  numeric?: boolean;
   /**
    * Nomes ambíguos ("nome" de um produto, "estado" como situação) só valem
    * dentro de um objeto que pareça pessoa ou endereço.
@@ -118,7 +116,6 @@ const RULES: Rule[] = [
   {
     test: (k) => /^(preco|valor|price|amount|valorunitario|valortotal|precounitario|total|subtotal)$/.test(k),
     pick: () => '$preco',
-    numeric: true,
   },
 ];
 
@@ -241,10 +238,22 @@ export function suggestTestData(text: string): FillSuggestion[] | null {
       end: leaf.end,
       current: raw,
       variable: rule.pick(current, leaf.kind),
-      quoted: !(rule.numeric && leaf.kind === 'number'),
+      quoted: needsQuotes(rule.pick(current, leaf.kind), raw),
     });
   }
   return suggestions;
+}
+
+/** Variáveis que geram só números: podem ir sem aspas onde o valor já era número. */
+const NUMERIC_VARIABLES = new Set(['$preco', '$randomInt', '$timestamp']);
+
+/**
+ * Vai entre aspas? Só fica sem aspas uma variável numérica no lugar de um
+ * número (outra variável sem aspas, como um CPF com zero à esquerda, deixaria
+ * o JSON enviado inválido).
+ */
+export function needsQuotes(variable: string, currentRaw: string): boolean {
+  return !(NUMERIC_VARIABLES.has(variable) && /^-?\d/.test(currentRaw.trim()));
 }
 
 /** Troca os valores escolhidos pelas variáveis, de trás para frente (as posições continuam valendo). */

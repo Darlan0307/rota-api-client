@@ -11,6 +11,7 @@ import { api, errorMessage } from '../../lib/api';
 import { useTabs } from '../../state/tabs';
 import { toast } from '../../state/toasts';
 import { useUiStore } from '../../state/ui';
+import { closeProfile } from './profile-state';
 
 export type ConnectionInput = Partial<DbConnectionConfig>;
 
@@ -63,8 +64,10 @@ export function subscribeDatabaseEvents(): void {
   useTabs.subscribe((state, previous) => {
     const open = new Set(state.tabs.filter((t) => t.kind === 'database').map((t) => t.itemId));
     for (const tab of previous.tabs)
-      if (tab.kind === 'database' && tab.itemId && !open.has(tab.itemId))
+      if (tab.kind === 'database' && tab.itemId && !open.has(tab.itemId)) {
+        closeProfile(tab.itemId);
         void api.invoke('db:disconnect', tab.itemId).catch(() => undefined);
+      }
   });
 }
 

@@ -4,6 +4,7 @@ import {
   type DbEngine,
   type DbQueryResult,
   type DbTable,
+  type RequestData,
   type TableProfile,
 } from '@rota/core/shared';
 import { create } from 'zustand';
@@ -73,8 +74,8 @@ export function clearPack(): void {
 // ---------------------------------------------------------------------------
 // Atalhos para cada origem
 
-function bodyText(tab: RequestTab): string | undefined {
-  const body = tab.draft.body;
+function bodyText(data: RequestData): string | undefined {
+  const body = data.body;
   if (body.mode === 'json' || body.mode === 'raw') return body.text;
   if (body.mode === 'urlencoded' || body.mode === 'formdata')
     return body.fields
@@ -84,17 +85,21 @@ function bodyText(tab: RequestTab): string | undefined {
   return undefined;
 }
 
-/** A requisição como está no editor ({{variáveis}}) e a resposta exibida. */
+/**
+ * A requisição ({{variáveis}}) e a resposta exibida. Vendo um envio anterior,
+ * entra a requisição daquele envio, para pergunta e resposta baterem.
+ */
 export function addRequestToPack(tab: RequestTab): void {
   const response = tab.run?.result?.response;
-  const body = bodyText(tab);
+  const data = tab.run?.viewing?.data ?? tab.draft;
+  const body = bodyText(data);
   const contentType = response?.headers.find(([k]) => k.toLowerCase() === 'content-type')?.[1];
   addToPack({
     kind: 'request',
     title: tab.title,
-    method: tab.draft.method,
-    url: composeUrl(tab.draft.url, tab.draft.query),
-    headers: tab.draft.headers.filter((h) => h.enabled && h.key).map(({ key, value }) => ({ key, value })),
+    method: data.method,
+    url: composeUrl(data.url, data.query),
+    headers: data.headers.filter((h) => h.enabled && h.key).map(({ key, value }) => ({ key, value })),
     ...(body?.trim() ? { body } : {}),
     ...(response
       ? {

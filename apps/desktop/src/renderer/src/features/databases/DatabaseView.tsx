@@ -50,7 +50,7 @@ import { addProfileToPack, addTablesToPack } from '../context-pack/state';
 import { openTypesForTable } from '../types/TypesDialog';
 import { ConnectionDot, EnvironmentBadge } from './DatabasesPanel';
 import { ProfileView } from './ProfileView';
-import { closeProfile, runProfile, showProfile, useProfiles } from './profile-state';
+import { cancelProfile, closeProfile, runProfile, showProfile, useProfiles } from './profile-state';
 import { QueryHistory } from './QueryHistory';
 import { ResultGrid } from './ResultGrid';
 import { bindSqlEditor } from './sql-completion';
@@ -561,7 +561,14 @@ function SqlEditor({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3">
         {running ? (
-          <Button size="sm" onClick={() => void cancelQuery(id)}>
+          <Button
+            size="sm"
+            onClick={() => {
+              // Com o perfil rodando, cancela a análise inteira (não só a consulta da vez).
+              if (useProfiles.getState().byConnection[id]?.status === 'running') cancelProfile(id);
+              else void cancelQuery(id);
+            }}
+          >
             <Square className="size-3.5" /> Cancelar
           </Button>
         ) : (

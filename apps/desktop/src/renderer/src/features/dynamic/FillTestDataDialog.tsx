@@ -4,6 +4,7 @@ import {
   type FillSuggestion,
   generateDynamic,
   jsonSyntaxError,
+  needsQuotes,
   suggestTestData,
 } from '@rota/core/shared';
 import { ArrowRight, Dices } from 'lucide-react';
@@ -113,7 +114,12 @@ function FillContent({ request }: { request: FillRequest }) {
                     value={row.variable}
                     options={OPTIONS}
                     onChange={(variable) =>
-                      update(i, { variable, example: generateDynamic(variable) ?? '', enabled: true })
+                      update(i, {
+                        variable,
+                        quoted: needsQuotes(variable, row.current),
+                        example: generateDynamic(variable) ?? '',
+                        enabled: true,
+                      })
                     }
                     ariaLabel={`Variável para ${row.path}`}
                     triggerClassName="w-40 font-mono"

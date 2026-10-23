@@ -53,6 +53,11 @@ interface Runtime {
   error: string | null;
   running: number;
   lastUsed: number;
+  /**
+   * Uma consulta por vez na sessão: os drivers (tedious, mysql2) não aceitam
+   * duas ao mesmo tempo, e o editor, o perfil e as amostras podem pedir juntos.
+   */
+  queue: Mutex;
 }
 
 interface SavedFile {
@@ -167,6 +172,7 @@ export class DatabaseService {
         error: null,
         running: 0,
         lastUsed: Date.now(),
+        queue: new Mutex(),
       };
       this.runtimes.set(id, rt);
     }
@@ -379,7 +385,7 @@ export class DatabaseService {
   }
 
   schema(id: string): Promise<DbSchema> {
-    return this.withSession(id, (s) => s.schema());
+    return this.runtime(id).queue.run(() => this.withSession(id, (s) => s.schema()));
   }
 
   /** history: false para consultas internas (amostras, perfil), que não interessam no histórico. */
@@ -398,10 +404,13 @@ export class DatabaseService {
     this.notify();
     const started = Date.now();
     try {
-      const result = await this.withSession(
-        id,
-        (s) => s.run(sql, { readOnly: config.readOnly, limit: Math.min(Math.max(1, limit), MAX_ROW_LIMIT) }),
-        config.readOnly,
+      const result = await rt.queue.run(() =>
+        this.withSession(
+          id,
+          (s) =>
+            s.run(sql, { readOnly: config.readOnly, limit: Math.min(Math.max(1, limit), MAX_ROW_LIMIT) }),
+          config.readOnly,
+        ),
       );
       if (recordHistory)
         void this.record(id, {

@@ -35,6 +35,15 @@ const PROVIDER_OPTIONS = [
   ...WEBHOOK_PROVIDERS.map((p) => ({ value: p.id, label: p.name })),
 ] as const satisfies readonly { value: ProviderChoice; label: string }[];
 
+/**
+ * Provedor e HMAC sem a lista de eventos salvos: o processo principal mantém a
+ * lista que já tem (a desta tela pode estar um passo atrás de um evento recém-salvo).
+ */
+function settingsOnly(config: TunnelConfig): Omit<TunnelConfig['webhook'], 'savedEvents'> {
+  const { savedEvents: _saved, ...settings } = config.webhook;
+  return settings;
+}
+
 /** Simula o webhook de um provedor: corpo de exemplo, assinatura correta e envio para a API local. */
 export function WebhookSimulatorDialog() {
   const request = useTunnels((s) => s.simulator);
@@ -85,7 +94,7 @@ function SimulatorForm({
   function chooseProvider(id: ProviderChoice) {
     const next = id === NO_PROVIDER ? null : id;
     if (next === config.webhook.provider) return;
-    void updateTunnel(config.id, { webhook: { ...config.webhook, provider: next } });
+    void updateTunnel(config.id, { webhook: { ...settingsOnly(config), provider: next } });
     const first = findWebhookProvider(next)?.events[0];
     setEventId(first?.id ?? '');
     // Corpo de uma chamada recebida continua; o de exemplo troca junto com o provedor.
@@ -351,7 +360,7 @@ function HmacFields({ config }: { config: TunnelConfig }) {
   useEffect(() => setHeader(hmac.header), [hmac.header]);
   useEffect(() => setPrefix(hmac.prefix), [hmac.prefix]);
   const save = (patch: Partial<HmacSettings>) =>
-    void updateTunnel(config.id, { webhook: { ...config.webhook, hmac: { ...hmac, ...patch } } });
+    void updateTunnel(config.id, { webhook: { ...settingsOnly(config), hmac: { ...hmac, ...patch } } });
 
   return (
     <div className="grid grid-cols-2 gap-2">

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyTestData, normalizeKey, suggestTestData, suggestVariableFor } from './fill';
+import { applyTestData, needsQuotes, normalizeKey, suggestTestData, suggestVariableFor } from './fill';
 
 describe('sugestão de dados de teste pelo nome do campo', () => {
   it('normaliza nomes', () => {
@@ -64,5 +64,15 @@ describe('sugestão de dados de teste pelo nome do campo', () => {
     expect(applyTestData(text, chosen)).toBe(
       '{\n  "nome": "{{$nomeCompleto}}",\n  "preco": {{$preco}},\n  "cpf": "1"\n}',
     );
+  });
+});
+
+describe('aspas da variável escolhida', () => {
+  it('só tira as aspas de variável numérica no lugar de número', () => {
+    expect(needsQuotes('$preco', '10')).toBe(false);
+    expect(needsQuotes('$preco', '"10"')).toBe(true);
+    expect(needsQuotes('$cpf', '10')).toBe(true);
+    expect(needsQuotes('$randomInt', '-3')).toBe(false);
+    expect(needsQuotes('$preco', 'null')).toBe(true);
   });
 });
