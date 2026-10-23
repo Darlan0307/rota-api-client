@@ -206,8 +206,9 @@ const GUIDES: Record<DbEngine, ReactNode> = {
 
       <Section icon={Cloud} title="Banco online (Supabase, Neon, Railway, Render, AWS, Azure…)">
         <p>
-          O painel do serviço mostra uma URL de conexão (procure “Connect” ou “Connection string”). Ela se
-          divide assim:
+          O painel do serviço mostra uma URL de conexão (procure “Connect” ou “Connection string”). Cole-a em{' '}
+          <b>Colar URL de conexão</b>, no formulário, e os campos são preenchidos sozinhos. Ela se divide
+          assim:
         </p>
         <UrlMap
           url="postgresql://joao:s3nh%40forte@db.exemplo.com:5432/loja?sslmode=require"

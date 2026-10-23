@@ -6,6 +6,8 @@ import {
   type DbServerInfo,
   engineInfo,
   type FirebirdCharset,
+  type ParsedConnection,
+  parseConnectionString,
 } from '@rota/core/shared';
 import {
   AlertTriangle,
@@ -37,6 +39,13 @@ import {
 } from './state';
 
 const OWN = 'propria';
+
+const URL_PLACEHOLDER: Record<DbEngine, string> = {
+  postgres: 'postgresql://usuario:senha@servidor:5432/banco',
+  mysql: 'mysql://usuario:senha@servidor:3306/banco',
+  sqlserver: 'Server=servidor,1433;Database=banco;User Id=usuario;Password=…',
+  firebird: 'servidor/3050:C:\\Dados\\LOJA.FDB',
+};
 
 const CHARSET_OPTIONS: { value: FirebirdCharset; label: string; hint?: string }[] = [
   { value: 'auto', label: 'Automático', hint: 'recomendado' },
@@ -88,6 +97,10 @@ function ConnectionForm({ id }: { id: string | null }) {
   const credentials = useDatabases((s) => s.credentials);
   const [form, setForm] = useState<Form>(() => initialForm(view?.config, credentials[0]?.id));
   const [password, setPassword] = useState('');
+  const [pastedText, setPastedText] = useState('');
+  const [pasted, setPasted] = useState<{ filled: string[]; warnings: string[] } | { error: string } | null>(
+    null,
+  );
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [tested, setTested] = useState<
@@ -166,6 +179,42 @@ function ConnectionForm({ id }: { id: string | null }) {
 
   const passwordSaved = Boolean(id && view?.hasPassword && !view.config.credentialId);
 
+  /** Preenche o formulário a partir de uma URL/connection string. O texto não é guardado. */
+  function fillFrom(text: string) {
+    let parsed: ParsedConnection;
+    try {
+      parsed = parseConnectionString(text);
+    } catch (error) {
+      setPasted({ error: errorMessage(error) });
+      return;
+    }
+    const next = parsed.engine ?? form.engine;
+    const filled: string[] = [];
+    if (parsed.engine) filled.push(engineInfo(next).label);
+    if (parsed.host !== undefined) filled.push('servidor');
+    if (parsed.port !== undefined) filled.push('porta');
+    if (parsed.database !== undefined) filled.push('banco');
+    if (parsed.user !== undefined) filled.push('usuário');
+    if (parsed.password !== undefined) filled.push('senha');
+    if (parsed.ssl !== undefined && next !== 'firebird') filled.push(parsed.ssl ? 'TLS ligado' : 'sem TLS');
+    const ownLogin = parsed.user !== undefined || parsed.password !== undefined;
+    set({
+      engine: next,
+      port: String(parsed.port ?? engineInfo(next).defaultPort),
+      ...(parsed.host !== undefined ? { host: parsed.host } : {}),
+      ...(parsed.database !== undefined ? { database: parsed.database } : {}),
+      ...(parsed.user !== undefined ? { user: parsed.user } : {}),
+      ...(ownLogin ? { credential: OWN } : {}),
+      ...(parsed.ssl !== undefined && next !== 'firebird' ? { ssl: parsed.ssl } : {}),
+      ...(!form.name.trim() && (parsed.database || parsed.host)
+        ? { name: (parsed.database?.split(/[\\/]/).pop() ?? '') || (parsed.host ?? '') }
+        : {}),
+    });
+    if (parsed.password !== undefined) setPassword(parsed.password);
+    setPastedText('');
+    setPasted({ filled, warnings: parsed.warnings });
+  }
+
   return (
     <div className="flex min-h-0 flex-col">
       <div className="max-h-[70vh] space-y-4 overflow-y-auto px-5 py-4">
@@ -199,6 +248,57 @@ function ConnectionForm({ id }: { id: string | null }) {
               </button>
             ))}
           </div>
+        </Field>
+
+        <Field
+          label="Colar URL de conexão (opcional)"
+          hint="Do .env, do painel do serviço ou do appsettings.json: preenche os campos abaixo."
+        >
+          <div className="flex gap-2">
+            <TextInput
+              mono
+              className="flex-1"
+              autoComplete="off"
+              spellCheck={false}
+              value={pastedText}
+              placeholder={URL_PLACEHOLDER[form.engine]}
+              onChange={(e) => setPastedText(e.target.value)}
+              onPaste={(e) => {
+                const text = e.clipboardData.getData('text');
+                if (!text.trim()) return;
+                e.preventDefault();
+                fillFrom(text);
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && pastedText.trim() && fillFrom(pastedText)}
+            />
+            <Button disabled={!pastedText.trim()} onClick={() => fillFrom(pastedText)}>
+              Preencher
+            </Button>
+          </div>
+          {pasted && (
+            <div className="mt-1.5 space-y-1 text-xs">
+              {'error' in pasted ? (
+                <p className="flex items-start gap-1.5 text-danger">
+                  <CircleAlert className="mt-px size-3.5 shrink-0" />
+                  {pasted.error}
+                </p>
+              ) : (
+                <>
+                  <p className="flex items-start gap-1.5 text-success">
+                    <CircleCheck className="mt-px size-3.5 shrink-0" />
+                    Preenchido: {pasted.filled.join(', ') || 'nada encontrado'}. Confira e clique em Testar
+                    conexão.
+                  </p>
+                  {pasted.warnings.map((w) => (
+                    <p key={w} className="flex items-start gap-1.5 text-warning">
+                      <AlertTriangle className="mt-px size-3.5 shrink-0" />
+                      {w}
+                    </p>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
         </Field>
 
         <Field label="Nome">
