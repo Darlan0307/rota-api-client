@@ -342,7 +342,7 @@ function ConnectionForm({ id }: { id: string | null }) {
           label="Usuário e senha"
           hint={
             <>
-              Credenciais salvas servem para vários clientes com a mesma senha.{' '}
+              Uma credencial salva pode ser usada em várias conexões.{' '}
               <button
                 type="button"
                 className="text-primary hover:underline"

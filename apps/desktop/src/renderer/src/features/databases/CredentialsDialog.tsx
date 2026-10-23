@@ -25,7 +25,7 @@ export function CredentialsDialog() {
     >
       <div className="space-y-3 px-5 py-4">
         <p className="text-xs leading-relaxed text-fg-muted">
-          Quando vários clientes usam o mesmo usuário e senha, salve uma vez aqui e escolha a credencial em
+          Quando várias conexões usam o mesmo usuário e senha, salve uma vez aqui e escolha a credencial em
           cada conexão. Trocar a senha aqui vale para todas. A senha fica cifrada neste PC.
         </p>
         {credentials.map((c) => (
