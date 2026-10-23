@@ -11,6 +11,7 @@ export * from './contract/shape';
 export { type CurlParseResult, looksLikeCurl, parseCurl } from './curl/parse-curl';
 export * from './database/connection-string';
 export * from './database/describe';
+export * from './database/profile';
 export * from './database/sql';
 export * from './database/types';
 export * from './export/backup';

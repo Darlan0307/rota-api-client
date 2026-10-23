@@ -8,6 +8,7 @@ import {
   statementAt,
 } from '@rota/core/shared';
 import {
+  Activity,
   AlertTriangle,
   Braces,
   ChevronRight,
@@ -26,6 +27,7 @@ import {
   Square,
   Table2,
   Unplug,
+  X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Group, Panel, useDefaultLayout } from 'react-resizable-panels';
@@ -43,6 +45,8 @@ import { confirmDialog } from '../../state/dialogs';
 import { type DatabaseTab, useTabs } from '../../state/tabs';
 import { openTypesForTable } from '../types/TypesDialog';
 import { ConnectionDot, EnvironmentBadge } from './DatabasesPanel';
+import { ProfileView } from './ProfileView';
+import { closeProfile, runProfile, showProfile, useProfiles } from './profile-state';
 import { QueryHistory } from './QueryHistory';
 import { ResultGrid } from './ResultGrid';
 import { bindSqlEditor } from './sql-completion';
@@ -255,6 +259,7 @@ function SchemaTree({
 
   function query(table: DbTable) {
     const sql = previewSql(engine, table.ref);
+    showProfile(connectionId, false);
     updateQuery(connectionId, { sql });
     void runQuery(connectionId, sql, 100);
   }
@@ -288,7 +293,14 @@ function SchemaTree({
       },
       ...(many
         ? []
-        : [{ label: 'Gerar tipo TypeScript', icon: Braces, onSelect: () => openTypesForTable(table) }]),
+        : [
+            {
+              label: 'Analisar tabela (perfil das colunas)',
+              icon: Activity,
+              onSelect: () => void runProfile(connectionId, engine, table),
+            },
+            { label: 'Gerar tipo TypeScript', icon: Braces, onSelect: () => openTypesForTable(table) },
+          ]),
     ];
   }
 
@@ -522,6 +534,7 @@ function SqlEditor({
       });
       if (choice !== 'confirm') return;
     }
+    showProfile(id, false);
     await runQuery(id, text, Number(limit));
   }
 
@@ -585,7 +598,64 @@ function SqlEditor({
 // ---------------------------------------------------------------------------
 // Resultado
 
+/** Resultado da consulta e, se houver, o perfil de uma tabela (alternáveis). */
 function ResultArea({ id, name }: { id: string; name: string }) {
+  const profile = useProfiles((s) => s.byConnection[id]);
+  const view = useConnection(id);
+  const schema = useDatabases((s) => s.schemas[id]);
+  if (!profile) return <QueryResultArea id={id} name={name} />;
+
+  const retry = () => {
+    const table = schema?.tables.find((t) => t.name === profile.table);
+    if (table && view) void runProfile(id, view.config.engine, table);
+  };
+  const tab = (active: boolean, onClick: () => void, label: React.ReactNode) => (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={cn(
+        'relative flex h-full items-center gap-1 text-xs transition-colors',
+        active ? 'text-fg' : 'text-fg-muted hover:text-fg',
+      )}
+    >
+      {label}
+      {active && <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-primary" />}
+    </button>
+  );
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex h-8 shrink-0 items-stretch gap-4 border-b border-border px-3" role="tablist">
+        {tab(!profile.visible, () => showProfile(id, false), 'Resultado')}
+        {tab(
+          profile.visible,
+          () => showProfile(id, true),
+          <>
+            Perfil: <span className="font-mono">{profile.table}</span>
+          </>,
+        )}
+        <IconButton
+          icon={X}
+          label="Fechar o perfil"
+          size="sm"
+          className="self-center"
+          onClick={() => closeProfile(id)}
+        />
+      </div>
+      <div className="min-h-0 flex-1">
+        {profile.visible ? (
+          <ProfileView connectionId={id} state={profile} onRetry={retry} />
+        ) : (
+          <QueryResultArea id={id} name={name} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function QueryResultArea({ id, name }: { id: string; name: string }) {
   const query = useDatabases((s) => s.queries[id]);
   const view = useConnection(id);
   const running = view?.running ?? false;
