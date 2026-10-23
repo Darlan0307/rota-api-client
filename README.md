@@ -86,7 +86,7 @@ No app, abra **Configurações → Claude (MCP)**:
 
 Ao abrir, o app verifica uma vez se o servidor inicia e onde ele está configurado; o resultado aparece na barra de status ("MCP pronto") e em detalhe nessa mesma tela.
 
-O servidor roda com o próprio `Rota.exe` em modo Node, sem precisar de Node instalado. Em **Configurações → Claude (MCP) → Confirmações** você escolhe o que o Claude faz direto e o que pede confirmação no app: organizar, editar, excluir e enviar DELETE/PUT/PATCH (por padrão, organizar e editar passam direto). Esvaziar a lixeira, teste de carga e enviar valores secretos para um endereço que você ainda não usou sempre pedem. No diálogo, "Não perguntar de novo" libera aquele tipo de ação até fechar o app. Com o app fechado, ações que pedem confirmação são recusadas.
+O servidor roda com o próprio `Rota.exe` em modo Node, sem precisar de Node instalado. Em **Configurações → Claude (MCP) → Confirmações** você escolhe o que o Claude faz direto e o que pede confirmação no app: organizar, editar, excluir e enviar DELETE/PUT/PATCH (por padrão, organizar e editar passam direto). Esvaziar a lixeira, teste de carga e enviar valores secretos para um endereço que você ainda não usou sempre pedem. No diálogo, "Não perguntar de novo" libera aquele tipo de ação até fechar o app. Quem libera é o app: com ele fechado, o Claude só lê e cria; organizar, editar, excluir e enviar DELETE/PUT/PATCH são recusados.
 
 ## Variáveis de ambiente
 

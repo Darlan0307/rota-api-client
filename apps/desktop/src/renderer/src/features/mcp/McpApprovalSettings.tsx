@@ -4,7 +4,7 @@ import {
   MCP_CATEGORY_INFO,
   type McpAutoApprovable,
 } from '@rota/core/shared';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '../../components/Button';
 import { Switch } from '../../components/form';
 import { api, errorMessage } from '../../lib/api';
@@ -12,26 +12,37 @@ import { toast } from '../../state/toasts';
 
 /** Quais ações do Claude passam direto e quais pedem confirmação no app. */
 export function McpApprovalSettings() {
-  const [auto, setAuto] = useState<AppSettings['mcpAutoApprove'] | null>(null);
+  const [auto, setAutoState] = useState<AppSettings['mcpAutoApprove'] | null>(null);
+  // Valor mais recente fora do ciclo de render: cliques seguidos partem dele, não de um valor antigo.
+  const latest = useRef<AppSettings['mcpAutoApprove'] | null>(null);
+  const setAuto = (value: AppSettings['mcpAutoApprove']) => {
+    latest.current = value;
+    setAutoState(value);
+  };
   const [session, setSession] = useState<McpAutoApprovable[]>([]);
 
   useEffect(() => {
-    void api.invoke('settings:get').then((s) => setAuto(s.mcpAutoApprove));
+    void api.invoke('settings:get').then((s) => {
+      latest.current = s.mcpAutoApprove;
+      setAutoState(s.mcpAutoApprove);
+    });
     void api.invoke('mcp:sessionApprovals').then(setSession);
   }, []);
 
   if (!auto) return null;
 
   async function toggle(category: McpAutoApprovable, value: boolean) {
-    if (!auto) return;
-    const next = { ...auto, [category]: value };
+    if (!latest.current) return;
+    const next = { ...latest.current, [category]: value };
     setAuto(next);
+    // Não aplica a resposta: com cliques seguidos, ela chegaria depois do
+    // próximo clique e desfaria ele na tela. No erro, relê o que está salvo.
     try {
-      const saved = await api.invoke('settings:update', { mcpAutoApprove: next });
-      setAuto(saved.mcpAutoApprove);
+      await api.invoke('settings:update', { mcpAutoApprove: next });
     } catch (e) {
-      setAuto(auto);
       toast.error(errorMessage(e));
+      const saved = await api.invoke('settings:get').catch(() => null);
+      if (saved) setAuto(saved.mcpAutoApprove);
     }
   }
 
