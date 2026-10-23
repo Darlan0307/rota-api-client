@@ -237,6 +237,10 @@ export interface IpcContract {
   'export:all': { args: [includeSecrets: boolean]; result: BackupResult | null };
   /** Salva uma tabela da resposta em CSV (nome sugerido sem extensão). */
   'export:csv': { args: [name: string, csv: string]; result: string | null };
+  /** Pacote de contexto com os valores secretos do workspace trocados por ••••••. */
+  'context:mask': { args: [markdown: string]; result: string };
+  /** Salva o pacote (mascarado) onde o usuário escolher; folder é a pasta sugerida. */
+  'context:save': { args: [markdown: string, folder?: string]; result: string | null };
   /** Exporta um ambiente (ou as globais, com id null) no formato do Postman. */
   'export:variables': { args: [id: string | null]; result: string | null };
 
@@ -401,6 +405,8 @@ export const IPC_CHANNELS = [
   'export:collection',
   'export:variables',
   'export:csv',
+  'context:mask',
+  'context:save',
   'export:all',
   'examples:save',
   'loadtest:start',

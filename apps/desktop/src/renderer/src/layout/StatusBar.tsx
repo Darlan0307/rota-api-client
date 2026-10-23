@@ -1,5 +1,6 @@
 import * as Popover from '@radix-ui/react-popover';
 import { AlertTriangle, FolderOpen } from 'lucide-react';
+import { ContextPackIndicator } from '../features/context-pack/ContextPackDialog';
 import { McpStatusIndicator } from '../features/mcp/McpStatusIndicator';
 import { TunnelStatusIndicator } from '../features/tunnels/TunnelsPanel';
 import { api } from '../lib/api';
@@ -23,6 +24,7 @@ export function StatusBar() {
         <span className="truncate">{state.isDefault ? 'Workspace principal' : snapshot.root}</span>
       </button>
       <div className="flex-1" />
+      <ContextPackIndicator />
       <TunnelStatusIndicator />
       <McpStatusIndicator />
       {snapshot.problems.length > 0 && (

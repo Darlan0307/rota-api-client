@@ -6,6 +6,7 @@
 export * from './bridge/approval';
 export { CODEGEN_LABELS, CODEGEN_TARGETS, type CodegenTarget } from './codegen/codegen';
 export * from './codegen/types';
+export * from './context-pack/pack';
 export * from './contract/reference';
 export * from './contract/shape';
 export { type CurlParseResult, looksLikeCurl, parseCurl } from './curl/parse-curl';

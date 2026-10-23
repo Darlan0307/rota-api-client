@@ -20,6 +20,7 @@ import {
   LoaderCircle,
   Lock,
   MoreHorizontal,
+  PackagePlus,
   Pencil,
   Play,
   RefreshCw,
@@ -39,10 +40,13 @@ import { Select } from '../../components/form';
 import { IconButton } from '../../components/IconButton';
 import { Kbd } from '../../components/Kbd';
 import { ResizeHandle } from '../../layout/ResizeHandle';
+import { errorMessage } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import type { monaco } from '../../lib/monaco';
 import { confirmDialog } from '../../state/dialogs';
 import { type DatabaseTab, useTabs } from '../../state/tabs';
+import { toast } from '../../state/toasts';
+import { addProfileToPack, addTablesToPack } from '../context-pack/state';
 import { openTypesForTable } from '../types/TypesDialog';
 import { ConnectionDot, EnvironmentBadge } from './DatabasesPanel';
 import { ProfileView } from './ProfileView';
@@ -61,7 +65,7 @@ import {
   useConnection,
   useDatabases,
 } from './state';
-import { copyTablesMarkdown } from './table-actions';
+import { copyTablesMarkdown, sampleTables } from './table-actions';
 
 const LIMITS = ['100', '500', '1000', '5000'] as const;
 const LIMIT_KEY = 'rota:db-limit';
@@ -290,6 +294,21 @@ function SchemaTree({
         label: `Copiar estrutura + 10 linhas${suffix}`,
         icon: FileText,
         onSelect: () => void copyTablesMarkdown(connectionId, engine, targets, 10),
+      },
+      'separator' as const,
+      {
+        label: `Adicionar ao pacote${suffix}`,
+        icon: PackagePlus,
+        onSelect: () => addTablesToPack(engine, targets),
+      },
+      {
+        label: `Adicionar ao pacote + 10 linhas${suffix}`,
+        icon: PackagePlus,
+        onSelect: () =>
+          void sampleTables(connectionId, engine, targets, 10).then(
+            (samples) => addTablesToPack(engine, targets, samples),
+            (error: unknown) => toast.error(errorMessage(error)),
+          ),
       },
       ...(many
         ? []
@@ -646,7 +665,16 @@ function ResultArea({ id, name }: { id: string; name: string }) {
       </div>
       <div className="min-h-0 flex-1">
         {profile.visible ? (
-          <ProfileView connectionId={id} state={profile} onRetry={retry} />
+          <ProfileView
+            connectionId={id}
+            state={profile}
+            onRetry={retry}
+            extraActions={(result) => (
+              <Button size="sm" variant="ghost" onClick={() => addProfileToPack(result)}>
+                <PackagePlus className="size-3.5" /> Adicionar ao pacote
+              </Button>
+            )}
+          />
         ) : (
           <QueryResultArea id={id} name={name} />
         )}

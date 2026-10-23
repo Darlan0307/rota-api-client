@@ -336,6 +336,32 @@ export function registerIpcHandlers({
   handle('export:csv', (event, name, csv) =>
     saveAs(event, `${slugify(name) || 'tabela'}.csv`, 'csv', `﻿${csv}`),
   );
+
+  // Pacote de contexto: antes de sair do app (copiar ou salvar), troca todo valor
+  // secreto conhecido do workspace (qualquer coleção e ambiente) por ••••••.
+  const maskWorkspaceSecrets = (text: string) => {
+    const store = workspace.current;
+    const snapshot = store.snapshot();
+    const secrets = new Set<string>();
+    for (const environmentId of [null, ...snapshot.environments.map((e) => e.id)])
+      for (const parentId of [undefined, ...snapshot.collections.map((c) => c.id)])
+        for (const value of variableScopeFor(store, { parentId, environmentId }).secretValues())
+          secrets.add(value);
+    return maskSecretValues(text, [...secrets]);
+  };
+  handle('context:mask', (_e, markdown) => maskWorkspaceSecrets(markdown));
+  handle('context:save', async (event, markdown, folder) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const options: Electron.SaveDialogOptions = {
+      title: 'Salvar pacote de contexto',
+      defaultPath: join(folder || app.getPath('documents'), 'contexto-rota.md'),
+      filters: [{ name: 'Markdown', extensions: ['md'] }],
+    };
+    const result = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
+    if (result.canceled || !result.filePath) return null;
+    await writeFile(result.filePath, maskWorkspaceSecrets(markdown), 'utf8');
+    return result.filePath;
+  });
   handle('export:variables', (event, id) => {
     const snap = workspace.current.snapshot();
     if (id === null) {

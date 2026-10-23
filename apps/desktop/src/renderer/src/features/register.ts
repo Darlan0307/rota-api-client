@@ -9,6 +9,7 @@ import { BackupDialog, openBackupDialog } from './backup/BackupDialog';
 import { AskClaudeButton } from './claude/AskClaude';
 import { CodegenButton, CodegenDialog } from './codegen/CodegenDialog';
 import { compareSections } from './compare/ResponseCompare';
+import { AddRequestToPackButton, ContextPackDialog } from './context-pack/ContextPackDialog';
 import { handleUrlPaste } from './curl/paste-curl';
 import { ConnectionDialog } from './databases/ConnectionDialog';
 import { CredentialsDialog } from './databases/CredentialsDialog';
@@ -54,6 +55,7 @@ export function registerFeatures(): void {
   });
   registerOverlay(CodegenDialog);
   registerOverlay(TypesDialog);
+  registerOverlay(ContextPackDialog);
   registerRequestEditorExtensions({
     onUrlPaste: handleUrlPaste,
     headerActions: (tab) =>
@@ -72,6 +74,7 @@ export function registerFeatures(): void {
         createElement(SendHistoryButton, { tab }),
         createElement(GenerateTypesButton, { tab }),
         createElement(SaveExampleButton, { tab }),
+        createElement(AddRequestToPackButton, { tab }),
       ),
     responseBanner: (tab) => createElement(SendHistoryBanner, { tab }),
   });

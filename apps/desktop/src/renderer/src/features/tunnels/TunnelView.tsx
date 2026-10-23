@@ -22,6 +22,7 @@ import {
   Download,
   ExternalLink,
   LoaderCircle,
+  PackagePlus,
   PenLine,
   Play,
   Radio,
@@ -46,6 +47,7 @@ import type { HttpMethod } from '../../lib/http-method';
 import { confirmDialog } from '../../state/dialogs';
 import { type TunnelTab, useTabs } from '../../state/tabs';
 import { toast } from '../../state/toasts';
+import { addToPack } from '../context-pack/state';
 import {
   clearExchanges,
   installCloudflared,
@@ -756,6 +758,22 @@ function ExchangeDetail({
         <Button size="sm" variant="ghost" onClick={() => openAsRequest(exchange, target)}>
           <ExternalLink className="size-3.5" /> Abrir como requisição
         </Button>
+        {exchange.requestBody.encoding === 'utf8' && (
+          <IconButton
+            icon={PackagePlus}
+            label="Adicionar ao pacote de contexto"
+            size="sm"
+            onClick={() =>
+              addToPack({
+                kind: 'webhook',
+                title: exchange.simulated ?? `${exchange.method} ${exchange.path}`,
+                ...(provider ? { provider: findWebhookProvider(provider)?.name ?? provider } : {}),
+                path: exchange.path,
+                body: exchange.requestBody.data,
+              })
+            }
+          />
+        )}
       </div>
 
       {exchange.signature && <SignatureBadge check={exchange.signature} />}
