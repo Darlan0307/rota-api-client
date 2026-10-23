@@ -1,8 +1,11 @@
 import * as RadixDialog from '@radix-ui/react-dialog';
+import { isAutoApprovable, MCP_CATEGORY_INFO } from '@rota/core/shared';
 import { AlertTriangle, Bot } from 'lucide-react';
+import { useState } from 'react';
 import { create } from 'zustand';
 import type { McpConfirmRequest } from '../../../../shared/ipc';
 import { Button } from '../../components/Button';
+import { Checkbox } from '../../components/form';
 import { api } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import { toast } from '../../state/toasts';
@@ -10,18 +13,24 @@ import { toast } from '../../state/toasts';
 /** Fila de confirmações pedidas pelo Claude (mostradas uma de cada vez). */
 const useQueue = create<{ items: McpConfirmRequest[] }>()(() => ({ items: [] }));
 
-function answer(id: string, approved: boolean) {
+function removeFromQueue(id: string) {
   useQueue.setState((s) => ({ items: s.items.filter((i) => i.id !== id) }));
-  void api.invoke('mcp:respond', id, approved);
+}
+
+function answer(id: string, approved: boolean, rememberForSession = false) {
+  removeFromQueue(id);
+  void api.invoke('mcp:respond', id, approved, rememberForSession);
 }
 
 /** Assina os eventos do MCP (uma vez, na inicialização). */
 export function subscribeMcpEvents(): void {
   api.on('mcp:confirm', (request) => useQueue.setState((s) => ({ items: [...s.items, request] })));
   api.on('mcp:confirm-timeout', ({ id }) => {
-    useQueue.setState((s) => ({ items: s.items.filter((i) => i.id !== id) }));
+    removeFromQueue(id);
     toast.info('Uma solicitação do Claude expirou sem resposta e foi negada.');
   });
+  api.on('mcp:confirm-closed', ({ id }) => removeFromQueue(id));
+  api.on('mcp:auto-approved', ({ description }) => toast.info(`Permitido sem perguntar: ${description}`));
   api.on('mcp:notice', ({ message }) => toast.info(`Claude ${message}.`));
 }
 
@@ -29,6 +38,13 @@ export function McpConfirmDialog() {
   const items = useQueue((s) => s.items);
   const current = items[0];
   if (!current) return null;
+  // A chave zera o "não perguntar de novo" a cada solicitação.
+  return <ConfirmContent key={current.id} current={current} waiting={items.length - 1} />;
+}
+
+function ConfirmContent({ current, waiting }: { current: McpConfirmRequest; waiting: number }) {
+  const [remember, setRemember] = useState(false);
+  const category = isAutoApprovable(current.category) ? current.category : null;
 
   return (
     <RadixDialog.Root open onOpenChange={(open) => !open && answer(current.id, false)}>
@@ -68,10 +84,23 @@ export function McpConfirmDialog() {
                   ))}
                 </ul>
               )}
-              {items.length > 1 && (
-                <p className="mt-3 text-xs text-fg-subtle">
-                  +{items.length - 1} solicitação(ões) aguardando.
-                </p>
+              {waiting > 0 && (
+                <p className="mt-3 text-xs text-fg-subtle">+{waiting} solicitação(ões) aguardando.</p>
+              )}
+              {category && (
+                <div className="mt-4 flex items-center gap-2 text-xs text-fg-muted">
+                  <Checkbox checked={remember} onChange={setRemember} label="Não perguntar de novo" />
+                  {/* Fora da ordem do Tab: o checkbox ao lado já recebe o foco. */}
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    className="text-left"
+                    onClick={() => setRemember(!remember)}
+                  >
+                    Não perguntar de novo sobre <b className="text-fg">{MCP_CATEGORY_INFO[category].label}</b>{' '}
+                    até fechar o Rota (muda em Configurações → Claude)
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -80,7 +109,10 @@ export function McpConfirmDialog() {
             <Button autoFocus onClick={() => answer(current.id, false)}>
               Negar
             </Button>
-            <Button variant={current.danger ? 'danger' : 'primary'} onClick={() => answer(current.id, true)}>
+            <Button
+              variant={current.danger ? 'danger' : 'primary'}
+              onClick={() => answer(current.id, true, remember)}
+            >
               Permitir
             </Button>
           </div>

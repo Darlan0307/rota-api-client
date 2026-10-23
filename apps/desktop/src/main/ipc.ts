@@ -125,7 +125,11 @@ export function registerIpcHandlers({
     ),
   );
 
-  handle('mcp:respond', (_e, id, approved) => mcp.respond(id, approved));
+  handle('mcp:respond', (_e, id, approved, rememberForSession) =>
+    mcp.respond(id, approved, rememberForSession),
+  );
+  handle('mcp:sessionApprovals', () => mcp.sessionApprovals());
+  handle('mcp:clearSessionApprovals', () => mcp.clearSessionApprovals());
 
   const launchConfig = () => mcpLaunchConfig(process.execPath, app.getAppPath(), process.env.ROTA_DATA_DIR);
   const desktopStatus = async (config: McpLaunchConfig) => {

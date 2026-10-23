@@ -1,5 +1,6 @@
 /** Ponto de entrada completo (Node): app (processo principal) e servidor MCP. */
 
+export * from './bridge/approval';
 export * from './bridge/bridge';
 export { generateCode, shellQuote } from './codegen/codegen';
 export * from './database/common';

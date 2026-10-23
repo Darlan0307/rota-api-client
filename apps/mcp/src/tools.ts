@@ -459,11 +459,11 @@ export function registerTools(server: McpServer, session: McpSession): void {
     },
   );
 
-  // ---- Edição (exige confirmação no app) ----------------------------------
+  // ---- Edição (pode pedir confirmação no app) ----------------------------------
 
   tool(
     'atualizar_requisicao',
-    'Altera campos de uma requisição existente (só os informados). Requer confirmação do usuário no app.',
+    'Altera campos de uma requisição existente (só os informados). Pode pedir confirmação no app, conforme as configurações do usuário.',
     { id, ...requestFields },
     async (args) => {
       const store = await session.store();
@@ -479,6 +479,7 @@ export function registerTools(server: McpServer, session: McpSession): void {
           c.lines ? `${c.field}: alterado` : `${c.field}: ${c.before ?? '—'} → ${c.after ?? '—'}`,
         ),
         danger: false,
+        category: 'edit',
       });
       await store.updateRequest(args.id, next);
       await session.notifyChanged(`alterou a requisição "${node.name}"`);
@@ -488,7 +489,7 @@ export function registerTools(server: McpServer, session: McpSession): void {
 
   tool(
     'atualizar_pasta_ou_colecao',
-    'Altera auth, scripts ou descrição de uma pasta ou coleção. Requer confirmação no app.',
+    'Altera auth, scripts ou descrição de uma pasta ou coleção. Pode pedir confirmação no app.',
     { id, auth: AuthSchema.optional(), scripts: ScriptsSchema.optional(), descricao: z.string().optional() },
     async ({ id, auth, scripts, descricao }) => {
       const store = await session.store();
@@ -505,6 +506,7 @@ export function registerTools(server: McpServer, session: McpSession): void {
         description: `O Claude quer alterar ${itemLabel(store, id)}.`,
         details,
         danger: false,
+        category: 'edit',
       });
       const patch = {
         ...(auth ? { auth } : {}),
@@ -520,7 +522,7 @@ export function registerTools(server: McpServer, session: McpSession): void {
 
   tool(
     'renomear',
-    'Renomeia coleção, pasta, requisição, ambiente ou exemplo. Requer confirmação no app.',
+    'Renomeia coleção, pasta, requisição, ambiente ou exemplo. Pode pedir confirmação no app.',
     { id, nome: z.string() },
     async ({ id, nome }) => {
       const store = await session.store();
@@ -530,6 +532,7 @@ export function registerTools(server: McpServer, session: McpSession): void {
         description: `O Claude quer renomear ${label} para "${nome}".`,
         details: [],
         danger: false,
+        category: 'organize',
       });
       await store.rename(id, nome);
       await session.notifyChanged(`renomeou ${label} para "${nome}"`);
@@ -539,7 +542,7 @@ export function registerTools(server: McpServer, session: McpSession): void {
 
   tool(
     'mover',
-    'Move uma pasta/requisição para outra coleção/pasta (ou muda a posição). Requer confirmação no app.',
+    'Move uma pasta/requisição para outra coleção/pasta (ou muda a posição). Pode pedir confirmação no app.',
     { id, paiId: id, posicao: z.number().int().min(0).optional() },
     async ({ id, paiId, posicao }) => {
       const store = await session.store();
@@ -549,6 +552,7 @@ export function registerTools(server: McpServer, session: McpSession): void {
         description: `O Claude quer mover ${label} para ${itemLabel(store, paiId)}.`,
         details: [],
         danger: false,
+        category: 'organize',
       });
       await store.move(id, paiId, posicao);
       await session.notifyChanged(`moveu ${label}`);
@@ -558,7 +562,7 @@ export function registerTools(server: McpServer, session: McpSession): void {
 
   tool(
     'excluir',
-    'Exclui um item (vai para a lixeira do app e pode ser restaurado). Requer confirmação no app.',
+    'Exclui um item (vai para a lixeira do app e pode ser restaurado). Pode pedir confirmação no app.',
     { id },
     async ({ id }) => {
       const store = await session.store();
@@ -568,6 +572,7 @@ export function registerTools(server: McpServer, session: McpSession): void {
         description: `O Claude quer excluir ${label}.`,
         details: ['O item vai para a lixeira e pode ser restaurado.'],
         danger: true,
+        category: 'delete',
       });
       await (await session.trash()).moveToTrash(id);
       await session.bridge.notify({ kind: 'trash' });
@@ -653,7 +658,7 @@ export function registerTools(server: McpServer, session: McpSession): void {
 
   tool(
     'definir_variavel',
-    'Cria ou altera uma variável (ambiente, coleção ou global). Alterar uma existente requer confirmação no app. Variáveis secretas guardam o valor cifrado localmente.',
+    'Cria ou altera uma variável (ambiente, coleção ou global). Alterar uma existente pode pedir confirmação no app. Variáveis secretas guardam o valor cifrado localmente.',
     { ...scopeSchema, chave: z.string(), valor: z.string(), secreta: z.boolean().optional() },
     async ({ escopo, escopoId, chave, valor, secreta }) => {
       const store = await session.store();
@@ -670,6 +675,8 @@ export function registerTools(server: McpServer, session: McpSession): void {
               : `Valor atual: ${existing.value ?? ''}`,
           ],
           danger: false,
+          // Trocar um segredo perde o valor antigo (ele não aparece em lugar nenhum).
+          category: existing.type === 'secret' ? 'delete' : 'edit',
         });
       }
       if (existing || !secreta) await store.setVariable(target, chave, valor);
@@ -695,7 +702,7 @@ export function registerTools(server: McpServer, session: McpSession): void {
 
   tool(
     'remover_variavel',
-    'Remove uma variável. Requer confirmação no app.',
+    'Remove uma variável. Pode pedir confirmação no app.',
     { ...scopeSchema, chave: z.string() },
     async ({ escopo, escopoId, chave }) => {
       const store = await session.store();
@@ -707,6 +714,7 @@ export function registerTools(server: McpServer, session: McpSession): void {
         description: `O Claude quer remover a variável "${chave}" (${escopo}).`,
         details: [],
         danger: true,
+        category: 'delete',
       });
       await store.unsetVariable(target, chave);
       await session.notifyChanged(`removeu a variável "${chave}"`);
@@ -746,7 +754,7 @@ export function registerTools(server: McpServer, session: McpSession): void {
 
   tool(
     'enviar_requisicao',
-    'Envia uma requisição salva (id) ou avulsa (requisicao), com o ambiente ativo, auth herdada e scripts. DELETE, PUT e PATCH exigem confirmação no app, assim como enviar valores secretos para um endereço que o usuário ainda não usou. Valores secretos aparecem mascarados na resposta.',
+    'Envia uma requisição salva (id) ou avulsa (requisicao), com o ambiente ativo, auth herdada e scripts. DELETE, PUT e PATCH podem pedir confirmação no app; enviar valores secretos para um endereço que o usuário ainda não usou sempre pede. Valores secretos aparecem mascarados na resposta.',
     {
       id: z.string().optional().describe('Requisição salva'),
       requisicao: z
@@ -806,6 +814,7 @@ export function registerTools(server: McpServer, session: McpSession): void {
                 : []),
             ],
             danger: final.method === 'DELETE' || unknownHost,
+            category: unknownHost ? 'critical' : 'send',
           });
           if (unknownHost) approvedHosts.add(host);
         },
@@ -996,6 +1005,7 @@ export function registerTools(server: McpServer, session: McpSession): void {
           `Requisição: ${node.name}`,
         ],
         danger: true,
+        category: 'critical',
       });
       const r = await runLoadTest(prepared, config, { proxy: settings.proxy });
       return {
@@ -1054,6 +1064,7 @@ export function registerTools(server: McpServer, session: McpSession): void {
           .slice(0, 10)
           .map((e) => `${e.name}${e.breadcrumb.length ? ` (${e.breadcrumb.join(' › ')})` : ''}`),
         danger: true,
+        category: 'critical',
       });
       const count = await trash.empty();
       await session.bridge.notify({ kind: 'trash' });

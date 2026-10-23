@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import { appDataDir } from '../paths';
 import { readJsonIfExists, writeJsonAtomic } from '../util/fs';
+import { MCP_ACTION_CATEGORIES, type McpActionCategory } from './approval';
 
 /**
  * Ponte local entre o servidor MCP e o app aberto: named pipe (Windows) ou
@@ -25,6 +26,8 @@ export interface ConfirmRequest {
   details: string[];
   /** Para destacar ações irreversíveis. */
   danger: boolean;
+  /** Decide se o app pode liberar sem perguntar (veja `autoApproves`). */
+  category: McpActionCategory;
 }
 
 export interface ConfirmResponse {
@@ -53,6 +56,8 @@ const RequestSchema = z.discriminatedUnion('method', [
       description: z.string(),
       details: z.array(z.string()),
       danger: z.boolean(),
+      // Sem categoria válida, trata como crítica: sempre pergunta.
+      category: z.enum(MCP_ACTION_CATEGORIES).catch('critical'),
     }),
   }),
   z.object({

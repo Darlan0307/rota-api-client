@@ -124,7 +124,7 @@ if (!app.requestSingleInstanceLock()) {
       await workspace.open(null);
     }
     const loadTests = new LoadTestService(workspace, settings, `${APP_NAME}/${app.getVersion()}`);
-    const mcp = new McpBridge(workspace);
+    const mcp = new McpBridge(workspace, settings);
     await mcp.start().catch((error: unknown) => {
       // Outra instância (ou um processo antigo) segurando o pipe: o app segue sem a ponte.
       console.error('Ponte com o MCP indisponível:', error);

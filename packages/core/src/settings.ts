@@ -25,6 +25,15 @@ export const AppSettingsSchema = z.object({
    * escolha (null), abre o último usado.
    */
   startupWorkspace: z.object({ path: z.string().nullable() }).nullable().default(null),
+  /** Categorias de ação do Claude (MCP) que passam sem pedir confirmação no app. */
+  mcpAutoApprove: z
+    .object({
+      organize: z.boolean().default(true),
+      edit: z.boolean().default(true),
+      delete: z.boolean().default(false),
+      send: z.boolean().default(false),
+    })
+    .default({ organize: true, edit: true, delete: false, send: false }),
 });
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
 

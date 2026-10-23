@@ -6,6 +6,7 @@ import { api, errorMessage } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import { confirmDialog } from '../../state/dialogs';
 import { toast } from '../../state/toasts';
+import { McpApprovalSettings } from './McpApprovalSettings';
 import { checkMcp, useMcpStatus } from './mcp-status';
 
 const STATUS_TEXT: Record<McpSetupInfo['claudeDesktop']['status'], { label: string; tone: string }> = {
@@ -75,9 +76,9 @@ export function McpSettings() {
         <h3 className="text-sm font-semibold">Claude (MCP)</h3>
         <p className="mt-1 text-[13px] text-fg-muted">
           Com o servidor MCP do Rota, o Claude consegue listar, criar e editar coleções, ambientes e
-          requisições, enviar requisições e consultar o histórico. Ações que alteram ou apagam dados, e
-          requisições DELETE, PUT e PATCH, pedem sua confirmação aqui no app. Os valores de variáveis secretas
-          nunca são enviados ao Claude.
+          requisições, enviar requisições e consultar o histórico. Você escolhe abaixo o que ele faz direto e
+          o que pede sua confirmação aqui no app. Os valores de variáveis secretas nunca são enviados ao
+          Claude.
         </p>
       </div>
 
@@ -94,6 +95,8 @@ export function McpSettings() {
       )}
 
       <McpCheck />
+
+      <McpApprovalSettings />
 
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-4">

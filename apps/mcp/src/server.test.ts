@@ -156,14 +156,14 @@ describe('servidor MCP', () => {
     const denied = await call('enviar_requisicao', { id: req.data.id });
     expect(denied.isError).toBe(true);
     expect(denied.text).toMatch(/não autorizou/);
-    expect(confirmations[0]).toMatchObject({ title: 'Enviar DELETE', danger: true });
+    expect(confirmations[0]).toMatchObject({ title: 'Enviar DELETE', danger: true, category: 'send' });
     expect(received.filter((r) => r.method === 'DELETE')).toHaveLength(0);
     await bridge?.close();
 
     await openApp(true);
     const edited = await call('atualizar_requisicao', { id: req.data.id, url: `${base}/y` });
     expect(edited.data).toMatchObject({ atualizado: true, alteracoes: ['URL'] });
-    expect(confirmations.at(-1)?.details).toEqual([`URL: ${base}/x → ${base}/y`]);
+    expect(confirmations.at(-1)).toMatchObject({ details: [`URL: ${base}/x → ${base}/y`], category: 'edit' });
 
     const removed = await call('excluir', { id: req.data.id });
     expect(removed.data).toMatchObject({ excluido: true });
@@ -229,7 +229,11 @@ describe('servidor MCP', () => {
 
     const denied = await call('enviar_requisicao', { requisicao: { metodo: 'GET', url } });
     expect(denied.isError).toBe(true);
-    expect(confirmations.at(-1)).toMatchObject({ title: 'Enviar segredo para outro endereço', danger: true });
+    expect(confirmations.at(-1)).toMatchObject({
+      title: 'Enviar segredo para outro endereço',
+      danger: true,
+      category: 'critical',
+    });
     expect(denied.text).not.toContain('segredo-externo-123');
 
     // Endereço que o usuário já usou pelo app: segue sem perguntar (aqui só a rede falha).

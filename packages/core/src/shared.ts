@@ -3,6 +3,7 @@
  * (navegador). Tudo que lê disco, rede ou usa `node:*` fica em `index.ts`.
  */
 
+export * from './bridge/approval';
 export { CODEGEN_LABELS, CODEGEN_TARGETS, type CodegenTarget } from './codegen/codegen';
 export * from './contract/reference';
 export * from './contract/shape';

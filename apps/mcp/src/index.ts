@@ -25,8 +25,8 @@ export function createServer(session = new McpSession()): McpServer {
         `Em corpos de requisição, use dados de teste dinâmicos (valor novo a cada envio): ${DYNAMIC_REFS}.`,
         'Ao enviar uma requisição com exemplos salvos, o resultado traz "contrato": campos removidos ou com tipo diferente do exemplo.',
         'Valores de variáveis secretas nunca são exibidos (aparecem como ••••••), mas podem ser usados ao enviar requisições.',
-        'Editar ou excluir itens, enviar DELETE/PUT/PATCH, rodar teste de carga e esvaziar a lixeira pedem confirmação do usuário no app;',
-        'se ele negar ou o app estiver fechado, explique isso ao usuário em vez de tentar de novo.',
+        'Editar ou excluir itens e enviar DELETE/PUT/PATCH podem pedir confirmação do usuário no app (ele escolhe o que passa direto); teste de carga e esvaziar a lixeira sempre pedem.',
+        'Se ele negar ou o app estiver fechado, explique isso ao usuário em vez de tentar de novo.',
       ].join(' '),
     },
   );

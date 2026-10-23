@@ -27,6 +27,8 @@ import type {
   LoadTestConfig,
   LoadTestResult,
   LoadTestStats,
+  McpActionCategory,
+  McpAutoApprovable,
   PreparedRequest,
   RequestData,
   RunResult,
@@ -159,6 +161,7 @@ export interface McpConfirmRequest {
   description: string;
   details: string[];
   danger: boolean;
+  category: McpActionCategory;
 }
 
 export interface SaveExampleInput {
@@ -242,7 +245,11 @@ export interface IpcContract {
 
   /** Resposta do usuário a uma confirmação pedida pelo Claude (MCP). */
   // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
-  'mcp:respond': { args: [id: string, approved: boolean]; result: void };
+  'mcp:respond': { args: [id: string, approved: boolean, rememberForSession?: boolean]; result: void };
+  /** Categorias liberadas até fechar o app (pelo "não perguntar de novo"). */
+  'mcp:sessionApprovals': { args: []; result: McpAutoApprovable[] };
+  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
+  'mcp:clearSessionApprovals': { args: []; result: void };
   'mcp:setup': { args: []; result: McpSetupInfo };
   /** Inclui o Rota no Claude Desktop (com cópia de segurança do arquivo). */
   'mcp:installClaudeDesktop': { args: []; result: { backupPath: string | null } };
@@ -350,6 +357,10 @@ export interface IpcEvents {
   /** O Claude pede confirmação para uma ação destrutiva. */
   'mcp:confirm': McpConfirmRequest;
   'mcp:confirm-timeout': { id: string };
+  /** Confirmação respondida por outra ("não perguntar de novo" na mesma categoria). */
+  'mcp:confirm-closed': { id: string };
+  /** Ação liberada sem perguntar que não gera aviso próprio (envio PUT/PATCH/DELETE). */
+  'mcp:auto-approved': { description: string };
   /** O Claude alterou algo (aviso discreto). */
   'mcp:notice': { message: string };
   /** Túneis mudaram (status, URL, chamadas recebidas). */
@@ -395,6 +406,8 @@ export const IPC_CHANNELS = [
   'mcp:setup',
   'mcp:installClaudeDesktop',
   'mcp:status',
+  'mcp:sessionApprovals',
+  'mcp:clearSessionApprovals',
   'trash:list',
   'trash:restore',
   'trash:remove',
@@ -443,6 +456,8 @@ export const IPC_EVENTS = [
   'loadtest:progress',
   'mcp:confirm',
   'mcp:confirm-timeout',
+  'mcp:confirm-closed',
+  'mcp:auto-approved',
   'mcp:notice',
   'tunnel:changed',
   'tunnel:download',
