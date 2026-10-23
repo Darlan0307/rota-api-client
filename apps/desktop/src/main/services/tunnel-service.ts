@@ -14,6 +14,7 @@ import {
   joinUrl,
   Mutex,
   newId,
+  normalizeSavedEvents,
   normalizeTarget,
   QuickTunnel,
   readJsonIfExists,
@@ -64,7 +65,9 @@ const HMAC_ALGORITHMS = ['sha1', 'sha256', 'sha512'] as const;
 /** Configuração de webhook vinda do arquivo ou da tela, com os valores conferidos. */
 function normalizeWebhook(value: Partial<WebhookSettings> | undefined): WebhookSettings {
   const hmac = { ...DEFAULT_HMAC, ...value?.hmac };
+  const savedEvents = normalizeSavedEvents(value?.savedEvents);
   return {
+    ...(savedEvents.length > 0 ? { savedEvents } : {}),
     provider: findWebhookProvider(value?.provider)?.id ?? null,
     hmac: {
       header: typeof hmac.header === 'string' ? hmac.header.trim() : DEFAULT_HMAC.header,
@@ -482,7 +485,7 @@ export class TunnelService {
    */
   async simulate(
     id: string,
-    input: { body: string; path: string; eventId?: string },
+    input: { body: string; path: string; eventId?: string; label?: string },
     scope: VariableScope = new VariableScope([]),
   ): Promise<TunnelExchangeSummary> {
     const config = this.config(id);
@@ -506,7 +509,11 @@ export class TunnelService {
       path: signed.path,
       headers: [['Content-Type', contentType], ...signed.headers],
       body: Buffer.from(body, 'utf8'),
-      label: event ? `${provider.shortName} · ${event.label}` : provider.shortName,
+      label: input.label
+        ? `${provider.shortName} · ${input.label}`
+        : event
+          ? `${provider.shortName} · ${event.label}`
+          : provider.shortName,
     });
     return summarizeExchange(exchange);
   }

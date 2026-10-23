@@ -314,7 +314,7 @@ export interface IpcContract {
   'tunnel:setWebhookSecret': { args: [id: string, value: string | null]; result: void };
   /** Envia um webhook simulado e assinado direto para a API local. */
   'tunnel:simulate': {
-    args: [id: string, input: { body: string; path: string; eventId?: string }];
+    args: [id: string, input: { body: string; path: string; eventId?: string; label?: string }];
     result: TunnelExchangeSummary;
   };
 

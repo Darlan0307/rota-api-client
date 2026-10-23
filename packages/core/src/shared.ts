@@ -59,3 +59,4 @@ export * from './variables/fill';
 export type { VariableInput } from './variables/persist';
 export * from './variables/template';
 export * from './webhooks/providers';
+export * from './webhooks/saved-events';

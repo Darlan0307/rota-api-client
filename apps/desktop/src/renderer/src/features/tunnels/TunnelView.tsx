@@ -14,6 +14,7 @@ import {
 } from '@rota/core/shared';
 import {
   ArrowRight,
+  BookmarkPlus,
   CircleAlert,
   CircleCheck,
   CircleHelp,
@@ -51,6 +52,7 @@ import {
   openSimulator,
   removeTunnel,
   replayExchange,
+  saveWebhookEvent,
   selectExchange,
   startTunnel,
   stopTunnel,
@@ -730,6 +732,25 @@ function ExchangeDetail({
             }}
           >
             <PenLine className="size-3.5" /> Editar e reenviar
+          </Button>
+        )}
+        {exchange.requestBody.encoding === 'utf8' && !exchange.requestBody.truncated && (
+          <Button
+            size="sm"
+            variant="ghost"
+            title="Guarda este corpo no simulador (Meus eventos), para reenviar depois com uma assinatura nova"
+            onClick={() => {
+              const eventId = guessEvent(provider, exchange.requestHeaders);
+              const template = findWebhookProvider(provider)?.events.find((e) => e.id === eventId);
+              void saveWebhookEvent(tunnelId, {
+                body: exchange.requestBody.data,
+                path: exchange.path,
+                ...(eventId ? { eventId } : {}),
+                suggestedName: template?.label ?? exchange.simulated ?? `${exchange.method} ${exchange.path}`,
+              });
+            }}
+          >
+            <BookmarkPlus className="size-3.5" /> Salvar como evento
           </Button>
         )}
         <Button size="sm" variant="ghost" onClick={() => openAsRequest(exchange, target)}>

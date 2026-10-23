@@ -21,6 +21,8 @@ export type ConfirmResult = 'confirm' | 'alternate' | 'cancel';
 export interface PromptOptions {
   title: string;
   label?: string;
+  /** Texto explicativo acima do campo. */
+  description?: string;
   initialValue?: string;
   placeholder?: string;
   confirmLabel?: string;

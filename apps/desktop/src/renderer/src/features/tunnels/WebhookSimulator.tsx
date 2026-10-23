@@ -7,7 +7,7 @@ import {
   WEBHOOK_PROVIDERS,
   type WebhookProviderId,
 } from '@rota/core/shared';
-import { KeyRound, LoaderCircle, Send } from 'lucide-react';
+import { BookmarkPlus, KeyRound, LoaderCircle, Send } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Button } from '../../components/Button';
 import { CodeEditor } from '../../components/CodeEditor';
@@ -15,6 +15,9 @@ import { Dialog } from '../../components/Dialog';
 import { Field, Select, TextInput } from '../../components/form';
 import {
   closeSimulator,
+  removeSavedEvent,
+  renameSavedEvent,
+  saveWebhookEvent,
   setWebhookSecret,
   simulateWebhook,
   updateTunnel,
@@ -23,6 +26,8 @@ import {
 } from './state';
 
 const NO_PROVIDER = 'none';
+/** Prefixo dos eventos salvos no seletor (os de exemplo usam o id do provedor). */
+const SAVED = 'saved:';
 type ProviderChoice = WebhookProviderId | typeof NO_PROVIDER;
 
 const PROVIDER_OPTIONS = [
@@ -87,15 +92,33 @@ function SimulatorForm({
     if (!initialBody) setBody(first?.body ?? '');
   }
 
+  const savedEvents = config.webhook.savedEvents ?? [];
+  const saved = eventId.startsWith(SAVED)
+    ? savedEvents.find((e) => `${SAVED}${e.id}` === eventId)
+    : undefined;
+
   function chooseEvent(id: string) {
     setEventId(id);
+    const mine = savedEvents.find((e) => `${SAVED}${e.id}` === id);
+    if (mine) {
+      setBody(mine.body);
+      if (mine.path) setPath(mine.path);
+      return;
+    }
     const event = provider?.events.find((e) => e.id === id);
     if (event) setBody(event.body);
   }
 
   async function send() {
     setSending(true);
-    const ok = await simulateWebhook(config.id, { body, path, ...(eventId ? { eventId } : {}) });
+    // Evento salvo: os headers fixos vêm do modelo do provedor de onde ele veio.
+    const template = saved ? saved.eventId : eventId || undefined;
+    const ok = await simulateWebhook(config.id, {
+      body,
+      path,
+      ...(template ? { eventId: template } : {}),
+      ...(saved ? { label: saved.name } : {}),
+    });
     setSending(false);
     if (ok) closeSimulator();
   }
@@ -134,13 +157,43 @@ function SimulatorForm({
                     ...(initialBody !== undefined && !eventId
                       ? [{ value: '', label: 'Corpo da chamada recebida' }]
                       : []),
+                    ...(eventId.startsWith(SAVED) && !saved
+                      ? [{ value: eventId, label: 'Evento excluído' }]
+                      : []),
+                    ...savedEvents.map((e) => ({
+                      value: `${SAVED}${e.id}`,
+                      label: `★ ${e.name}`,
+                      hint:
+                        e.provider && e.provider !== provider.id
+                          ? (findWebhookProvider(e.provider)?.shortName ?? 'salvo')
+                          : 'salvo',
+                    })),
                     ...provider.events.map((e) => ({ value: e.id, label: e.label })),
                   ]}
                   onChange={chooseEvent}
                   ariaLabel="Evento de exemplo"
                   triggerClassName="h-8 w-full"
+                  className="max-h-80 overflow-y-auto"
                 />
               </Field>
+              {saved && (
+                <div className="-mt-2 flex gap-3 text-xs">
+                  <button
+                    type="button"
+                    className="text-fg-muted hover:text-fg"
+                    onClick={() => void renameSavedEvent(config.id, saved.id)}
+                  >
+                    Renomear
+                  </button>
+                  <button
+                    type="button"
+                    className="text-fg-muted hover:text-danger"
+                    onClick={() => void removeSavedEvent(config.id, saved.id)}
+                  >
+                    Excluir evento
+                  </button>
+                </div>
+              )}
             </>
           )}
 
@@ -163,9 +216,27 @@ function SimulatorForm({
         <div className="flex min-h-[260px] min-w-0 flex-col">
           <div className="flex h-9 shrink-0 items-center px-4 text-xs text-fg-muted">
             Corpo
-            <span className="ml-auto text-2xs text-fg-subtle">
+            <span className="ml-auto truncate pl-3 text-2xs text-fg-subtle">
               {'{{$guid}}, {{$cpf}}... geram dados novos a cada envio; {{variáveis}} vêm do ambiente ativo'}
             </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="ml-2 shrink-0"
+              disabled={!body.trim()}
+              title="Guarda este corpo em Meus eventos, para reenviar depois"
+              onClick={() =>
+                void saveWebhookEvent(config.id, {
+                  body,
+                  path,
+                  ...(!saved && eventId ? { eventId } : saved?.eventId ? { eventId: saved.eventId } : {}),
+                  suggestedName:
+                    saved?.name ?? provider?.events.find((e) => e.id === eventId)?.label ?? 'Meu evento',
+                })
+              }
+            >
+              <BookmarkPlus className="size-3.5" /> Salvar
+            </Button>
           </div>
           <div className="min-h-0 flex-1 border-t border-border">
             <CodeEditor value={body} onChange={setBody} language="json" variables />

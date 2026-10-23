@@ -1,8 +1,16 @@
-import { normalizeTarget, type TunnelConfig, type TunnelView } from '@rota/core/shared';
+import {
+  looksPersonal,
+  MAX_SAVED_EVENT_BODY,
+  MAX_SAVED_EVENTS,
+  normalizeTarget,
+  type SavedWebhookEvent,
+  type TunnelConfig,
+  type TunnelView,
+} from '@rota/core/shared';
 import { create } from 'zustand';
 import type { CloudflaredInfo } from '../../../../shared/ipc';
 import { api, errorMessage } from '../../lib/api';
-import { promptDialog } from '../../state/dialogs';
+import { confirmDialog, promptDialog } from '../../state/dialogs';
 import { useTabs } from '../../state/tabs';
 import { toast } from '../../state/toasts';
 import { useUiStore } from '../../state/ui';
@@ -184,7 +192,7 @@ export async function setWebhookSecret(id: string, value: string | null): Promis
 /** Envia o webhook simulado e seleciona a chamada na lista. */
 export async function simulateWebhook(
   id: string,
-  input: { body: string; path: string; eventId?: string },
+  input: { body: string; path: string; eventId?: string; label?: string },
 ): Promise<boolean> {
   const result = await guarded(() => api.invoke('tunnel:simulate', id, input));
   if (!result) return false;
@@ -192,4 +200,84 @@ export async function simulateWebhook(
   if (result.error) toast.error(result.error);
   else toast.success(`Webhook simulado: a API respondeu ${result.status}.`);
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// Eventos salvos (payloads para reenviar pelo simulador)
+
+function tunnelConfig(id: string): TunnelConfig | undefined {
+  return useTunnels.getState().views.find((v) => v.config.id === id)?.config;
+}
+
+async function writeSavedEvents(id: string, change: (list: SavedWebhookEvent[]) => SavedWebhookEvent[]) {
+  const config = tunnelConfig(id);
+  if (!config) return false;
+  const savedEvents = change(config.webhook.savedEvents ?? []);
+  return updateTunnel(id, { webhook: { ...config.webhook, savedEvents } });
+}
+
+/** Guarda um payload (recebido ou editado) como evento do simulador. */
+export async function saveWebhookEvent(
+  id: string,
+  input: { body: string; path?: string; eventId?: string; suggestedName: string },
+): Promise<void> {
+  const config = tunnelConfig(id);
+  if (!config) return;
+  if (input.body.length > MAX_SAVED_EVENT_BODY) {
+    toast.error('Corpo grande demais para guardar como evento (limite de 256 KB).');
+    return;
+  }
+  const list = config.webhook.savedEvents ?? [];
+  if (list.length >= MAX_SAVED_EVENTS) {
+    toast.error(`Limite de ${MAX_SAVED_EVENTS} eventos salvos neste túnel: exclua algum no simulador.`);
+    return;
+  }
+  const name = await promptDialog({
+    title: 'Salvar como evento',
+    label: 'Nome do evento',
+    description: looksPersonal(input.body)
+      ? 'Atenção: o corpo parece ter dados pessoais (CPF, e-mail ou celular). Ele fica só neste PC (tunnels.json), mas considere trocar por dados de teste no simulador antes de usar em prints ou exemplos.'
+      : 'Fica no simulador deste túnel ("Meus eventos"), para reenviar com uma assinatura nova.',
+    initialValue: input.suggestedName,
+    validate: (v) => (v.trim() ? null : 'Informe um nome.'),
+  });
+  if (!name) return;
+  const event: SavedWebhookEvent = {
+    id: crypto.randomUUID(),
+    name: name.trim(),
+    body: input.body,
+    ...(input.path ? { path: input.path } : {}),
+    ...(input.eventId ? { eventId: input.eventId } : {}),
+    provider: config.webhook.provider,
+    savedAt: new Date().toISOString(),
+  };
+  if (await writeSavedEvents(id, (current) => [event, ...current]))
+    toast.success(`Evento "${event.name}" salvo no simulador.`);
+}
+
+export async function renameSavedEvent(id: string, eventId: string): Promise<void> {
+  const current = tunnelConfig(id)?.webhook.savedEvents?.find((e) => e.id === eventId);
+  if (!current) return;
+  const name = await promptDialog({
+    title: 'Renomear evento',
+    label: 'Nome do evento',
+    initialValue: current.name,
+    validate: (v) => (v.trim() ? null : 'Informe um nome.'),
+  });
+  if (name)
+    await writeSavedEvents(id, (list) =>
+      list.map((e) => (e.id === eventId ? { ...e, name: name.trim() } : e)),
+    );
+}
+
+export async function removeSavedEvent(id: string, eventId: string): Promise<void> {
+  const current = tunnelConfig(id)?.webhook.savedEvents?.find((e) => e.id === eventId);
+  if (!current) return;
+  const choice = await confirmDialog({
+    title: `Excluir o evento "${current.name}"?`,
+    description: 'O payload salvo é apagado deste PC.',
+    confirmLabel: 'Excluir',
+    danger: true,
+  });
+  if (choice === 'confirm') await writeSavedEvents(id, (list) => list.filter((e) => e.id !== eventId));
 }

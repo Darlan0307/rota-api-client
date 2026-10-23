@@ -1,3 +1,5 @@
+import type { SavedWebhookEvent } from './saved-events';
+
 /**
  * Provedores de webhook que o simulador sabe assinar, com eventos de exemplo.
  * Os corpos usam dados de teste ({{$guid}}, {{$timestamp}}...): cada envio gera
@@ -32,6 +34,8 @@ export const DEFAULT_HMAC: HmacSettings = {
 export interface WebhookSettings {
   provider: WebhookProviderId | null;
   hmac: HmacSettings;
+  /** Payloads guardados para reenviar pelo simulador. */
+  savedEvents?: SavedWebhookEvent[];
 }
 
 export const DEFAULT_WEBHOOK_SETTINGS: WebhookSettings = { provider: null, hmac: DEFAULT_HMAC };

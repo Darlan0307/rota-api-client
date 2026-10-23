@@ -96,6 +96,9 @@ function PromptView({ options, resolve }: { options: PromptOptions; resolve: (v:
       className="w-[min(440px,92vw)]"
     >
       <form onSubmit={submit} className="space-y-5 p-5">
+        {options.description && (
+          <p className="text-[13px] leading-relaxed text-fg-muted">{options.description}</p>
+        )}
         <Field
           label={options.label ?? 'Nome'}
           hint={error ? <span className="text-danger">{error}</span> : undefined}
