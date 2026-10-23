@@ -98,6 +98,13 @@ describe('configuração do MCP para o Claude', () => {
       // A cópia do pacote tem prioridade.
       await writeFile(join(pkg, 'claude_desktop_config.json'), '{}');
       expect(await findClaudeDesktopConfigPath(appData, local)).toBe(join(pkg, 'claude_desktop_config.json'));
+      // Versões recentes guardam os dados fora do pacote: essa pasta vence as outras.
+      const data = join(local, 'Claude-Data', 'claude_abc123');
+      await mkdir(data, { recursive: true });
+      await writeFile(join(local, 'Claude-Data', 'README.txt'), 'x');
+      expect(await findClaudeDesktopConfigPath(appData, local)).toBe(
+        join(data, 'claude_desktop_config.json'),
+      );
     });
 
     it('procura o Rota em todas as pastas de configuração do Claude Code', async () => {

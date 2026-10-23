@@ -45,7 +45,11 @@ export function McpSettings() {
             restante do arquivo é mantido e uma cópia de segurança é criada ao lado dele.
           </p>
           <p className="break-all font-mono text-xs text-fg-muted">{info.claudeDesktop.path}</p>
-          <p>Depois, feche e abra o Claude Desktop para ele carregar o servidor.</p>
+          <p>
+            <b>Antes, feche o Claude Desktop por completo</b> (ícone perto do relógio → Sair): aberto, ele
+            regrava esse arquivo e pode apagar a configuração do Rota. Depois de configurar, abra o Claude de
+            novo.
+          </p>
         </div>
       ),
       confirmLabel: info.claudeDesktop.status === 'outdated' ? 'Atualizar' : 'Configurar',

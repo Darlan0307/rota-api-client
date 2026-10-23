@@ -58,10 +58,13 @@ export function claudeDesktopConfigPath(appData = process.env.APPDATA ?? ''): st
 }
 
 /**
- * Arquivo que o Claude Desktop realmente lê. O instalador atual é MSIX, que
- * virtualiza o %APPDATA%: o app enxerga primeiro a cópia dentro do pacote
- * (LocalCache) e só cai no %APPDATA% real quando ela não existe. Gravar no
- * lugar errado deixaria o Rota "configurado" sem o Claude ver.
+ * Arquivo que o Claude Desktop realmente lê. Gravar no lugar errado deixaria
+ * o Rota "configurado" sem o Claude ver. Em ordem:
+ * 1. Versões recentes (MSIX) guardam os dados fora do pacote, em
+ *    %LOCALAPPDATA%\Claude-Data\claude_<id do pacote>.
+ * 2. MSIX mais antigo virtualiza o %APPDATA%: o app enxerga primeiro a cópia
+ *    dentro do pacote (LocalCache) e só cai no %APPDATA% real sem ela.
+ * 3. Instalador clássico: %APPDATA%\Claude.
  */
 export async function findClaudeDesktopConfigPath(
   appData = process.env.APPDATA ?? '',
@@ -69,6 +72,10 @@ export async function findClaudeDesktopConfigPath(
 ): Promise<string> {
   const real = claudeDesktopConfigPath(appData);
   if (!localAppData) return real;
+  const dataRoot = join(localAppData, 'Claude-Data');
+  const dataDirs = await readdir(dataRoot, { withFileTypes: true }).catch(() => []);
+  const dataDir = dataDirs.find((e) => e.isDirectory() && /^claude_[a-z0-9]+$/i.test(e.name));
+  if (dataDir) return join(dataRoot, dataDir.name, 'claude_desktop_config.json');
   const packages = join(localAppData, 'Packages');
   const entries = await readdir(packages).catch(() => [] as string[]);
   const pkg = entries.find((name) => /^Claude_[a-z0-9]+$/i.test(name));
