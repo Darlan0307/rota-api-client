@@ -119,7 +119,6 @@ packages/
                   variáveis, HTTP, scripts, importação/exportação, histórico,
                   lixeira, teste de carga e túneis
 docs/
-  DECISOES.md     decisões técnicas e de produto, com o motivo de cada uma
   screenshots/
 ```
 
