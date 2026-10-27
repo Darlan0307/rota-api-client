@@ -355,7 +355,7 @@ export class TunnelInspector {
         response.on('end', () => {
           client?.end();
           const durationMs = Date.now() - started;
-          void responseRecorder.toResponseBody(responseHeaders).then((responseBody) =>
+          const record = (responseBody: TunnelBody) =>
             finish({
               ...base,
               requestBody: requestRecorder.toBody(headerOf(input.headers, 'content-type')),
@@ -363,8 +363,11 @@ export class TunnelInspector {
               responseHeaders,
               responseBody,
               durationMs,
-            }),
-          );
+            });
+          void responseRecorder
+            .toResponseBody(responseHeaders)
+            .catch(() => responseRecorder.toBody(headerOf(responseHeaders, 'content-type')))
+            .then(record);
         });
         // A API caiu no meio da resposta (ou quem chamou desistiu).
         response.on('close', () => {

@@ -5,6 +5,8 @@ import {
   describeContractIssue,
   type ExampleFile,
   findNode,
+  formatJson,
+  formatJsonSorted,
   type HistorySummary,
   type HttpResponse,
   tryParseJson,
@@ -498,19 +500,6 @@ function diffHeaders(before: [string, string][], after: [string, string][]) {
 
 /** JSON formatado (e com campos em ordem alfabética, se pedido) para o diff não acusar só formatação. */
 function normalize(body: string, sortKeys: boolean): string {
-  const parsed = tryParseJson(body);
-  if (!parsed) return body;
-  return JSON.stringify(sortKeys ? sortDeep(parsed.value) : parsed.value, null, 2);
-}
-
-function sortDeep(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortDeep);
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([k, v]) => [k, sortDeep(v)]),
-    );
-  }
-  return value;
+  const trimmed = body.trim();
+  return (sortKeys ? formatJsonSorted(trimmed) : formatJson(trimmed)) ?? body;
 }

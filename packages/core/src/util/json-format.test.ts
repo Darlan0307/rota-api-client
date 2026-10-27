@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatJson, hasLossyNumbers, parseJsonLossless } from './json-format';
+import { formatJson, formatJsonSorted, hasLossyNumbers, parseJsonLossless } from './json-format';
 
 describe('formatJson', () => {
   it('formata igual ao JSON.stringify quando não há números sensíveis', () => {
@@ -42,5 +42,24 @@ describe('hasLossyNumbers', () => {
     expect(hasLossyNumbers('{"id":9007199254740993}')).toBe(true);
     expect(hasLossyNumbers('[0.123456789012345678901]')).toBe(true);
     expect(hasLossyNumbers('{"id":9007199254740991,"p":10.50,"t":"12345678901234567890"}')).toBe(false);
+  });
+});
+
+describe('formatJsonSorted', () => {
+  it('ordena as chaves mantendo os números como vieram', () => {
+    expect(formatJsonSorted('{"b":12345678901234567891,"a":{"d":10.50,"c":1}}')).toBe(
+      '{\n  "a": {\n    "c": 1,\n    "d": 10.50\n  },\n  "b": 12345678901234567891\n}',
+    );
+  });
+
+  it('distingue IDs grandes que só mudam nos últimos dígitos', () => {
+    expect(formatJsonSorted('{"id":12345678901234567891}')).not.toBe(
+      formatJsonSorted('{"id":12345678901234567892}'),
+    );
+  });
+
+  it('não confunde texto com número', () => {
+    expect(formatJsonSorted('{"a":"10.50"}')).toBe('{\n  "a": "10.50"\n}');
+    expect(formatJsonSorted('{"a":')).toBeNull();
   });
 });

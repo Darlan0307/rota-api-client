@@ -51,6 +51,41 @@ export function parseJsonLossless(text: string): unknown {
   );
 }
 
+const NUMBER_MARK = '\u0000rota-numero:';
+
+/**
+ * Formata com as chaves dos objetos em ordem alfabética (para comparar
+ * respostas), mantendo os números como vieram. null se não for JSON válido.
+ */
+export function formatJsonSorted(text: string): string | null {
+  let value: unknown;
+  try {
+    value = (
+      JSON.parse as (t: string, r: (k: string, v: unknown, c?: { source?: string }) => unknown) => unknown
+    )(text, (_key, v, context) =>
+      typeof v === 'number' && context?.source !== undefined && context.source !== String(v)
+        ? `${NUMBER_MARK}${context.source}`
+        : v,
+    );
+  } catch {
+    return null;
+  }
+  // O JSON.stringify escreve o \u0000 da marca como "\\u0000": é assim que ela aparece no texto.
+  return JSON.stringify(sortKeys(value), null, 2).replace(/"\\u0000rota-numero:([^"]+)"/g, '$1');
+}
+
+function sortKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort((a, b) => a.localeCompare(b))
+        .map((k) => [k, sortKeys((value as Record<string, unknown>)[k])]),
+    );
+  }
+  return value;
+}
+
 /** Algum número do JSON muda ao virar number do JavaScript? */
 export function hasLossyNumbers(text: string): boolean {
   for (let i = 0; i < text.length; i++) {

@@ -12,6 +12,7 @@ import {
   type Scripts,
 } from '../model/schemas';
 import type { ImportedChild, ImportedCollection } from '../storage/workspace-store';
+import { formatJson } from '../util/json-format';
 import { DYNAMIC_VARIABLE_NAMES } from '../variables/dynamic';
 import type { VariableInput } from '../variables/persist';
 
@@ -429,18 +430,24 @@ function convertBody(body: PmRequest['body'], ctx: Context, path: string): Body 
     }
     case 'graphql': {
       const gql = isDict(body.graphql) ? body.graphql : {};
-      let variables: unknown = {};
-      try {
-        variables = gql.variables ? JSON.parse(String(gql.variables)) : {};
-      } catch {
-        variables = {};
-        ctx.warn(path, 'As variáveis GraphQL não eram JSON válido e foram descartadas.');
+      // O texto das variáveis entra como está: JSON.parse arredondaria IDs grandes.
+      const rawVariables =
+        typeof gql.variables === 'string'
+          ? gql.variables.trim()
+          : gql.variables
+            ? JSON.stringify(gql.variables)
+            : '';
+      let variables = '{}';
+      if (rawVariables !== '') {
+        if (formatJson(rawVariables) !== null) variables = rawVariables;
+        else ctx.warn(path, 'As variáveis GraphQL não eram JSON válido e foram descartadas.');
       }
       ctx.warn(
         path,
         'Body GraphQL convertido para JSON ({ "query", "variables" }), que é o que o Postman envia.',
       );
-      return { mode: 'json', text: JSON.stringify({ query: toText(gql.query), variables }, null, 2) };
+      const text = `{"query":${JSON.stringify(toText(gql.query))},"variables":${variables}}`;
+      return { mode: 'json', text: formatJson(text) ?? text };
     }
     case 'file':
       ctx.warn(path, 'Body do tipo "binary/arquivo" não é suportado; use form-data.');

@@ -192,6 +192,25 @@ describe('convertCollection', () => {
     expect(produto.auth).toEqual({ type: 'none' });
   });
 
+  it('mantém IDs grandes das variáveis GraphQL sem arredondar', () => {
+    const { collection: gql } = convertCollection({
+      info: { name: 'G', schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' },
+      item: [
+        {
+          name: 'Q',
+          request: {
+            method: 'POST',
+            url: 'http://x/graphql',
+            body: { mode: 'graphql', graphql: { query: '{ a }', variables: '{"id": 12345678901234567891}' } },
+          },
+        },
+      ],
+    });
+    const [req] = gql.children;
+    if (req?.kind !== 'request') throw new Error('req');
+    expect((req.data.body as { text: string }).text).toContain('"id": 12345678901234567891');
+  });
+
   it('converte GraphQL para JSON e limita form-data a um arquivo', () => {
     expect(JSON.parse((byName('GraphQL').data.body as { text: string }).text)).toEqual({
       query: '{ me { id } }',

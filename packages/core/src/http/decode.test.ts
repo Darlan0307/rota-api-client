@@ -115,3 +115,23 @@ describe('encodeBody', () => {
     expect(encodeBody(Buffer.from([0, 1, 2, 3]), undefined).encoding).toBe('base64');
   });
 });
+
+describe('casos de borda', () => {
+  it('não usa charset em binário (servidor que põe charset em image/png)', () => {
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00]);
+    expect(encodeBody(png, 'image/png; charset=utf-8').encoding).toBe('base64');
+    expect(encodeBody(Buffer.from('ok'), 'application/x-coisa; charset=utf-8').data).toBe('ok');
+  });
+
+  it('não marca truncado quando o corpo tem exatamente o limite', async () => {
+    const exato = Buffer.alloc(1024, 'a');
+    const res = await decodeContent(gzipSync(exato), 'gzip', 1024, false);
+    expect(res.data.byteLength).toBe(1024);
+    expect(res.truncated).toBe(false);
+  });
+
+  it('não aceita nomes herdados do objeto como codificação', async () => {
+    const res = await decodeContent(json, 'toString', MB, false);
+    expect(res.error).toMatch(/"tostring" não é suportada/);
+  });
+});

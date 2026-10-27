@@ -57,7 +57,7 @@ export async function decodeContent(
       error: `O servidor informou "${label}" (codificações demais). O corpo é exibido como veio.`,
     };
   }
-  const unsupported = encodings.find((e) => !(e in DECODERS));
+  const unsupported = encodings.find((e) => !Object.hasOwn(DECODERS, e));
   if (unsupported) {
     return {
       ...original,
@@ -69,11 +69,12 @@ export async function decodeContent(
   let kept = 0;
   const collector = new Writable({
     write(chunk: Buffer, _encoding, callback) {
-      const part = chunk.subarray(0, maxBytes - kept);
+      const room = maxBytes - kept;
+      const part = chunk.byteLength > room ? chunk.subarray(0, room) : chunk;
       chunks.push(part);
       kept += part.byteLength;
       // Para de descomprimir no limite: um corpo pequeno pode virar gigabytes.
-      callback(kept >= maxBytes ? new LimitReached() : null);
+      callback(part !== chunk ? new LimitReached() : null);
     },
   });
 
@@ -105,27 +106,34 @@ export function encodeBody(
   data: Buffer,
   contentType: string | undefined,
 ): { encoding: 'utf8' | 'base64'; data: string } {
+  const declaredText = contentType !== undefined && TEXT_CONTENT_TYPE.test(contentType);
   const charset = /;\s*charset\s*=\s*"?([^";\s]+)/i.exec(contentType ?? '')?.[1];
-  if (charset) {
+  // Há servidores que põem charset até em image/png e application/pdf: nesses só vale se não for binário.
+  if (charset && (declaredText || !looksBinary(data))) {
     try {
       return { encoding: 'utf8', data: new TextDecoder(charset).decode(data) };
     } catch {
       // charset desconhecido: decide como se não tivesse vindo
     }
   }
-  const declaredText = contentType !== undefined && TEXT_CONTENT_TYPE.test(contentType);
   try {
     const text = new TextDecoder('utf-8', { fatal: true }).decode(data);
-    // Caracteres de controle (exceto tab/quebras de linha) indicam conteúdo binário.
-    // biome-ignore lint/suspicious/noControlCharactersInRegex: a detecção é justamente de caracteres de controle
-    if (declaredText || !/[\u0000-\u0008\u000e-\u001f]/.test(text.slice(0, 2048))) {
-      return { encoding: 'utf8', data: text };
-    }
+    if (declaredText || !looksBinary(data)) return { encoding: 'utf8', data: text };
   } catch {
     // Texto sem charset que não é UTF-8: servidores antigos mandam Windows-1252 (superconjunto do Latin-1).
     if (declaredText) return { encoding: 'utf8', data: new TextDecoder('windows-1252').decode(data) };
   }
   return { encoding: 'base64', data: data.toString('base64') };
+}
+
+/** Bytes de controle (exceto tab e quebras de linha) no começo indicam conteúdo binário. */
+function looksBinary(data: Buffer): boolean {
+  const end = Math.min(data.byteLength, 2048);
+  for (let i = 0; i < end; i++) {
+    const b = data[i] as number;
+    if (b < 0x09 || (b > 0x0d && b < 0x20)) return true;
+  }
+  return false;
 }
 
 /** RFC 1950: método 8 (deflate) e os dois primeiros bytes múltiplos de 31. */
