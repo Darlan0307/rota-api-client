@@ -1,4 +1,4 @@
-import { type ExampleFile, findNode } from '@rota/core/shared';
+import { type ExampleFile, findNode, formatJson } from '@rota/core/shared';
 import { BookmarkPlus, ExternalLink, Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '../../components/Button';
@@ -68,11 +68,7 @@ function languageOf(example: ExampleFile): 'json' | 'xml' | 'html' | 'plaintext'
 
 function pretty(text: string, language: string): string {
   if (language !== 'json') return text;
-  try {
-    return JSON.stringify(JSON.parse(text), null, 2);
-  } catch {
-    return text;
-  }
+  return formatJson(text) ?? text;
 }
 
 /** Visualização (somente leitura) de um exemplo salvo. */

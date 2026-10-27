@@ -45,15 +45,18 @@ export function prepareRequest(data: RequestData, options: PrepareOptions): Prep
   const resolveOpts = options.maskSecrets ? { maskSecrets: true } : {};
   const r = (text: string) => resolveTemplate(text, options.scope, resolveOpts);
 
-  const query = data.query.map((p) => ({ ...p, key: r(p.key), value: r(p.value) }));
+  // Um "#" vindo de variável cortaria a URL ali: o resto viraria fragmento e não seria enviado.
+  const q = (text: string) => r(text).replaceAll('#', '%23');
+  const query = data.query.map((p) => ({ ...p, key: q(p.key), value: q(p.value) }));
+  // Espaços e quebras nas pontas não contam no HTTP, mas um token colado com "\n" no fim impede o envio.
   const headers: [string, string][] = data.headers
     .filter((h) => h.enabled && h.key.trim() !== '')
-    .map((h) => [r(h.key).trim(), r(h.value)]);
+    .map((h) => [r(h.key).trim(), r(h.value).trim()]);
 
   // Autenticação. Um header Authorization definido manualmente tem precedência.
   const auth = options.auth;
   if (auth.type === 'bearer' && !findHeader(headers, 'authorization')) {
-    headers.push(['Authorization', `Bearer ${r(auth.token)}`]);
+    headers.push(['Authorization', `Bearer ${r(auth.token).trim()}`]);
   } else if (auth.type === 'basic' && !findHeader(headers, 'authorization')) {
     const user = r(auth.username);
     const pass = r(auth.password);
@@ -61,8 +64,8 @@ export function prepareRequest(data: RequestData, options: PrepareOptions): Prep
     const encoded = masked ? SECRET_MASK : Buffer.from(`${user}:${pass}`, 'utf8').toString('base64');
     headers.push(['Authorization', `Basic ${encoded}`]);
   } else if (auth.type === 'apikey' && auth.key.trim() !== '') {
-    if (auth.in === 'header') headers.push([r(auth.key), r(auth.value)]);
-    else query.push({ key: r(auth.key), value: r(auth.value), enabled: true });
+    if (auth.in === 'header') headers.push([r(auth.key).trim(), r(auth.value).trim()]);
+    else query.push({ key: q(auth.key), value: q(auth.value), enabled: true });
   }
 
   const base = r(data.url).trim();

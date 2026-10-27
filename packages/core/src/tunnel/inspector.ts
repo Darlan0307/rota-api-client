@@ -8,6 +8,7 @@ import {
 import { request as httpsRequest, type RequestOptions } from 'node:https';
 import type { AddressInfo } from 'node:net';
 import { Readable } from 'node:stream';
+import { decodeContent, encodeBody as encodeResponseBody } from '../http/decode';
 import { newId } from '../util/ids';
 import type { TunnelBody, TunnelConfig, TunnelExchange } from './types';
 
@@ -55,6 +56,23 @@ class BodyRecorder {
   toBody(contentType: string | undefined): TunnelBody {
     const buffer = Buffer.concat(this.chunks);
     return { ...encodeBody(buffer, contentType), size: this.size, truncated: this.size > this.kept };
+  }
+
+  /** Resposta da API: quem chamou recebe os bytes como vieram, o registro mostra descomprimido. */
+  async toResponseBody(headers: readonly [string, string][]): Promise<TunnelBody> {
+    const truncated = this.size > this.kept;
+    const decoded = await decodeContent(
+      Buffer.concat(this.chunks),
+      headerOf(headers, 'content-encoding'),
+      this.limit,
+      truncated,
+    );
+    const contentType = decoded.error ? undefined : headerOf(headers, 'content-type');
+    return {
+      ...encodeResponseBody(decoded.data, contentType),
+      size: this.size,
+      truncated: decoded.truncated,
+    };
   }
 }
 
@@ -336,14 +354,17 @@ export class TunnelInspector {
         });
         response.on('end', () => {
           client?.end();
-          finish({
-            ...base,
-            requestBody: requestRecorder.toBody(headerOf(input.headers, 'content-type')),
-            status: response.statusCode ?? 0,
-            responseHeaders,
-            responseBody: responseRecorder.toBody(headerOf(responseHeaders, 'content-type')),
-            durationMs: Date.now() - started,
-          });
+          const durationMs = Date.now() - started;
+          void responseRecorder.toResponseBody(responseHeaders).then((responseBody) =>
+            finish({
+              ...base,
+              requestBody: requestRecorder.toBody(headerOf(input.headers, 'content-type')),
+              status: response.statusCode ?? 0,
+              responseHeaders,
+              responseBody,
+              durationMs,
+            }),
+          );
         });
         // A API caiu no meio da resposta (ou quem chamou desistiu).
         response.on('close', () => {

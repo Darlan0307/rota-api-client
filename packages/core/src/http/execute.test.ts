@@ -3,7 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { gzipSync } from 'node:zlib';
+import { brotliCompressSync, gzipSync } from 'node:zlib';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { executeRequest, HttpError, isBypassed } from './execute';
 import type { PreparedRequest } from './prepare';
@@ -27,6 +27,18 @@ const routes: Record<string, (req: IncomingMessage, res: ServerResponse) => void
     res.setHeader('content-type', 'text/plain');
     res.setHeader('content-encoding', 'gzip');
     res.end(gzipSync('olá comprimido'));
+  },
+  '/br403': (_req, res) => {
+    res.statusCode = 403;
+    res.setHeader('content-type', 'application/json; charset=utf-8');
+    res.setHeader('content-encoding', 'br');
+    res.end(brotliCompressSync(JSON.stringify({ erro: 'Acesso negado' })));
+  },
+  '/gzip-corrompido': (_req, res) => {
+    res.statusCode = 500;
+    res.setHeader('content-type', 'application/json');
+    res.setHeader('content-encoding', 'gzip');
+    res.end(Buffer.from([0x1f, 0x8b, 0x08, 0x00, 0xff, 0x00, 0x13, 0x9c]));
   },
   '/redirect': (_req, res) => {
     res.statusCode = 302;
@@ -104,6 +116,30 @@ describe('executeRequest', () => {
   it('descomprime gzip', async () => {
     const res = await executeRequest(req('/gzip'));
     expect(res.body.data).toBe('olá comprimido');
+  });
+
+  it('descomprime também respostas de erro (4xx/5xx)', async () => {
+    const res = await executeRequest(req('/br403'));
+    expect(res.status).toBe(403);
+    expect(res.body.encoding).toBe('utf8');
+    expect(JSON.parse(res.body.data)).toEqual({ erro: 'Acesso negado' });
+    expect(res.decodeError).toBeUndefined();
+  });
+
+  it('explica header com caractere que não pode ser enviado', async () => {
+    const error = await executeRequest(req('/json', { headers: [['X-Teste', 'linha\nquebrada']] })).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(HttpError);
+    expect((error as HttpError).code).toBe('invalid-header');
+    expect((error as HttpError).message).toMatch(/header "X-Teste"/);
+  });
+
+  it('mantém status e headers quando o corpo comprimido está corrompido', async () => {
+    const res = await executeRequest(req('/gzip-corrompido'));
+    expect(res.status).toBe(500);
+    expect(res.decodeError).toMatch(/não pôde ser descomprimido/);
+    expect(res.body.encoding).toBe('base64');
   });
 
   it('segue redirecionamentos só quando configurado', async () => {

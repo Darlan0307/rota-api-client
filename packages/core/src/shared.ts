@@ -53,6 +53,7 @@ export type { TrashEntry } from './trash/trash';
 export * from './tunnel/types';
 export { contrastRatio, relativeLuminance, WCAG } from './util/contrast';
 export * from './util/diff';
+export * from './util/json-format';
 export * from './util/json-path';
 export * from './util/json-table';
 export { slugify, uniqueSlug } from './util/slug';

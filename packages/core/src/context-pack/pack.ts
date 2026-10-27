@@ -9,6 +9,7 @@ import { tableToMarkdown } from '../database/describe';
 import { profileToMarkdown, type TableProfile } from '../database/profile';
 import { type DbEngine, type DbQueryResult, type DbTable, engineInfo } from '../database/types';
 import type { HttpMethod } from '../model/schemas';
+import { parseJsonLossless } from '../util/json-format';
 
 export interface PackResponse {
   status: number;
@@ -91,7 +92,7 @@ export function bodyForPack(text: string, contentType = ''): { text: string; lan
   const trimmed = text.trim();
   if (/json/i.test(contentType) || /^[[{]/.test(trimmed)) {
     try {
-      const pretty = JSON.stringify(trimJson(JSON.parse(trimmed)), null, 2);
+      const pretty = JSON.stringify(trimJson(parseJsonLossless(trimmed)), null, 2);
       return { text: cut(pretty), language: 'json' };
     } catch {
       // Não é JSON de verdade (ou tem {{variáveis}} sem aspas): segue como texto.

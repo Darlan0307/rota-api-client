@@ -1,10 +1,12 @@
 import * as Popover from '@radix-ui/react-popover';
 import {
   findJsonTables,
+  formatJson,
   formatJsonPath,
   type HttpResponse,
   type JsonPath,
   jsonPathAtOffset,
+  parseJsonLossless,
   type ResponseTimings,
   valueAtPath,
 } from '@rota/core/shared';
@@ -201,13 +203,13 @@ function ResponseView({
   const parsed = useMemo((): unknown => {
     if (language !== 'json' || text.length > MAX_PRETTY_BYTES) return NOT_JSON;
     try {
-      return JSON.parse(text);
+      return parseJsonLossless(text);
     } catch {
       return NOT_JSON;
     }
   }, [text, language]);
   const isJson = parsed !== NOT_JSON;
-  const pretty = useMemo(() => (isJson ? JSON.stringify(parsed, null, 2) : text), [parsed, isJson, text]);
+  const pretty = useMemo(() => (isJson ? (formatJson(text) ?? text) : text), [isJson, text]);
   const tables = useMemo(() => (isJson ? findJsonTables(parsed) : []), [parsed, isJson]);
   const views: BodyView[] = [
     'pretty',
@@ -367,6 +369,12 @@ function ResponseView({
               }}
             />
           </div>
+          {response.decodeError && (
+            <div className="flex items-start gap-2 border-t border-border bg-warning/10 px-3 py-2 text-xs text-warning">
+              <AlertTriangle className="mt-px size-3.5 shrink-0" />
+              <span>{response.decodeError}</span>
+            </div>
+          )}
           <div className="min-h-0 flex-1 border-t border-border">
             {response.body.encoding === 'base64' && !isImage ? (
               <EmptyState

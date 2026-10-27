@@ -6,6 +6,7 @@ import {
   type RequestData,
   RequestDataSchema,
 } from '../model/schemas';
+import { formatJson } from '../util/json-format';
 
 export interface CurlParseResult {
   data: RequestData;
@@ -326,11 +327,7 @@ function isJson(text: string): boolean {
 }
 
 function prettyJson(text: string): string {
-  try {
-    return JSON.stringify(JSON.parse(text), null, 2);
-  } catch {
-    return text;
-  }
+  return formatJson(text) ?? text;
 }
 
 function decode(value: string): string {

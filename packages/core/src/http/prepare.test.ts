@@ -40,6 +40,30 @@ describe('prepareRequest', () => {
     expect(p.settings).toEqual({ timeoutMs: 30_000, followRedirects: true, verifySsl: true });
   });
 
+  it('tira quebras das pontas dos headers e protege "#" nos parâmetros', () => {
+    const colado = new VariableScope([
+      {
+        source: 'environment',
+        variables: [
+          { key: 'tok', value: 'abc\r\n' },
+          { key: 'senha', value: 'a#b' },
+        ],
+      },
+    ]);
+    const p = prepareRequest(
+      make({
+        url: 'api.local/x',
+        query: [{ key: 'senha', value: '{{senha}}' }],
+        headers: [{ key: 'X-Token', value: ' {{tok}}' }],
+        auth: { type: 'bearer', token: '{{tok}}' },
+      }),
+      { ...opts, scope: colado, auth: { type: 'bearer', token: '{{tok}}' } },
+    );
+    expect(findHeader(p.headers, 'x-token')).toBe('abc');
+    expect(findHeader(p.headers, 'authorization')).toBe('Bearer abc');
+    expect(p.url).toBe('http://api.local/x?senha=a%23b');
+  });
+
   it('aplica bearer, basic e api key', () => {
     const bearer = prepareRequest(make({ url: 'http://x' }), {
       ...opts,

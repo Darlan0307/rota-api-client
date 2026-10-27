@@ -213,10 +213,15 @@ function applyScriptRequest(data: RequestData, before: ScriptRequest, after: Scr
     ];
   }
   if (after.body !== before.body && after.body !== undefined) {
+    // Formulário reescrito pelo script vira texto, mas a API continua esperando o mesmo Content-Type.
+    const keepType = next.body.mode === 'urlencoded' ? 'application/x-www-form-urlencoded' : undefined;
     next.body =
       next.body.mode === 'json' || next.body.mode === 'raw'
         ? { ...next.body, text: after.body }
         : { mode: 'raw', language: 'text', text: after.body };
+    if (keepType && !next.headers.some((h) => h.enabled && h.key.toLowerCase() === 'content-type')) {
+      next.headers.push({ key: 'Content-Type', value: keepType, enabled: true });
+    }
   }
   return next;
 }

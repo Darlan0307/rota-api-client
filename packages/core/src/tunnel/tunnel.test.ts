@@ -3,7 +3,8 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { gzipSync } from 'node:zlib';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_WEBHOOK_SETTINGS } from '../webhooks/providers';
 import { describeCloudflaredFailure, parseQuickTunnelUrl, QuickTunnel } from './cloudflared';
 import { TunnelInspector } from './inspector';
@@ -23,6 +24,11 @@ beforeAll(async () => {
         res.writeHead(200, { 'content-type': 'text/plain' });
         res.write('parte');
         setTimeout(() => res.socket?.destroy(), 20);
+        return;
+      }
+      if (req.url?.includes('gzip')) {
+        res.writeHead(400, { 'content-type': 'application/json', 'content-encoding': 'gzip' });
+        res.end(gzipSync('{"erro":"campo obrigatório"}'));
         return;
       }
       res.setHeader('set-cookie', ['a=1', 'b=2']);
@@ -91,6 +97,19 @@ describe('TunnelInspector', () => {
       requestBody: { data: '{"evento":"pago"}', encoding: 'utf8', truncated: false },
     });
     expect(exchange?.responseBody?.data).toContain('"ok":true');
+  });
+
+  it('repassa a resposta comprimida como veio e registra descomprimida', async () => {
+    const { inspector, base } = await start(() => config());
+    const res = await fetch(`${base}/gzip`);
+    expect(res.status).toBe(400);
+    expect(res.headers.get('content-encoding')).toBe('gzip');
+    expect(await res.json()).toEqual({ erro: 'campo obrigatório' });
+    await vi.waitFor(() => expect(inspector.list()).toHaveLength(1));
+    expect(inspector.list()[0]?.responseBody).toMatchObject({
+      encoding: 'utf8',
+      data: '{"erro":"campo obrigatório"}',
+    });
   });
 
   it('usa o caminho base do destino e o destino atual a cada chamada', async () => {

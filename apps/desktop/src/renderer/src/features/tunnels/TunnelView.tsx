@@ -1,6 +1,7 @@
 import {
   applyUrlText,
   findWebhookProvider,
+  formatJson,
   HTTP_METHODS,
   joinUrl,
   type RequestData,
@@ -587,11 +588,8 @@ function ExchangeRow({
 function prettyBody(body: TunnelBody | null): { text: string; json: boolean } {
   if (!body || body.data === '') return { text: '', json: false };
   if (body.encoding === 'base64') return { text: '', json: false };
-  try {
-    return { text: JSON.stringify(JSON.parse(body.data), null, 2), json: true };
-  } catch {
-    return { text: body.data, json: false };
-  }
+  const formatted = formatJson(body.data);
+  return formatted === null ? { text: body.data, json: false } : { text: formatted, json: true };
 }
 
 /** Headers que não fazem sentido numa requisição manual (do túnel/Cloudflare). */

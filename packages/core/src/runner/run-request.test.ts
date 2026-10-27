@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type { PreparedRequest } from '../http/prepare';
 import { findNode } from '../model/tree';
 import { MemorySecretStore } from '../secrets/secret-store';
 import { WorkspaceStore } from '../storage/workspace-store';
@@ -190,5 +191,31 @@ describe('beforeSend', () => {
     } finally {
       await new Promise((r) => counting.close(r));
     }
+  });
+
+  it('formulário reescrito pelo pré-script continua com o Content-Type de formulário', async () => {
+    const id = await store.createRequest(colId, 'Formulário', {
+      method: 'POST',
+      url: 'http://127.0.0.1:9/x',
+      body: { mode: 'urlencoded', fields: [{ key: 'a', value: '1', enabled: true }] },
+      scripts: { preRequest: 'pm.request.body.raw = "a=2&b=3";', postResponse: '' },
+    });
+    const node = findNode(store.snapshot(), id);
+    if (node?.kind !== 'request') throw new Error('req');
+    let sent: PreparedRequest | undefined;
+    await expect(
+      runRequest(node.data, {
+        store,
+        requestId: id,
+        environmentId: envId,
+        settings,
+        beforeSend: async (req) => {
+          sent = req;
+          throw new Error('parar');
+        },
+      }),
+    ).rejects.toThrow('parar');
+    expect(sent?.body).toEqual({ kind: 'text', text: 'a=2&b=3' });
+    expect(sent?.headers).toContainEqual(['Content-Type', 'application/x-www-form-urlencoded']);
   });
 });

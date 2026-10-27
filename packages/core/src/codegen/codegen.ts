@@ -1,4 +1,5 @@
 import type { PreparedRequest } from '../http/prepare';
+import { hasLossyNumbers } from '../util/json-format';
 
 /**
  * Geração de código a partir da requisição já resolvida (variáveis
@@ -64,7 +65,8 @@ function headersObject(r: PreparedRequest, skipContentType: boolean): string {
 
 /** Corpo JSON vira JSON.stringify(objeto) quando possível (mais legível). */
 function bodyExpression(text: string, isJson: boolean): string {
-  if (isJson) {
+  // Com números que o JavaScript arredonda, o objeto literal mandaria outro valor.
+  if (isJson && !hasLossyNumbers(text)) {
     try {
       const pretty = JSON.stringify(JSON.parse(text), null, 2).replace(/\n/g, '\n  ');
       return `JSON.stringify(${pretty})`;

@@ -848,8 +848,10 @@ export function registerTools(server: McpServer, session: McpSession): void {
                 res.body.encoding === 'utf8'
                   ? truncate(mask(res.body.data))
                   : `(binário, ${res.sizeBytes} bytes)`,
+              ...(res.decodeError ? { avisoCorpo: res.decodeError } : {}),
             }
           : {}),
+        ...(run.warnings?.length ? { avisos: run.warnings } : {}),
         ...(run.tests?.length
           ? { testes: run.tests.map((t) => ({ nome: t.name, status: t.status, mensagem: t.message })) }
           : {}),

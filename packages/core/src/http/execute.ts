@@ -14,6 +14,7 @@ import {
   ProxyAgent,
   request,
 } from 'undici';
+import { decodeContent, encodeBody } from './decode';
 import type { PreparedRequest } from './prepare';
 
 export interface ProxySettings {
@@ -50,6 +51,8 @@ export interface HttpResponse {
   timings: ResponseTimings;
   /** Corpo truncado por exceder o limite. */
   truncated: boolean;
+  /** O corpo veio com Content-Encoding que não pôde ser desfeito (segue como veio). */
+  decodeError?: string;
 }
 
 export type HttpErrorCode =
@@ -60,6 +63,7 @@ export type HttpErrorCode =
   | 'reset'
   | 'tls'
   | 'invalid-url'
+  | 'invalid-header'
   | 'file'
   | 'unknown';
 
@@ -118,19 +122,26 @@ export async function executeRequest(
     });
     const headersAt = performance.now();
 
-    const { data, size, truncated } = await readBody(res.body, options.maxBodyBytes ?? DEFAULT_MAX_BODY);
-    const end = performance.now();
-
+    const maxBytes = options.maxBodyBytes ?? DEFAULT_MAX_BODY;
+    const raw = await readBody(res.body, maxBytes);
     const headers = flattenHeaders(res.headers);
-    const contentType = headers.find(([k]) => k.toLowerCase() === 'content-type')?.[1];
+    const headerValue = (name: string) =>
+      headers
+        .filter(([k]) => k.toLowerCase() === name)
+        .map(([, v]) => v)
+        .join(', ') || undefined;
+    const decoded = await decodeContent(raw.data, headerValue('content-encoding'), maxBytes, raw.truncated);
+    const end = performance.now();
 
     return {
       status: res.statusCode,
       statusText: STATUS_CODES[res.statusCode] ?? '',
       headers,
-      body: encodeBody(data, contentType),
-      sizeBytes: size,
-      truncated,
+      // Sem descomprimir, o content-type não descreve os bytes: só vira texto se for UTF-8 legível.
+      body: encodeBody(decoded.data, decoded.error ? undefined : headerValue('content-type')),
+      sizeBytes: decoded.error ? raw.size : decoded.size,
+      truncated: decoded.truncated,
+      ...(decoded.error ? { decodeError: decoded.error } : {}),
       timings: {
         ...timings,
         ttfb: round(headersAt - start),
@@ -167,9 +178,11 @@ function createDispatcher(
     base = new Agent({ connect: timedConnector(verify, timings), pipelining: 0 });
   }
 
-  const composed = [interceptors.decompress()];
-  if (prepared.settings.followRedirects) composed.unshift(interceptors.redirect({ maxRedirections: 10 }));
-  return { dispatcher: base.compose(...composed), close: () => base.close() };
+  // A descompressão fica em decodeContent: o interceptor do undici ignora respostas >= 400.
+  const dispatcher: Dispatcher = prepared.settings.followRedirects
+    ? base.compose(interceptors.redirect({ maxRedirections: 10 }))
+    : base;
+  return { dispatcher, close: () => base.close() };
 }
 
 function timedConnector(verifySsl: boolean, timings: Partial<ResponseTimings>): buildConnector.connector {
@@ -299,25 +312,6 @@ async function readBody(
   return { data: Buffer.concat(chunks), size, truncated: size > kept };
 }
 
-const TEXT_CONTENT_TYPE =
-  /^(text\/|application\/([\w.+-]*\+)?(json|xml|javascript|x-www-form-urlencoded|graphql|yaml|x-yaml|ld\+json))/i;
-
-function encodeBody(data: Buffer, contentType: string | undefined): ResponseBody {
-  if (contentType && TEXT_CONTENT_TYPE.test(contentType)) {
-    return { encoding: 'utf8', data: data.toString('utf8') };
-  }
-  // Sem content-type conhecido: trata como texto se for UTF-8 válido.
-  try {
-    const text = new TextDecoder('utf-8', { fatal: true }).decode(data);
-    // Caracteres de controle (exceto tab/quebras de linha) indicam conteúdo binário.
-    // biome-ignore lint/suspicious/noControlCharactersInRegex: a detecção é justamente de caracteres de controle
-    if (!/[\u0000-\u0008\u000e-\u001f]/.test(text.slice(0, 2048))) return { encoding: 'utf8', data: text };
-  } catch {
-    // binário
-  }
-  return { encoding: 'base64', data: data.toString('base64') };
-}
-
 function flattenHeaders(headers: Record<string, string | string[] | undefined>): [string, string][] {
   const result: [string, string][] = [];
   for (const [key, value] of Object.entries(headers)) {
@@ -337,6 +331,16 @@ function toHttpError(error: unknown, url: URL, prepared: PreparedRequest, timeou
   const detail = err?.message ?? String(error);
   const host = url.host;
 
+  if (code === 'UND_ERR_INVALID_ARG' && /header/i.test(detail)) {
+    const name = /invalid (.+) header/i.exec(detail)?.[1];
+    return new HttpError(
+      'invalid-header',
+      name
+        ? `O valor do header "${name}" tem um caractere que não pode ser enviado (quebra de linha no meio, emoji ou símbolo fora do Latin-1). Confira o valor e as variáveis usadas nele.`
+        : 'O nome de um header tem caractere inválido (espaço, acento ou símbolo). Use só letras, números e hífen.',
+      detail,
+    );
+  }
   if (timeout?.aborted) {
     return new HttpError('timeout', `Tempo limite de ${prepared.settings.timeoutMs} ms excedido.`, detail);
   }

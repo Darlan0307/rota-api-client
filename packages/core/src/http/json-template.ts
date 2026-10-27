@@ -1,3 +1,4 @@
+import { formatJson } from '../util/json-format';
 import { findVariableRefs, type VariableRef } from '../variables/template';
 
 /**
@@ -206,12 +207,8 @@ export function formatJsonTemplate(text: string): string | null {
     last = ref.end;
   });
   marked += text.slice(last);
-  let formatted: string;
-  try {
-    formatted = JSON.stringify(JSON.parse(marked), null, 2);
-  } catch {
-    return null;
-  }
+  const formatted = formatJson(marked);
+  if (formatted === null) return null;
   return formatted.replace(/"rota(\d+)"/g, (_, n: string) => {
     const ref = refs[Number(n)];
     return ref ? text.slice(ref.start, ref.end) : '';
