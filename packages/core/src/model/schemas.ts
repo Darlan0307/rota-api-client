@@ -99,6 +99,8 @@ export const RequestSettingsSchema = z.object({
   timeoutMs: z.number().int().min(0).optional(),
   followRedirects: z.boolean().default(true),
   verifySsl: z.boolean().default(true),
+  /** Headers automáticos desligados nesta requisição (nomes em minúsculas, ver http/auto-headers). */
+  disabledAutoHeaders: z.array(z.string()).optional(),
 });
 export type RequestSettings = z.infer<typeof RequestSettingsSchema>;
 

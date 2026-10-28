@@ -225,3 +225,34 @@ describe('isBypassed', () => {
     expect(isBypassed('externo.com', 'localhost, *.interno')).toBe(false);
   });
 });
+
+describe('headers enviados', () => {
+  it('registra o que saiu na conexão, com Host, Connection e Content-Length', async () => {
+    const res = await executeRequest(
+      req('/echo', {
+        method: 'POST',
+        headers: [
+          ['Content-Type', 'application/json'],
+          ['Authorization', 'Bearer x'],
+        ],
+        body: { kind: 'text', text: '{"nome":"João"}' },
+      }),
+    );
+    const sent = new Map((res.sentHeaders ?? []).map(([k, v]) => [k.toLowerCase(), v]));
+    expect(sent.get('host')).toBe(new URL(base).host);
+    expect(sent.get('connection')).toBe('keep-alive');
+    expect(sent.get('content-length')).toBe(String(Buffer.byteLength('{"nome":"João"}')));
+    expect(sent.get('authorization')).toBe('Bearer x');
+  });
+
+  it('formulário multipart registra o Content-Type com o boundary', async () => {
+    const res = await executeRequest(
+      req('/echo', {
+        method: 'POST',
+        body: { kind: 'formdata', fields: [{ key: 'a', type: 'text', value: '1' }] },
+      }),
+    );
+    const type = res.sentHeaders?.find(([k]) => k.toLowerCase() === 'content-type')?.[1];
+    expect(type).toMatch(/^multipart\/form-data; boundary=/);
+  });
+});

@@ -93,3 +93,50 @@ describe('exportação para o Postman', () => {
     ]);
   });
 });
+
+describe('configurações da requisição no Postman', () => {
+  it('headers automáticos desligados, redirecionamento e SSL vão e voltam', async () => {
+    const col = await store.createCollection('API');
+    await store.createRequest(col, 'Sem UA', {
+      url: 'http://x',
+      settings: { followRedirects: false, verifySsl: false, disabledAutoHeaders: ['user-agent', 'accept'] },
+    });
+    const collection = store.snapshot().collections[0];
+    if (!collection) throw new Error('coleção');
+    const exported = exportCollectionToPostman(collection);
+    expect(JSON.stringify(exported)).toContain('"disabledSystemHeaders":{"user-agent":true,"accept":true}');
+    const [r] = convertCollection(JSON.parse(JSON.stringify(exported))).collection.children;
+    if (r?.kind !== 'request') throw new Error('requisição');
+    expect(r.data.settings).toEqual({
+      followRedirects: false,
+      verifySsl: false,
+      disabledAutoHeaders: ['user-agent', 'accept'],
+    });
+  });
+
+  it('avisa sobre headers que o Rota sempre envia e ignora os que ele nunca manda', () => {
+    const { collection, warnings } = convertCollection({
+      info: { name: 'P', schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' },
+      item: [
+        {
+          name: 'R',
+          protocolProfileBehavior: {
+            disabledSystemHeaders: {
+              'cache-control': true,
+              'postman-token': true,
+              host: true,
+              'accept-encoding': true,
+            },
+          },
+          request: { method: 'GET', url: 'http://x' },
+        },
+      ],
+    });
+    const [r] = collection.children;
+    if (r?.kind !== 'request') throw new Error('requisição');
+    expect(r.data.settings.disabledAutoHeaders).toEqual(['accept-encoding']);
+    expect(warnings.map((w) => w.message)).toEqual([
+      'Headers automáticos desligados no Postman que o Rota sempre envia: host.',
+    ]);
+  });
+});

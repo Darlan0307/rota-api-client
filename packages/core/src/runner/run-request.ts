@@ -237,6 +237,29 @@ function toScriptResponse(response: HttpResponse): ScriptResponse {
   };
 }
 
+/**
+ * Troca os valores reais dos headers que saíram na conexão pelos da versão
+ * mascarada (o Basic em base64 não seria pego procurando o segredo no texto).
+ * Os que o undici acrescentou (Host, Content-Length...) passam pela máscara
+ * comum.
+ */
+export function maskSentHeaders(
+  sent: readonly [string, string][],
+  real: readonly [string, string][],
+  masked: readonly [string, string][],
+  secretValues: readonly string[],
+): [string, string][] {
+  const seen = new Map<string, number>();
+  return sent.map(([key, value]) => {
+    const name = key.toLowerCase();
+    const nth = seen.get(name) ?? 0;
+    seen.set(name, nth + 1);
+    const index = real.map(([k], i) => (k.toLowerCase() === name ? i : -1)).filter((i) => i >= 0)[nth];
+    const replacement = index === undefined ? undefined : masked[index]?.[1];
+    return [key, replacement ?? maskSecretValues(value, secretValues)];
+  });
+}
+
 /** Grava no workspace as variáveis que os scripts alteraram. */
 async function persistChanges(
   store: WorkspaceStore,
@@ -306,6 +329,7 @@ export async function runRequest(original: RequestData, ctx: RunContext): Promis
 
   let data = original;
   let masked: PreparedRequest | null = null;
+  let realHeaders: [string, string][] = [];
   let response: HttpResponse | null = null;
   let runError: RunError | null = null;
   let refused: unknown;
@@ -334,6 +358,7 @@ export async function runRequest(original: RequestData, ctx: RunContext): Promis
       }
     }
     const prepared = prepareRequest(data, prepareOpts);
+    realHeaders = prepared.headers;
     const isJson = data.body.mode === 'json' || (data.body.mode === 'raw' && data.body.language === 'json');
     if (isJson && prepared.body.kind === 'text') {
       // Como no Postman, envia assim mesmo; mas a API costuma tratar um JSON
@@ -382,6 +407,12 @@ export async function runRequest(original: RequestData, ctx: RunContext): Promis
     // Mensagens de erro podem conter a URL resolvida: mascara segredos.
     runError.message = maskSecretValues(runError.message, secretValues);
     if (runError.detail) runError.detail = maskSecretValues(runError.detail, secretValues);
+  }
+  if (response?.sentHeaders && masked) {
+    response = {
+      ...response,
+      sentHeaders: maskSentHeaders(response.sentHeaders, realHeaders, masked.headers, secretValues),
+    };
   }
   return {
     result: {

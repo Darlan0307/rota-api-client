@@ -24,6 +24,7 @@ import { useSnapshot } from '../../state/workspace';
 import { ConflictBanner } from '../conflict/ConflictBanner';
 import { type ResponseExtraSection, ResponsePane } from '../response/ResponsePane';
 import { AuthEditor } from './AuthEditor';
+import { AutoHeaders } from './AutoHeaders';
 import { BodyEditor } from './BodyEditor';
 import { openItemById } from './open';
 
@@ -246,6 +247,7 @@ function RequestSections({
   const inherited = useInheritedAuth(tab.itemId ?? tab.parentId, !tab.itemId);
   const section = tab.section;
   const setSection = (s: RequestSection) => update<RequestTab>(tab.id, (t) => ({ ...t, section: s }));
+  const effectiveAuth = data.auth.type === 'inherit' ? inherited.auth : data.auth;
 
   const counts: Partial<Record<RequestSection, number>> = {
     params: data.query.filter((p) => p.enabled && p.key).length,
@@ -322,9 +324,18 @@ function RequestSections({
               createRow={(p) => ({ key: '', value: '', enabled: true, ...p })}
               keyPlaceholder="Header"
             />
-            <p className="mt-2 text-xs text-fg-subtle">
-              User-Agent, Accept e Accept-Encoding são enviados automaticamente se você não definir.
-            </p>
+            <AutoHeaders
+              data={data}
+              auth={effectiveAuth}
+              onChange={onChange}
+              onOverride={(h) =>
+                onChange({
+                  ...data,
+                  headers: [...data.headers, { key: h.key, value: h.value, enabled: true }],
+                })
+              }
+              onOpenAuth={() => setSection('auth')}
+            />
           </div>
         )}
         {section === 'body' && (

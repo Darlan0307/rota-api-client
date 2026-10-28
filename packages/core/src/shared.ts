@@ -20,6 +20,7 @@ export * from './export/markdown';
 export * from './export/postman-export';
 export type { HistoryEntry, HistorySummary } from './history/history-store';
 export * from './http/auth';
+export * from './http/auto-headers';
 export type {
   HttpErrorCode,
   HttpResponse,

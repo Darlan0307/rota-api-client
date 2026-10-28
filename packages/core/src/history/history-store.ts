@@ -169,6 +169,9 @@ function buildEntry(
     ? {
         ...result.response,
         headers: result.response.headers.map(([k, v]): [string, string] => [k, mask(v)]),
+        ...(result.response.sentHeaders
+          ? { sentHeaders: result.response.sentHeaders.map(([k, v]): [string, string] => [k, mask(v)]) }
+          : {}),
         body:
           result.response.body.encoding === 'utf8'
             ? { encoding: 'utf8' as const, data: mask(truncate(result.response.body.data)) }

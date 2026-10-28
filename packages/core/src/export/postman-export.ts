@@ -76,12 +76,25 @@ function exportChild(node: ChildNode): Json {
       ...events(node.scripts),
     };
   }
+  const behavior = protocolBehavior(node.data.settings);
   return {
     name: node.name,
     ...events(node.data.scripts),
+    ...(behavior ? { protocolProfileBehavior: behavior } : {}),
     request: request(node.data),
     response: node.examples.map((e) => example(e, node.data)),
   };
+}
+
+/** Só o que difere do padrão do Postman, para não poluir o arquivo. */
+function protocolBehavior(settings: RequestData['settings']): Json | undefined {
+  const behavior: Json = {};
+  if (!settings.followRedirects) behavior.followRedirects = false;
+  if (!settings.verifySsl) behavior.strictSSL = false;
+  if (settings.disabledAutoHeaders?.length) {
+    behavior.disabledSystemHeaders = Object.fromEntries(settings.disabledAutoHeaders.map((h) => [h, true]));
+  }
+  return Object.keys(behavior).length ? behavior : undefined;
 }
 
 function request(data: RequestData): Json {

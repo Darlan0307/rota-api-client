@@ -219,3 +219,25 @@ describe('beforeSend', () => {
     expect(sent?.headers).toContainEqual(['Content-Type', 'application/x-www-form-urlencoded']);
   });
 });
+
+describe('headers enviados', () => {
+  it('vêm da conexão com os segredos mascarados (inclusive o Basic em base64)', async () => {
+    await store.updateCollection(colId, {
+      auth: { type: 'basic', username: 'ana', password: '{{ACCESS_TOKEN}}' },
+    });
+    const id = await store.createRequest(colId, 'Eco', {
+      url: '{{base}}/x',
+      headers: [{ key: 'X-Token', value: '{{ACCESS_TOKEN}}', enabled: true }],
+    });
+    const node = findNode(store.snapshot(), id);
+    if (node?.kind !== 'request') throw new Error('req');
+    const { result } = await runRequest(node.data, { store, requestId: id, environmentId: envId, settings });
+    const sent = new Map((result.response?.sentHeaders ?? []).map(([k, v]) => [k.toLowerCase(), v]));
+    expect(sent.get('x-token')).toBe('••••••');
+    expect(sent.get('authorization')).toBe('Basic ••••••');
+    expect(sent.get('host')).toBe(new URL(base).host);
+    expect(JSON.stringify(result.response?.sentHeaders)).not.toContain(
+      Buffer.from('ana:antigo').toString('base64'),
+    );
+  });
+});

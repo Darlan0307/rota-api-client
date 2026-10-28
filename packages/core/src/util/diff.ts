@@ -183,6 +183,10 @@ export function diffRequestData(before: RequestData, after: RequestData): FieldC
   if (s1.verifySsl !== s2.verifySsl) {
     changes.push({ field: 'Verificar SSL', before: yesNo(s1.verifySsl), after: yesNo(s2.verifySsl) });
   }
+  const off = (s: typeof s1) => [...(s.disabledAutoHeaders ?? [])].sort().join(', ') || 'nenhum';
+  if (off(s1) !== off(s2)) {
+    changes.push({ field: 'Headers automáticos desligados', before: off(s1), after: off(s2) });
+  }
   if ((before.description ?? '') !== (after.description ?? '')) {
     changes.push({ field: 'Descrição', lines: diffLines(before.description ?? '', after.description ?? '') });
   }

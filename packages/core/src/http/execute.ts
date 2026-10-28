@@ -53,6 +53,12 @@ export interface HttpResponse {
   truncated: boolean;
   /** O corpo veio com Content-Encoding que não pôde ser desfeito (segue como veio). */
   decodeError?: string;
+  /**
+   * Headers do pedido como saíram na conexão, na ordem (inclui Host, Connection
+   * e Content-Length). Ausente via proxy. Leva os valores reais: runRequest
+   * mascara os segredos antes de entregar.
+   */
+  sentHeaders?: [string, string][];
 }
 
 export type HttpErrorCode =
@@ -102,7 +108,8 @@ export async function executeRequest(
   }
 
   const timings: Partial<ResponseTimings> = {};
-  const { dispatcher, close } = createDispatcher(url, prepared, options.proxy, timings);
+  const sent: SentHead = {};
+  const { dispatcher, close } = createDispatcher(url, prepared, options.proxy, timings, sent);
 
   const signals = [options.signal].filter((s): s is AbortSignal => s !== undefined);
   const timeoutSignal =
@@ -142,6 +149,7 @@ export async function executeRequest(
       sizeBytes: decoded.error ? raw.size : decoded.size,
       truncated: decoded.truncated,
       ...(decoded.error ? { decodeError: decoded.error } : {}),
+      ...(sent.headers ? { sentHeaders: sent.headers } : {}),
       timings: {
         ...timings,
         ttfb: round(headersAt - start),
@@ -159,11 +167,17 @@ export async function executeRequest(
 // ---------------------------------------------------------------------------
 // Conexão
 
+/** Headers do primeiro pedido escrito na conexão (os redirecionamentos vêm depois). */
+interface SentHead {
+  headers?: [string, string][];
+}
+
 function createDispatcher(
   url: URL,
   prepared: PreparedRequest,
   proxy: ProxySettings | undefined,
   timings: Partial<ResponseTimings>,
+  sent: SentHead,
 ): { dispatcher: Dispatcher; close: () => Promise<void> } {
   const verify = prepared.settings.verifySsl;
   let base: Agent | ProxyAgent;
@@ -174,8 +188,9 @@ function createDispatcher(
       requestTls: { rejectUnauthorized: verify },
     });
   } else {
-    // Agente novo por requisição: cada envio mede a conexão completa.
-    base = new Agent({ connect: timedConnector(verify, timings), pipelining: 0 });
+    // Agente novo por requisição: cada envio mede a conexão completa. Com
+    // pipelining 1 o undici manda "Connection: keep-alive", como o Postman.
+    base = new Agent({ connect: timedConnector(verify, timings, sent), pipelining: 1 });
   }
 
   // A descompressão fica em decodeContent: o interceptor do undici ignora respostas >= 400.
@@ -185,14 +200,21 @@ function createDispatcher(
   return { dispatcher, close: () => base.close() };
 }
 
-function timedConnector(verifySsl: boolean, timings: Partial<ResponseTimings>): buildConnector.connector {
+function timedConnector(
+  verifySsl: boolean,
+  timings: Partial<ResponseTimings>,
+  sent: SentHead,
+): buildConnector.connector {
   return (opts, callback) => {
     let done = false;
     const finish = (error: Error | null, socket?: Socket) => {
       if (done) return;
       done = true;
       if (error) callback(error, null);
-      else if (socket) callback(null, socket);
+      else if (socket) {
+        if (!sent.headers) captureRequestHead(socket, sent);
+        callback(null, socket);
+      }
     };
 
     const hostname = opts.hostname.replace(/^\[|\]$/g, '');
@@ -241,6 +263,37 @@ function timedConnector(verifySsl: boolean, timings: Partial<ResponseTimings>): 
       }
     });
   };
+}
+
+/**
+ * Lê o bloco de headers do primeiro pedido escrito no socket: é a única forma
+ * de ver Host, Connection e Content-Length como o undici mandou (o
+ * Content-Length só é acrescentado na hora de escrever o corpo). No TLS o
+ * socket recebe o texto antes de cifrar.
+ */
+function captureRequestHead(socket: Socket, sent: SentHead): void {
+  const write = socket.write;
+  let buffered = '';
+  socket.write = function (this: Socket, chunk: unknown, ...rest: unknown[]) {
+    if (typeof chunk === 'string') buffered += chunk;
+    else if (chunk instanceof Uint8Array) buffered += Buffer.from(chunk).toString('latin1');
+    const end = buffered.indexOf('\r\n\r\n');
+    if (end >= 0 || buffered.length > 64 * 1024) {
+      socket.write = write;
+      if (end >= 0 && !sent.headers) sent.headers = parseHead(buffered.slice(0, end));
+    }
+    return Reflect.apply(write, this, [chunk, ...rest]) as boolean;
+  } as Socket['write'];
+}
+
+function parseHead(head: string): [string, string][] {
+  return head
+    .split('\r\n')
+    .slice(1)
+    .map((line): [string, string] => {
+      const colon = line.indexOf(':');
+      return colon < 0 ? [line, ''] : [line.slice(0, colon), line.slice(colon + 1).trim()];
+    });
 }
 
 /** Função de lookup que devolve endereços já resolvidos (o DNS foi medido antes). */

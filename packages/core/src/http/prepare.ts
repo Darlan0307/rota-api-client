@@ -1,5 +1,6 @@
-import type { Auth, HttpMethod, RawLanguage, RequestData } from '../model/schemas';
+import type { Auth, HttpMethod, RequestData } from '../model/schemas';
 import { resolveTemplate, SECRET_MASK, type VariableScope } from '../variables/template';
+import { bodyContentType, DEFAULT_AUTO_HEADERS, isAutoHeaderDisabled } from './auto-headers';
 import { composeUrl, ensureProtocol } from './url';
 
 /** Requisição pronta para envio: variáveis resolvidas e auth aplicada. */
@@ -27,14 +28,6 @@ export interface PrepareOptions {
   /** Headers automáticos (User-Agent, Accept...). Padrão: true. */
   defaultHeaders?: boolean;
 }
-
-const RAW_CONTENT_TYPES: Record<RawLanguage, string> = {
-  text: 'text/plain',
-  json: 'application/json',
-  xml: 'application/xml',
-  html: 'text/html',
-  javascript: 'application/javascript',
-};
 
 export function findHeader(headers: readonly [string, string][], name: string): string | undefined {
   const lower = name.toLowerCase();
@@ -64,8 +57,10 @@ export function prepareRequest(data: RequestData, options: PrepareOptions): Prep
     const encoded = masked ? SECRET_MASK : Buffer.from(`${user}:${pass}`, 'utf8').toString('base64');
     headers.push(['Authorization', `Basic ${encoded}`]);
   } else if (auth.type === 'apikey' && auth.key.trim() !== '') {
-    if (auth.in === 'header') headers.push([r(auth.key).trim(), r(auth.value).trim()]);
-    else query.push({ key: q(auth.key), value: q(auth.value), enabled: true });
+    if (auth.in === 'header') {
+      const key = r(auth.key).trim();
+      if (!findHeader(headers, key)) headers.push([key, r(auth.value).trim()]);
+    } else query.push({ key: q(auth.key), value: q(auth.value), enabled: true });
   }
 
   const base = r(data.url).trim();
@@ -73,15 +68,10 @@ export function prepareRequest(data: RequestData, options: PrepareOptions): Prep
 
   // Body e Content-Type padrão.
   let body: PreparedBody = { kind: 'none' };
-  let contentType: string | undefined;
   switch (data.body.mode) {
     case 'json':
-      body = { kind: 'text', text: r(data.body.text) };
-      contentType = 'application/json';
-      break;
     case 'raw':
       body = { kind: 'text', text: r(data.body.text) };
-      contentType = RAW_CONTENT_TYPES[data.body.language];
       break;
     case 'urlencoded': {
       const text = data.body.fields
@@ -89,7 +79,6 @@ export function prepareRequest(data: RequestData, options: PrepareOptions): Prep
         .map((f) => `${encodeURIComponent(r(f.key))}=${encodeURIComponent(r(f.value))}`)
         .join('&');
       body = { kind: 'text', text };
-      contentType = 'application/x-www-form-urlencoded';
       break;
     }
     case 'formdata':
@@ -104,16 +93,17 @@ export function prepareRequest(data: RequestData, options: PrepareOptions): Prep
     case 'none':
       break;
   }
-  if (contentType && !findHeader(headers, 'content-type')) headers.push(['Content-Type', contentType]);
+  const contentType = bodyContentType(data.body);
+  if (contentType && !isAutoHeaderDisabled(data, 'content-type') && !findHeader(headers, 'content-type')) {
+    headers.push(['Content-Type', contentType]);
+  }
 
-  // Headers padrão (o usuário pode sobrescrever).
-  const defaults: [string, string][] = [
-    ['User-Agent', options.userAgent ?? 'Rota'],
-    ['Accept', '*/*'],
-    ['Accept-Encoding', 'gzip, deflate, br'],
-  ];
+  // Headers padrão: um header da tabela com o mesmo nome toma o lugar, e cada um pode ser desligado.
   if (options.defaultHeaders !== false) {
-    for (const [k, v] of defaults) if (!findHeader(headers, k)) headers.push([k, v]);
+    for (const [name, key, value] of DEFAULT_AUTO_HEADERS) {
+      if (isAutoHeaderDisabled(data, name) || findHeader(headers, key)) continue;
+      headers.push([key, name === 'user-agent' ? (options.userAgent ?? value) : value]);
+    }
   }
 
   return {

@@ -188,3 +188,28 @@ describe('prepareRequest', () => {
     expect(p.headers.filter(([k]) => k.toLowerCase() === 'accept')).toEqual([['accept', 'application/json']]);
   });
 });
+
+describe('headers automáticos desligados', () => {
+  it('não envia os desligados e mantém os outros', () => {
+    const p = prepareRequest(
+      make({
+        method: 'POST',
+        url: 'api.local',
+        body: { mode: 'json', text: '{}' },
+        settings: { disabledAutoHeaders: ['user-agent', 'content-type'] },
+      }),
+      opts,
+    );
+    expect(findHeader(p.headers, 'user-agent')).toBeUndefined();
+    expect(findHeader(p.headers, 'content-type')).toBeUndefined();
+    expect(findHeader(p.headers, 'accept')).toBe('*/*');
+  });
+
+  it('API key no header não duplica um header com o mesmo nome definido na tabela', () => {
+    const p = prepareRequest(make({ url: 'api.local', headers: [{ key: 'X-Api-Key', value: 'manual' }] }), {
+      ...opts,
+      auth: { type: 'apikey', key: 'x-api-key', value: 'da-auth', in: 'header' },
+    });
+    expect(p.headers.filter(([k]) => k.toLowerCase() === 'x-api-key')).toEqual([['X-Api-Key', 'manual']]);
+  });
+});

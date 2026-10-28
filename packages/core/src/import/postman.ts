@@ -1,3 +1,4 @@
+import { TOGGLEABLE_AUTO_HEADERS, type ToggleableAutoHeader } from '../http/auto-headers';
 import {
   type Auth,
   type Body,
@@ -580,8 +581,32 @@ function applyProtocolBehavior(
   for (const [key, value] of Object.entries(behavior)) {
     if (key === 'followRedirects' && typeof value === 'boolean') data.settings.followRedirects = value;
     else if (key === 'strictSSL' && typeof value === 'boolean') data.settings.verifySsl = value;
-    else if (key === 'disableBodyPruning' || key === 'disabledSystemHeaders') continue;
+    else if (key === 'disabledSystemHeaders') applyDisabledSystemHeaders(value, data, ctx, path);
+    else if (key === 'disableBodyPruning') continue;
     else ctx.warn(path, `Configuração "${key}" do Postman não é suportada.`);
+  }
+}
+
+/** Headers que o Rota não manda sozinho: desligá-los no Postman não muda nada aqui. */
+const NEVER_SENT_HEADERS = new Set(['cache-control', 'postman-token']);
+
+function applyDisabledSystemHeaders(value: unknown, data: RequestData, ctx: Context, path: string): void {
+  if (!value || typeof value !== 'object') return;
+  const disabled: ToggleableAutoHeader[] = [];
+  const unsupported: string[] = [];
+  for (const [name, off] of Object.entries(value as Dict)) {
+    if (off !== true) continue;
+    const lower = name.toLowerCase();
+    if ((TOGGLEABLE_AUTO_HEADERS as readonly string[]).includes(lower))
+      disabled.push(lower as ToggleableAutoHeader);
+    else if (!NEVER_SENT_HEADERS.has(lower)) unsupported.push(name);
+  }
+  if (disabled.length) data.settings.disabledAutoHeaders = disabled;
+  if (unsupported.length) {
+    ctx.warn(
+      path,
+      `Headers automáticos desligados no Postman que o Rota sempre envia: ${unsupported.join(', ')}.`,
+    );
   }
 }
 

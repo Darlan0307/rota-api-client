@@ -27,6 +27,7 @@ import { useTabs } from '../../state/tabs';
 import { toast } from '../../state/toasts';
 import { JsonTable } from './JsonTable';
 import { openSaveToVariable, variableText } from './SaveToVariableDialog';
+import { SentRequest } from './SentRequest';
 
 type BodyView = 'pretty' | 'raw' | 'preview' | 'table';
 
@@ -55,6 +56,9 @@ export function ResponsePane({
   const run = tab.run;
   const result = run?.result;
   const sending = run?.status === 'sending';
+  const [showSent, setShowSent] = useState(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: volta ao erro a cada novo resultado
+  useEffect(() => setShowSent(false), [result]);
 
   return (
     <section className="relative flex h-full min-w-0 flex-col bg-bg" aria-label="Resposta">
@@ -84,8 +88,26 @@ export function ResponsePane({
             </span>
           }
         />
+      ) : result.error && !result.response && showSent && result.request ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex h-10 shrink-0 items-center border-b border-border px-4">
+            <button
+              type="button"
+              onClick={() => setShowSent(false)}
+              className="text-[13px] text-fg-muted transition-colors hover:text-fg"
+            >
+              ← Voltar ao erro
+            </button>
+          </div>
+          <SentRequest request={result.request} />
+        </div>
       ) : result.error && !result.response ? (
-        <ErrorView message={result.error.message} detail={result.error.detail} code={result.error.code} />
+        <ErrorView
+          message={result.error.message}
+          detail={result.error.detail}
+          code={result.error.code}
+          {...(result.request ? { onShowRequest: () => setShowSent(true) } : {})}
+        />
       ) : result.response ? (
         <ResponseView
           tab={tab}
@@ -130,10 +152,12 @@ function ErrorView({
   message,
   detail,
   code,
+  onShowRequest,
 }: {
   message: string;
   detail?: string | undefined;
   code: string;
+  onShowRequest?: () => void;
 }) {
   return (
     <div className="flex h-full items-center justify-center p-8 animate-fade-in">
@@ -149,6 +173,11 @@ function ErrorView({
               <pre className="mt-3 max-h-40 select-text overflow-auto whitespace-pre-wrap rounded-md bg-bg p-2 font-mono text-2xs text-fg-subtle">
                 {detail}
               </pre>
+            )}
+            {onShowRequest && (
+              <Button size="sm" className="mt-3" onClick={onShowRequest}>
+                Ver o que foi enviado
+              </Button>
             )}
           </div>
         </div>
@@ -269,6 +298,7 @@ function ResponseView({
         </>
       ),
     },
+    ...(tab.run?.result?.request ? [{ id: 'sent' as const, label: 'Enviado' }] : []),
     ...extraSections.map(({ id, label }) => ({ id, label })),
   ];
 
@@ -421,6 +451,9 @@ function ResponseView({
       )}
 
       {section === 'headers' && <HeadersTable headers={response.headers} />}
+      {section === 'sent' && tab.run?.result?.request && (
+        <SentRequest request={tab.run.result.request} response={response} />
+      )}
       {extraSections.find((s) => s.id === section)?.render()}
     </div>
   );
