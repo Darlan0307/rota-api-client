@@ -1,4 +1,4 @@
-import { TOGGLEABLE_AUTO_HEADERS, type ToggleableAutoHeader } from '../http/auto-headers';
+import { normalizeDisabledAutoHeaders, TOGGLEABLE_AUTO_HEADERS } from '../http/auto-headers';
 import {
   type Auth,
   type Body,
@@ -592,16 +592,15 @@ const NEVER_SENT_HEADERS = new Set(['cache-control', 'postman-token']);
 
 function applyDisabledSystemHeaders(value: unknown, data: RequestData, ctx: Context, path: string): void {
   if (!value || typeof value !== 'object') return;
-  const disabled: ToggleableAutoHeader[] = [];
+  const disabled: string[] = [];
   const unsupported: string[] = [];
   for (const [name, off] of Object.entries(value as Dict)) {
     if (off !== true) continue;
     const lower = name.toLowerCase();
-    if ((TOGGLEABLE_AUTO_HEADERS as readonly string[]).includes(lower))
-      disabled.push(lower as ToggleableAutoHeader);
+    if ((TOGGLEABLE_AUTO_HEADERS as readonly string[]).includes(lower)) disabled.push(lower);
     else if (!NEVER_SENT_HEADERS.has(lower)) unsupported.push(name);
   }
-  if (disabled.length) data.settings.disabledAutoHeaders = disabled;
+  if (disabled.length) data.settings.disabledAutoHeaders = normalizeDisabledAutoHeaders(disabled);
   if (unsupported.length) {
     ctx.warn(
       path,

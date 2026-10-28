@@ -111,3 +111,24 @@ describe('maskSecretValues', () => {
     expect(maskSecretValues('a b c', ['a'])).toBe('a b c');
   });
 });
+
+describe('pairForReplay', () => {
+  it('o segundo escopo repete os valores dinâmicos do primeiro, na ordem', () => {
+    const [record, replay] = new VariableScope([]).pairForReplay();
+    const text = '{{$guid}} {{$cpf}} {{$guid}}';
+    const sent = resolveTemplate(text, record);
+    expect(resolveTemplate(text, replay)).toBe(sent);
+    expect(sent.split(' ')[0]).not.toBe(sent.split(' ')[2]);
+  });
+
+  it('pula o que estava dentro de uma variável secreta (mascarada não entra nela)', () => {
+    const scope = new VariableScope([
+      { source: 'environment', variables: [{ key: 'token', value: 'tk-{{$guid}}', secret: true }] },
+    ]);
+    const [record, replay] = scope.pairForReplay();
+    const sent = resolveTemplate('{{token}}|{{$cpf}}', record);
+    const shown = resolveTemplate('{{token}}|{{$cpf}}', replay, { maskSecrets: true });
+    expect(shown.split('|')[0]).toBe(SECRET_MASK);
+    expect(shown.split('|')[1]).toBe(sent.split('|')[1]);
+  });
+});

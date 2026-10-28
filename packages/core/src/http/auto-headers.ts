@@ -39,6 +39,15 @@ export function bodyContentType(body: RequestData['body']): string | undefined {
   }
 }
 
+/**
+ * Lista sem repetidos e sempre na mesma ordem: desligar e religar não pode
+ * deixar a requisição "alterada" nem mudar o arquivo à toa.
+ */
+export function normalizeDisabledAutoHeaders(names: Iterable<string>): ToggleableAutoHeader[] {
+  const set = new Set([...names].map((n) => n.toLowerCase()));
+  return TOGGLEABLE_AUTO_HEADERS.filter((name) => set.has(name));
+}
+
 export function isAutoHeaderDisabled(data: RequestData, name: ToggleableAutoHeader): boolean {
   return data.settings.disabledAutoHeaders?.includes(name) ?? false;
 }

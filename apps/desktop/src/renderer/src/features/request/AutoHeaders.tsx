@@ -2,6 +2,7 @@ import {
   type AutoHeader,
   automaticHeaders,
   type EffectiveAuth,
+  normalizeDisabledAutoHeaders,
   type RequestData,
   type ToggleableAutoHeader,
 } from '@rota/core/shared';
@@ -76,7 +77,8 @@ export function AutoHeaders({
     if (disabled) current.add(name);
     else current.delete(name);
     const { disabledAutoHeaders: _old, ...rest } = data.settings;
-    onChange({ ...data, settings: current.size ? { ...rest, disabledAutoHeaders: [...current] } : rest });
+    const list = normalizeDisabledAutoHeaders(current);
+    onChange({ ...data, settings: list.length ? { ...rest, disabledAutoHeaders: list } : rest });
   };
 
   return (

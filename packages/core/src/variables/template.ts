@@ -67,7 +67,10 @@ export const SOURCE_PRIORITY: Record<Exclude<VariableSource, 'dynamic'>, number>
 export class VariableScope {
   private readonly map = new Map<string, ResolvedVariable>();
 
-  constructor(layers: readonly ScopeLayer[]) {
+  constructor(
+    private readonly layers: readonly ScopeLayer[],
+    private readonly dynamic: (key: string) => ResolvedVariable | undefined = dynamicVariable,
+  ) {
     const sorted = [...layers].sort((a, b) => SOURCE_PRIORITY[a.source] - SOURCE_PRIORITY[b.source]);
     for (const layer of sorted) {
       for (const v of layer.variables) {
@@ -78,7 +81,32 @@ export class VariableScope {
   }
 
   get(key: string): ResolvedVariable | undefined {
-    return this.map.get(key) ?? dynamicVariable(key);
+    return this.map.get(key) ?? this.dynamic(key);
+  }
+
+  /**
+   * Dois escopos para preparar a mesma requisição duas vezes (a enviada e a
+   * mascarada, que vai para a tela e o histórico): o primeiro gera as
+   * variáveis dinâmicas e o segundo repete os mesmos valores, na ordem. Sem
+   * isso, cada preparo sortearia outro {{$cpf}} e a tela mostraria um valor
+   * que não foi enviado.
+   */
+  pairForReplay(): [VariableScope, VariableScope] {
+    const generated: ResolvedVariable[] = [];
+    let next = 0;
+    const record = new VariableScope(this.layers, (key) => {
+      const value = this.dynamic(key);
+      if (value) generated.push(value);
+      return value;
+    });
+    const replay = new VariableScope(this.layers, (key) => {
+      // A versão mascarada não entra em variáveis secretas: pula o que só a enviada resolveu.
+      const index = generated.findIndex((v, i) => i >= next && v.key === key);
+      if (index < 0) return this.dynamic(key);
+      next = index + 1;
+      return generated[index];
+    });
+    return [record, replay];
   }
 
   entries(): ResolvedVariable[] {

@@ -28,6 +28,7 @@ function broadcast(state: WorkspaceState): void {
 }
 
 function createMainWindow(settings: SettingsService): BrowserWindow {
+  const zoom = settings.get().uiZoom;
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -37,7 +38,12 @@ function createMainWindow(settings: SettingsService): BrowserWindow {
     title: APP_NAME,
     backgroundColor: INITIAL_BG,
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: INITIAL_BG, symbolColor: INITIAL_SYMBOL, height: TITLE_BAR_HEIGHT },
+    // Já abre no zoom salvo (sem "pular" de 100% depois de carregar).
+    titleBarOverlay: {
+      color: INITIAL_BG,
+      symbolColor: INITIAL_SYMBOL,
+      height: Math.round(TITLE_BAR_HEIGHT * zoom),
+    },
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
       contextIsolation: true,
@@ -45,6 +51,7 @@ function createMainWindow(settings: SettingsService): BrowserWindow {
       nodeIntegration: false,
       webSecurity: true,
       spellcheck: false,
+      zoomFactor: zoom,
     },
   });
 

@@ -241,3 +241,19 @@ describe('headers enviados', () => {
     );
   });
 });
+
+describe('variáveis dinâmicas', () => {
+  it('a requisição mostrada (tela e histórico) tem os mesmos valores que foram enviados', async () => {
+    const id = await store.createRequest(colId, 'Dinâmica', {
+      url: '{{base}}/x?doc={{$cpf}}',
+      headers: [{ key: 'X-Nonce', value: '{{$guid}}', enabled: true }],
+    });
+    const node = findNode(store.snapshot(), id);
+    if (node?.kind !== 'request') throw new Error('req');
+    const { result } = await runRequest(node.data, { store, requestId: id, environmentId: envId, settings });
+    const echoed = JSON.parse(result.response?.body.data ?? '{}').nonce;
+    const shown = result.request?.headers.find(([k]) => k === 'X-Nonce')?.[1];
+    expect(shown).toBe(echoed);
+    expect(result.response?.sentHeaders?.find(([k]) => k.toLowerCase() === 'x-nonce')?.[1]).toBe(echoed);
+  });
+});
