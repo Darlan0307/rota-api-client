@@ -11,11 +11,11 @@ import {
 import { Braces, Check, Copy } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { create } from 'zustand';
+import type { MenuEntry } from '../../components/ActionMenu';
 import { Button } from '../../components/Button';
 import { CodeEditor } from '../../components/CodeEditor';
 import { Dialog } from '../../components/Dialog';
 import { TextInput } from '../../components/form';
-import { Tooltip } from '../../components/Tooltip';
 import { cn } from '../../lib/cn';
 import type { RequestTab } from '../../state/tabs';
 import { toast } from '../../state/toasts';
@@ -142,24 +142,19 @@ function TypesDialogContent({ source }: { source: TypesSource }) {
 }
 
 /** Botão "Tipo" no cabeçalho da resposta (só para JSON). */
-export function GenerateTypesButton({ tab }: { tab: RequestTab }) {
+/** "Gerar tipo" no menu da resposta (só para respostas que parecem JSON). */
+export function generateTypesAction(tab: RequestTab): MenuEntry | null {
   const response = tab.run?.result?.response;
   if (response?.body.encoding !== 'utf8') return null;
   const body = response.body.data;
   if (!/^\s*[[{]/.test(body)) return null;
-  return (
-    <Tooltip label="Gerar tipo TypeScript, Zod ou JSON Schema desta resposta">
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={() => {
-          const parsed = tryParseJson(body);
-          if (parsed) openTypesForJson(parsed.value, tab.title);
-          else toast.info('A resposta não é um JSON válido.');
-        }}
-      >
-        <Braces className="size-3.5" /> Tipo
-      </Button>
-    </Tooltip>
-  );
+  return {
+    label: 'Gerar tipo (TypeScript, Zod, JSON Schema)…',
+    icon: Braces,
+    onSelect: () => {
+      const parsed = tryParseJson(body);
+      if (parsed) openTypesForJson(parsed.value, tab.title);
+      else toast.info('A resposta não é um JSON válido.');
+    },
+  };
 }

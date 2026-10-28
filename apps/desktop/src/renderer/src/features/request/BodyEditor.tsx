@@ -15,6 +15,7 @@ import { CodeEditor, type EditorLanguage } from '../../components/CodeEditor';
 import { EmptyState } from '../../components/EmptyState';
 import { Select } from '../../components/form';
 import { KeyValueTable } from '../../components/KeyValueTable';
+import { ToolbarLabel } from '../../components/ToolbarLabel';
 import { api } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import { toast } from '../../state/toasts';
@@ -72,21 +73,32 @@ interface BodyEditorProps {
 
 export function BodyEditor({ body, onChange, onShortcut, setText }: BodyEditorProps) {
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center gap-1 px-4 py-2">
-        {MODES.map((m) => (
-          <button
-            key={m.value}
-            type="button"
-            onClick={() => body.mode !== m.value && onChange(switchBodyMode(body, m.value))}
-            className={cn(
-              'h-7 rounded-md px-2.5 text-xs transition-colors',
-              body.mode === m.value ? 'bg-surface-2 text-fg' : 'text-fg-muted hover:text-fg',
-            )}
-          >
-            {m.label}
-          </button>
-        ))}
+    <div className="@container/corpo flex h-full min-h-0 flex-col">
+      {/* Uma linha só: sem espaço para os botões de tipo, eles viram uma lista. */}
+      <div className="flex shrink-0 items-center gap-1 px-4 py-2">
+        <div className="flex items-center gap-1 @max-[44rem]/corpo:hidden">
+          {MODES.map((m) => (
+            <button
+              key={m.value}
+              type="button"
+              onClick={() => body.mode !== m.value && onChange(switchBodyMode(body, m.value))}
+              className={cn(
+                'h-7 shrink-0 rounded-md px-2.5 text-xs transition-colors',
+                body.mode === m.value ? 'bg-surface-2 text-fg' : 'text-fg-muted hover:text-fg',
+              )}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <div className="hidden @max-[44rem]/corpo:block">
+          <Select
+            value={body.mode}
+            options={MODES}
+            onChange={(mode) => body.mode !== mode && onChange(switchBodyMode(body, mode))}
+            ariaLabel="Tipo do body"
+          />
+        </div>
         <div className="flex-1" />
         {body.mode === 'raw' && (
           <Select
@@ -104,13 +116,14 @@ export function BodyEditor({ body, onChange, onShortcut, setText }: BodyEditorPr
             title="Troca nome, CPF, e-mail, telefone, CEP... por variáveis que geram um valor novo a cada envio"
             onClick={() => openFillTestData(body.text, setText ?? ((text) => onChange({ ...body, text })))}
           >
-            <Dices className="size-3.5" /> Dados de teste
+            <Dices className="size-3.5" /> <ToolbarLabel bar="corpo">Dados de teste</ToolbarLabel>
           </Button>
         )}
         {(body.mode === 'json' || (body.mode === 'raw' && body.language === 'json')) && (
           <Button
             size="sm"
             variant="ghost"
+            title="Formatar o JSON (as variáveis ficam como estão)"
             onClick={() => {
               const formatted = formatJsonTemplate(body.text);
               const syntax = formatted === null ? jsonSyntaxError(body.text) : null;
@@ -121,7 +134,7 @@ export function BodyEditor({ body, onChange, onShortcut, setText }: BodyEditorPr
               } else toast.error('O JSON tem erros de sintaxe; não foi possível formatar.');
             }}
           >
-            <WandSparkles className="size-3.5" /> Formatar
+            <WandSparkles className="size-3.5" /> <ToolbarLabel bar="corpo">Formatar</ToolbarLabel>
           </Button>
         )}
       </div>

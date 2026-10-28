@@ -3,12 +3,14 @@ import { ancestorsOf, applyUrlText, composeUrl, HTTP_METHODS, type RequestData }
 import { ChevronDown, ChevronRight, Construction, LoaderCircle, Save, Send, X } from 'lucide-react';
 import { type ClipboardEvent, type ReactNode, useRef } from 'react';
 import { Group, Panel, useDefaultLayout } from 'react-resizable-panels';
+import { type MenuEntry, MoreActions } from '../../components/ActionMenu';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { Field, Switch, TextArea, TextInput } from '../../components/form';
 import { Kbd } from '../../components/Kbd';
 import { KeyValueTable } from '../../components/KeyValueTable';
 import { TabStrip } from '../../components/TabStrip';
+import { ToolbarLabel } from '../../components/ToolbarLabel';
 import { Tooltip } from '../../components/Tooltip';
 import { VariableInput } from '../../components/VariableInput';
 import { ResizeHandle } from '../../layout/ResizeHandle';
@@ -37,6 +39,8 @@ export interface RequestEditorExtensions {
   /** Faixa acima da resposta (ex.: vendo um envio anterior). */
   responseBanner?: (tab: RequestTab) => ReactNode;
   headerActions?: (tab: RequestTab) => ReactNode;
+  /** Ações secundárias do cabeçalho (menu "⋯"). */
+  headerMoreActions?: (tab: RequestTab) => MenuEntry[];
 }
 
 let extensions: RequestEditorExtensions = {};
@@ -104,7 +108,7 @@ function RequestHeader({ tab }: { tab: RequestTab }) {
   const path = tab.itemId ? ancestorsOf(snapshot, tab.itemId).reverse() : tab.parentId ? [] : [];
 
   return (
-    <div className="flex h-11 shrink-0 items-center gap-2 px-4">
+    <div className="@container/cabecalho flex h-11 shrink-0 items-center gap-1 px-4">
       <nav aria-label="Caminho" className="flex min-w-0 flex-1 items-center gap-1 text-[13px]">
         {path.map((node) => (
           <span key={node.id} className="flex min-w-0 items-center gap-1">
@@ -123,11 +127,12 @@ function RequestHeader({ tab }: { tab: RequestTab }) {
           <span className="ml-1 rounded bg-surface-2 px-1.5 text-2xs text-fg-muted">não salva</span>
         )}
       </nav>
-      {extensions.headerActions?.(tab)}
+      <div className="flex shrink-0 items-center gap-0.5">{extensions.headerActions?.(tab)}</div>
+      <MoreActions entries={extensions.headerMoreActions?.(tab) ?? []} />
       <Tooltip label={tab.itemId ? 'Salvar' : 'Salvar em uma coleção'} shortcut="Ctrl+S">
         <Button size="sm" variant={dirty ? 'secondary' : 'ghost'} onClick={() => void saveTab(tab.id)}>
           <Save className="size-3.5" />
-          Salvar
+          <ToolbarLabel bar="cabecalho">Salvar</ToolbarLabel>
           {dirty && (
             <>
               <span className="size-1.5 rounded-full bg-primary" />

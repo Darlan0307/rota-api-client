@@ -1,6 +1,6 @@
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import * as Dropdown from '@radix-ui/react-dropdown-menu';
-import type { LucideIcon } from 'lucide-react';
+import { type LucideIcon, MoreHorizontal } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { cn } from '../lib/cn';
 
@@ -63,6 +63,27 @@ export function ContextActions({ entries, children }: { entries: MenuEntry[]; ch
         </ContextMenu.Content>
       </ContextMenu.Portal>
     </ContextMenu.Root>
+  );
+}
+
+/** Botão "⋯" com as ações secundárias de uma barra (some quando não há nenhuma). */
+export function MoreActions({ entries, label = 'Mais ações' }: { entries: MenuEntry[]; label?: string }) {
+  if (entries.length === 0) return null;
+  return (
+    <DropdownActions
+      align="end"
+      entries={entries}
+      trigger={
+        <button
+          type="button"
+          aria-label={label}
+          title={label}
+          className="flex size-7 shrink-0 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg data-[state=open]:bg-surface-2 data-[state=open]:text-fg"
+        >
+          <MoreHorizontal className="size-4" />
+        </button>
+      }
+    />
   );
 }
 

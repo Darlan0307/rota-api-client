@@ -2,9 +2,9 @@ import { DYNAMIC_CATEGORY_LABELS, type DynamicCategory, type DynamicVariable } f
 import { Copy, Dices, RefreshCw, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { create } from 'zustand';
+import type { MenuEntry } from '../../components/ActionMenu';
 import { Button } from '../../components/Button';
 import { Dialog } from '../../components/Dialog';
-import { IconButton } from '../../components/IconButton';
 import { DYNAMIC_SUGGESTIONS } from '../../lib/variables';
 import { toast } from '../../state/toasts';
 
@@ -115,13 +115,8 @@ export function DynamicVariablesDialog() {
   );
 }
 
-export function DynamicVariablesButton() {
-  return (
-    <IconButton
-      icon={Dices}
-      className="size-7"
-      label="Dados de teste ({{$cpf}}, {{$nome}}…)"
-      onClick={openDynamicVariables}
-    />
-  );
-}
+export const dynamicVariablesAction: MenuEntry = {
+  label: 'Dados de teste ({{$cpf}}, {{$nome}}…)',
+  icon: Dices,
+  onSelect: openDynamicVariables,
+};

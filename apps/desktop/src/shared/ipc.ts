@@ -374,6 +374,8 @@ export interface IpcEvents {
   'tunnel:changed': TunnelView[];
   'tunnel:download': { received: number; total: number | null };
   'db:changed': DbState;
+  /** Zoom da interface mudou (atalho ou Configurações). */
+  'ui:zoom': number;
 }
 
 export type IpcChannel = keyof IpcContract;
@@ -471,6 +473,7 @@ export const IPC_EVENTS = [
   'tunnel:changed',
   'tunnel:download',
   'db:changed',
+  'ui:zoom',
 ] as const satisfies readonly IpcEvent[];
 
 // Garante em tempo de compilação que as listas cobrem todo o contrato.

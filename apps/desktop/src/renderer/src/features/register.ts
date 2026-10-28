@@ -1,4 +1,5 @@
 import { createElement, Fragment } from 'react';
+import { type MenuEntry, MoreActions } from '../components/ActionMenu';
 import { registerOverlay } from '../layout/DialogHost';
 import { registerWelcomeExtensions } from '../layout/MainArea';
 import { registerSearchContent } from '../layout/SearchDialog';
@@ -9,19 +10,19 @@ import { BackupDialog, openBackupDialog } from './backup/BackupDialog';
 import { AskClaudeButton } from './claude/AskClaude';
 import { CodegenButton, CodegenDialog } from './codegen/CodegenDialog';
 import { compareSections } from './compare/ResponseCompare';
-import { AddRequestToPackButton, ContextPackDialog } from './context-pack/ContextPackDialog';
+import { addToPackAction, ContextPackDialog } from './context-pack/ContextPackDialog';
 import { handleUrlPaste } from './curl/paste-curl';
 import { ConnectionDialog } from './databases/ConnectionDialog';
 import { CredentialsDialog } from './databases/CredentialsDialog';
 import { DatabaseGuideDialog } from './databases/DatabaseGuide';
 import { DatabasesActions, DatabasesPanel } from './databases/DatabasesPanel';
 import { subscribeDatabaseEvents } from './databases/state';
-import { DynamicVariablesButton, DynamicVariablesDialog } from './dynamic/DynamicVariablesDialog';
+import { DynamicVariablesDialog, dynamicVariablesAction } from './dynamic/DynamicVariablesDialog';
 import { FillTestDataDialog } from './dynamic/FillTestDataDialog';
 import { SaveExampleButton } from './examples/ExampleTabView';
 import { HistoryActions, HistoryPanel } from './history/HistoryPanel';
 import { ImportDialog, openImportDialog } from './import/ImportDialog';
-import { LoadTestButton } from './loadtest/LoadTestView';
+import { loadTestAction } from './loadtest/LoadTestView';
 import { McpConfirmDialog, subscribeMcpEvents } from './mcp/McpConfirmDialog';
 import { McpSettings } from './mcp/McpSettings';
 import { registerRequestEditorExtensions } from './request/RequestEditor';
@@ -35,7 +36,7 @@ import { subscribeTunnelEvents } from './tunnels/state';
 import { TunnelGuideDialog } from './tunnels/TunnelGuide';
 import { TunnelsActions, TunnelsPanel } from './tunnels/TunnelsPanel';
 import { WebhookSimulatorDialog } from './tunnels/WebhookSimulator';
-import { GenerateTypesButton, TypesDialog } from './types/TypesDialog';
+import { generateTypesAction, TypesDialog } from './types/TypesDialog';
 import { NewWorkspaceDialog, openFolderAsWorkspace, WorkspaceMenu } from './workspaces/WorkspaceMenu';
 
 /**
@@ -58,23 +59,24 @@ export function registerFeatures(): void {
   registerOverlay(ContextPackDialog);
   registerRequestEditorExtensions({
     onUrlPaste: handleUrlPaste,
+    // Principais à vista; as secundárias ficam no "⋯" de cada barra.
     headerActions: (tab) =>
       createElement(
         Fragment,
         null,
-        createElement(LoadTestButton, { tab }),
         createElement(CodegenButton, { tabId: tab.id }),
         createElement(AskClaudeButton, { tab }),
-        createElement(DynamicVariablesButton),
       ),
+    headerMoreActions: (tab) => [loadTestAction(tab), dynamicVariablesAction],
     responseActions: (tab) =>
       createElement(
         Fragment,
         null,
         createElement(SendHistoryButton, { tab }),
-        createElement(GenerateTypesButton, { tab }),
         createElement(SaveExampleButton, { tab }),
-        createElement(AddRequestToPackButton, { tab }),
+        createElement(MoreActions, {
+          entries: [generateTypesAction(tab), addToPackAction(tab)].filter((e): e is MenuEntry => e !== null),
+        }),
       ),
     responseBanner: (tab) => createElement(SendHistoryBanner, { tab }),
   });

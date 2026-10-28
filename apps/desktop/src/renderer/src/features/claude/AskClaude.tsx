@@ -2,6 +2,7 @@ import { collectionOf, findNode } from '@rota/core/shared';
 import { BookText, FlaskConical, Sparkles, Stethoscope } from 'lucide-react';
 import { DropdownActions, type MenuEntry } from '../../components/ActionMenu';
 import { Button } from '../../components/Button';
+import { ToolbarLabel } from '../../components/ToolbarLabel';
 import type { RequestTab } from '../../state/tabs';
 import { toast } from '../../state/toasts';
 import { useWorkspace } from '../../state/workspace';
@@ -73,7 +74,7 @@ export function AskClaudeButton({ tab }: { tab: RequestTab }) {
           variant="ghost"
           title="Pedidos prontos para o Claude (copiados para colar no Claude)"
         >
-          <Sparkles className="size-3.5" /> Claude
+          <Sparkles className="size-3.5" /> <ToolbarLabel bar="cabecalho">Claude</ToolbarLabel>
         </Button>
       }
     />

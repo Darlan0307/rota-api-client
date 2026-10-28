@@ -305,12 +305,12 @@ function ResponseView({
   const tone = statusTone(response.status);
 
   return (
-    <div className="@container flex h-full min-h-0 flex-col">
-      {/* Em painéis estreitos, status/tempo/tamanho descem para uma segunda linha. */}
-      <div className="flex shrink-0 flex-col border-b border-border @3xl:h-10 @3xl:flex-row @3xl:items-center @3xl:gap-4 @3xl:px-4">
+    <div className="@container/resposta flex h-full min-h-0 flex-col">
+      {/* Painel estreito: abas numa linha e, abaixo, status à esquerda e ações à direita. Largo: tudo numa linha. */}
+      <div className="flex shrink-0 flex-col border-b border-border @5xl:h-10 @5xl:flex-row @5xl:items-center @5xl:gap-4 @5xl:px-4">
         <TabStrip
           activeKey={section}
-          className="h-10 shrink-0 items-stretch gap-4 px-4 @3xl:h-full @3xl:flex-1 @3xl:shrink @3xl:px-0"
+          className="h-10 shrink-0 items-stretch gap-4 px-4 @5xl:h-full @5xl:flex-1 @5xl:shrink @5xl:px-0"
         >
           {sections.map((s) => (
             <button
@@ -331,10 +331,10 @@ function ResponseView({
             </button>
           ))}
         </TabStrip>
-        <div className="flex h-9 shrink-0 items-center justify-end gap-3 border-t border-border/60 px-4 @3xl:h-auto @3xl:border-0 @3xl:px-0">
-          {actions}
+        <div className="flex h-9 shrink-0 items-center gap-3 border-t border-border/60 px-4 @5xl:h-auto @5xl:border-0 @5xl:px-0">
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-0.5 @5xl:flex-none">{actions}</div>
           {sending && <LoaderCircle className="size-3.5 animate-spin text-primary" />}
-          <div className="flex shrink-0 items-center gap-3 whitespace-nowrap text-xs">
+          <div className="order-first flex shrink-0 items-center gap-3 whitespace-nowrap text-xs @5xl:order-last">
             <span
               className={cn(
                 'font-mono font-semibold',

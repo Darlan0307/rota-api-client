@@ -10,6 +10,8 @@ export const AppSettingsSchema = z.object({
   schemaVersion: z.literal(1).default(1),
   /** Timeout padrão das requisições (ms). 0 = sem limite. */
   defaultTimeoutMs: z.number().int().min(0).default(30_000),
+  /** Zoom da interface (1 = 100%), por Ctrl+=/Ctrl+-/Ctrl+0 ou em Configurações → Aparência. */
+  uiZoom: z.number().min(0.5).max(2).default(1),
   proxy: z
     .object({
       enabled: z.boolean().default(false),

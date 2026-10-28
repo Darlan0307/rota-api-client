@@ -5,6 +5,7 @@ import { Button } from '../../components/Button';
 import { CodeEditor } from '../../components/CodeEditor';
 import { MethodBadge } from '../../components/MethodBadge';
 import { TabStrip } from '../../components/TabStrip';
+import { ToolbarLabel } from '../../components/ToolbarLabel';
 import { api, errorMessage } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import { formatDateTime, formatDuration, statusTone } from '../../lib/format';
@@ -53,7 +54,7 @@ export function SaveExampleButton({ tab }: { tab: RequestTab }) {
       title="Salvar como exemplo"
     >
       <BookmarkPlus className="size-3.5" />
-      Exemplo
+      <ToolbarLabel bar="resposta">Exemplo</ToolbarLabel>
     </Button>
   );
 }

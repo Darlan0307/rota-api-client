@@ -7,6 +7,7 @@ import {
 } from '@rota/core/shared';
 import { AlertTriangle, CheckCircle2, Gauge, Info, Play, Square } from 'lucide-react';
 import { useEffect } from 'react';
+import type { MenuEntry } from '../../components/ActionMenu';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { Field, TextInput } from '../../components/form';
@@ -380,15 +381,6 @@ function StatusBars({ counts, total }: { counts: Record<string, number>; total: 
   );
 }
 
-export function LoadTestButton({ tab }: { tab: import('../../state/tabs').RequestTab }) {
-  return (
-    <Button
-      size="sm"
-      variant="ghost"
-      onClick={() => useTabs.getState().openLoadTest(tab)}
-      title="Teste de carga"
-    >
-      <Gauge className="size-3.5" /> Carga
-    </Button>
-  );
+export function loadTestAction(tab: import('../../state/tabs').RequestTab): MenuEntry {
+  return { label: 'Teste de carga…', icon: Gauge, onSelect: () => useTabs.getState().openLoadTest(tab) };
 }

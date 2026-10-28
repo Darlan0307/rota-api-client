@@ -3,6 +3,7 @@ import type { HistorySummary } from '@rota/core/shared';
 import { ArrowLeft, GitCompare, History, LoaderCircle, RotateCcw, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '../../components/Button';
+import { ToolbarLabel } from '../../components/ToolbarLabel';
 import { api, errorMessage } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import { formatBytes, formatDateTime, formatDuration, formatRelative, statusTone } from '../../lib/format';
@@ -107,7 +108,7 @@ export function SendHistoryButton({ tab }: { tab: RequestTab }) {
       <Dropdown.Trigger asChild>
         <Button size="sm" variant="ghost" title="Envios anteriores desta requisição">
           <History className="size-3.5" />
-          Envios
+          <ToolbarLabel bar="resposta">Envios</ToolbarLabel>
         </Button>
       </Dropdown.Trigger>
       <Dropdown.Portal>

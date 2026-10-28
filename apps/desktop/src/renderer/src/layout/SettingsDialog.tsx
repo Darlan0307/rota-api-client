@@ -2,12 +2,14 @@ import { type AppSettings, contrastRatio, WCAG } from '@rota/core/shared';
 import { Bot, Check, Clock, Info, Network, Palette as PaletteIcon } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
 import type { AppInfo } from '../../../shared/ipc';
+import { formatZoom, ZOOM_STEPS } from '../../../shared/zoom';
 import { Button } from '../components/Button';
 import { Dialog } from '../components/Dialog';
 import { Field, Switch, TextInput } from '../components/form';
 import { api, errorMessage } from '../lib/api';
 import { cn } from '../lib/cn';
 import { HTTP_METHODS, methodTextClass } from '../lib/http-method';
+import { setUiZoom, useUiZoom } from '../lib/zoom';
 import { toast } from '../state/toasts';
 import { type SettingsSection, useUiStore } from '../state/ui';
 import { contrastPairs, PALETTES, type Palette } from '../theme/palettes';
@@ -87,7 +89,9 @@ function AppSettingsForm({ section }: { section: 'requests' | 'network' }) {
   async function save() {
     if (!draft) return;
     try {
-      const saved = await api.invoke('settings:update', draft);
+      // O zoom muda por atalho com este formulário aberto: não volta ao valor de quando abriu.
+      const { uiZoom: _zoom, ...patch } = draft;
+      const saved = await api.invoke('settings:update', patch);
       setSettings(saved);
       setDraft(saved);
       toast.success('Configurações salvas.');
@@ -172,9 +176,35 @@ function AppearanceSettings() {
   const paletteId = useUiStore((s) => s.paletteId);
   const setPalette = useUiStore((s) => s.setPalette);
   const active = PALETTES[paletteId];
+  const zoom = useUiZoom();
 
   return (
     <div className="space-y-8">
+      <section>
+        <Header
+          title="Tamanho da interface"
+          description="Aumenta ou diminui tudo (textos, botões, editores). Atalhos: Ctrl+= aumenta, Ctrl+- diminui, Ctrl+0 volta a 100%."
+        />
+        <div className="mt-4 inline-flex flex-wrap gap-1 rounded-lg border border-border bg-surface p-1">
+          {ZOOM_STEPS.map((step) => (
+            <button
+              key={step}
+              type="button"
+              aria-pressed={Math.abs(step - zoom) < 0.001}
+              onClick={() => setUiZoom(step)}
+              className={cn(
+                'h-7 rounded-md px-3 font-mono text-xs transition-colors',
+                Math.abs(step - zoom) < 0.001
+                  ? 'bg-primary text-primary-fg'
+                  : 'text-fg-muted hover:bg-surface-2 hover:text-fg',
+              )}
+            >
+              {formatZoom(step)}
+            </button>
+          ))}
+        </div>
+      </section>
+
       <section>
         <Header
           title="Paleta de cores"

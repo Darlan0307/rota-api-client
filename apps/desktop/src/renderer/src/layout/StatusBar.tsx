@@ -1,10 +1,29 @@
 import * as Popover from '@radix-ui/react-popover';
-import { AlertTriangle, FolderOpen } from 'lucide-react';
+import { AlertTriangle, FolderOpen, ZoomIn } from 'lucide-react';
+import { formatZoom } from '../../../shared/zoom';
 import { ContextPackIndicator } from '../features/context-pack/ContextPackDialog';
 import { McpStatusIndicator } from '../features/mcp/McpStatusIndicator';
 import { TunnelStatusIndicator } from '../features/tunnels/TunnelsPanel';
 import { api } from '../lib/api';
+import { setUiZoom, useUiZoom } from '../lib/zoom';
 import { useWorkspace } from '../state/workspace';
+
+/** Só aparece fora dos 100%, para lembrar que o zoom está ligado e voltar com um clique. */
+function ZoomIndicator() {
+  const zoom = useUiZoom();
+  if (Math.abs(zoom - 1) < 0.001) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => setUiZoom(1)}
+      title="Zoom da interface (Ctrl+= aumenta, Ctrl+- diminui). Clique para voltar a 100%."
+      className="flex items-center gap-1 hover:text-fg-muted"
+    >
+      <ZoomIn className="size-3" />
+      {formatZoom(zoom)}
+    </button>
+  );
+}
 
 /** Barra inferior: workspace aberto e avisos de arquivos que não puderam ser lidos. */
 export function StatusBar() {
@@ -24,6 +43,7 @@ export function StatusBar() {
         <span className="truncate">{state.isDefault ? 'Workspace principal' : snapshot.root}</span>
       </button>
       <div className="flex-1" />
+      <ZoomIndicator />
       <ContextPackIndicator />
       <TunnelStatusIndicator />
       <McpStatusIndicator />

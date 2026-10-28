@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import type { MenuEntry } from '../../components/ActionMenu';
 import { Button } from '../../components/Button';
 import { CodeEditor } from '../../components/CodeEditor';
 import { Dialog } from '../../components/Dialog';
@@ -246,16 +247,11 @@ export function ContextPackIndicator() {
 }
 
 /** Botão "Pacote" no cabeçalho da resposta. */
-export function AddRequestToPackButton({ tab }: { tab: RequestTab }) {
+export function addToPackAction(tab: RequestTab): MenuEntry | null {
   if (!tab.run?.result?.response) return null;
-  return (
-    <Button
-      size="sm"
-      variant="ghost"
-      title="Adicionar a requisição e esta resposta ao pacote de contexto para o Claude"
-      onClick={() => addRequestToPack(tab)}
-    >
-      <PackagePlus className="size-3.5" /> Pacote
-    </Button>
-  );
+  return {
+    label: 'Adicionar ao pacote de contexto',
+    icon: PackagePlus,
+    onSelect: () => addRequestToPack(tab),
+  };
 }

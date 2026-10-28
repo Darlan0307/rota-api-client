@@ -5,6 +5,7 @@ import { create } from 'zustand';
 import { Button } from '../../components/Button';
 import { CodeEditor } from '../../components/CodeEditor';
 import { Dialog } from '../../components/Dialog';
+import { ToolbarLabel } from '../../components/ToolbarLabel';
 import { Tooltip } from '../../components/Tooltip';
 import { api, errorMessage } from '../../lib/api';
 import { cn } from '../../lib/cn';
@@ -140,7 +141,7 @@ export function CodegenButton({ tabId }: { tabId: string }) {
   return (
     <Tooltip label="Gerar código (cURL, fetch, axios)">
       <Button size="sm" variant="ghost" onClick={() => openCodegen(tabId)}>
-        <Code2 className="size-3.5" /> Código
+        <Code2 className="size-3.5" /> <ToolbarLabel bar="cabecalho">Código</ToolbarLabel>
       </Button>
     </Tooltip>
   );

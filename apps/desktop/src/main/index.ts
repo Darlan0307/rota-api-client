@@ -11,6 +11,7 @@ import { RequestService } from './services/request-service';
 import { SettingsService } from './services/settings-service';
 import { TunnelService } from './services/tunnel-service';
 import { WorkspaceService } from './services/workspace-service';
+import { applyZoom, installZoomShortcuts } from './zoom';
 
 // Cores iniciais da janela (antes do renderer aplicar a paleta), evitando
 // o "flash" branco ao abrir.
@@ -26,7 +27,7 @@ function broadcast(state: WorkspaceState): void {
   for (const win of BrowserWindow.getAllWindows()) win.webContents.send('workspace:changed', state);
 }
 
-function createMainWindow(): BrowserWindow {
+function createMainWindow(settings: SettingsService): BrowserWindow {
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -48,6 +49,13 @@ function createMainWindow(): BrowserWindow {
   });
 
   win.once('ready-to-show', () => win.show());
+  // O Chromium volta o zoom a 100% ao recarregar a página.
+  win.webContents.on('did-finish-load', () => applyZoom(win, settings.get().uiZoom));
+  installZoomShortcuts(
+    win,
+    () => settings.get().uiZoom,
+    (uiZoom) => void settings.update({ uiZoom }),
+  );
 
   // O renderer nunca navega para fora do app; links externos abrem no navegador.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -113,6 +121,13 @@ if (!app.requestSingleInstanceLock()) {
       for (const win of BrowserWindow.getAllWindows()) win.webContents.send('history:changed', null);
     });
     const loaded = await settings.load();
+    settings.onChange((next, previous) => {
+      if (next.uiZoom === previous.uiZoom) return;
+      for (const win of BrowserWindow.getAllWindows()) {
+        applyZoom(win, next.uiZoom);
+        win.webContents.send('ui:zoom', next.uiZoom);
+      }
+    });
     // Com um workspace marcado como padrão, ele abre ao iniciar; senão, o último usado.
     const startup = loaded.startupWorkspace ? loaded.startupWorkspace.path : loaded.currentWorkspace;
     try {
@@ -161,10 +176,10 @@ if (!app.requestSingleInstanceLock()) {
       void Promise.race([cleanup, limit]).then(() => app.exit(0));
     });
     registerIpcHandlers({ workspace, requests, settings, loadTests, mcp, tunnels, databases });
-    createMainWindow();
+    createMainWindow(settings);
 
     app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
+      if (BrowserWindow.getAllWindows().length === 0) createMainWindow(settings);
     });
   });
 
