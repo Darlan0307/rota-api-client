@@ -20,6 +20,7 @@ import { DatabasesActions, DatabasesPanel } from './databases/DatabasesPanel';
 import { subscribeDatabaseEvents } from './databases/state';
 import { DynamicVariablesDialog, dynamicVariablesAction } from './dynamic/DynamicVariablesDialog';
 import { FillTestDataDialog } from './dynamic/FillTestDataDialog';
+import { EvidenceDialog, evidenceAction } from './evidence/EvidenceDialog';
 import { SaveExampleButton } from './examples/ExampleTabView';
 import { HistoryActions, HistoryPanel } from './history/HistoryPanel';
 import { ImportDialog, openImportDialog } from './import/ImportDialog';
@@ -58,6 +59,7 @@ export function registerFeatures(): void {
   registerOverlay(CodegenDialog);
   registerOverlay(TypesDialog);
   registerOverlay(ContextPackDialog);
+  registerOverlay(EvidenceDialog);
   registerRequestEditorExtensions({
     onUrlPaste: handleUrlPaste,
     // Principais à vista; as secundárias ficam no "⋯" de cada barra.
@@ -76,7 +78,9 @@ export function registerFeatures(): void {
         createElement(SendHistoryButton, { tab }),
         createElement(SaveExampleButton, { tab }),
         createElement(MoreActions, {
-          entries: [generateTypesAction(tab), addToPackAction(tab)].filter((e): e is MenuEntry => e !== null),
+          entries: [evidenceAction(tab), generateTypesAction(tab), addToPackAction(tab)].filter(
+            (e): e is MenuEntry => e !== null,
+          ),
         }),
       ),
     responseBanner: (tab) => createElement(SendHistoryBanner, { tab }),

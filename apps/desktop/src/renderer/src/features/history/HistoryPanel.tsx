@@ -1,5 +1,5 @@
 import type { HistorySummary } from '@rota/core/shared';
-import { Bot, History, RotateCcw, Trash2 } from 'lucide-react';
+import { Bot, FileText, History, RotateCcw, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ContextActions, type MenuEntry } from '../../components/ActionMenu';
 import { EmptyState } from '../../components/EmptyState';
@@ -11,6 +11,7 @@ import { formatBytes, formatDuration, statusTone } from '../../lib/format';
 import { confirmDialog } from '../../state/dialogs';
 import { useTabs } from '../../state/tabs';
 import { toast } from '../../state/toasts';
+import { openEvidenceDialog } from '../evidence/EvidenceDialog';
 
 /** Reabre uma entrada do histórico numa aba nova, já com a resposta. */
 export async function reopenHistory(id: string): Promise<void> {
@@ -128,6 +129,11 @@ function HistoryRow({ item }: { item: HistorySummary }) {
   const time = new Date(item.at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   const entries: MenuEntry[] = [
     { label: 'Reabrir', icon: RotateCcw, onSelect: () => void reopenHistory(item.id) },
+    {
+      label: 'Relatório de evidências',
+      icon: FileText,
+      onSelect: () => openEvidenceDialog({ historyId: item.id }),
+    },
     'separator',
     {
       label: 'Remover do histórico',
@@ -180,5 +186,15 @@ function HistoryRow({ item }: { item: HistorySummary }) {
 }
 
 export function HistoryActions() {
-  return <IconButton icon={Trash2} label="Limpar histórico" size="sm" onClick={() => void clearHistory()} />;
+  return (
+    <>
+      <IconButton
+        icon={FileText}
+        label="Relatório de evidências"
+        size="sm"
+        onClick={() => openEvidenceDialog()}
+      />
+      <IconButton icon={Trash2} label="Limpar histórico" size="sm" onClick={() => void clearHistory()} />
+    </>
+  );
 }

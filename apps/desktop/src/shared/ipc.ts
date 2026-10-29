@@ -19,6 +19,7 @@ import type {
   DbSchema,
   DbServerInfo,
   DbState,
+  EvidenceOptions,
   FolderInspection,
   HistoryEntry,
   HistorySummary,
@@ -245,6 +246,13 @@ export interface IpcContract {
   'context:save': { args: [markdown: string, folder?: string]; result: string | null };
   /** Exporta um ambiente (ou as globais, com id null) no formato do Postman. */
   'export:variables': { args: [id: string | null]; result: string | null };
+  /** Relatório de evidências (Markdown) a partir de envios do histórico, com os segredos mascarados. */
+  'evidence:render': { args: [historyIds: string[], options: EvidenceOptions]; result: string };
+  /** Salva o relatório em Markdown ou PDF onde o usuário escolher. */
+  'evidence:save': {
+    args: [historyIds: string[], options: EvidenceOptions, format: 'md' | 'pdf'];
+    result: string | null;
+  };
 
   /** Resolve ao terminar (ou ser cancelado); o progresso chega por 'loadtest:progress'. */
   'loadtest:start': { args: [input: LoadTestInput]; result: LoadTestResult };
@@ -411,6 +419,8 @@ export const IPC_CHANNELS = [
   'export:csv',
   'context:mask',
   'context:save',
+  'evidence:render',
+  'evidence:save',
   'export:all',
   'examples:save',
   'loadtest:start',

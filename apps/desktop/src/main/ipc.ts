@@ -4,6 +4,7 @@ import {
   buildBackup,
   collectionToMarkdown,
   createdWorkspacesDir,
+  type EvidenceStep,
   exportCollectionToPostman,
   exportEnvironmentToPostman,
   exportGlobalsToPostman,
@@ -17,6 +18,8 @@ import {
   prepareProjectFolder,
   previewPostmanFiles,
   readJsonIfExists,
+  renderEvidenceHtml,
+  renderEvidenceMarkdown,
   slugify,
   uniqueSlug,
   variableScopeFor,
@@ -32,6 +35,7 @@ import {
   type McpLaunchConfig,
   type McpStatus,
 } from '../shared/ipc';
+import { htmlToPdf } from './pdf';
 import type { DatabaseService } from './services/database-service';
 import type { LoadTestService } from './services/loadtest-service';
 import type { McpBridge } from './services/mcp-bridge';
@@ -360,6 +364,45 @@ export function registerIpcHandlers({
     const result = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
     if (result.canceled || !result.filePath) return null;
     await writeFile(result.filePath, maskWorkspaceSecrets(markdown), 'utf8');
+    return result.filePath;
+  });
+  // Relatório de evidências: o histórico já guarda os envios mascarados, e o
+  // texto final ainda passa pela máscara de todos os segredos do workspace.
+  const evidenceSteps = async (ids: string[]): Promise<EvidenceStep[]> => {
+    const steps: EvidenceStep[] = [];
+    for (const id of ids) {
+      const entry = await workspace.history.get(id);
+      if (entry) steps.push({ name: entry.name, at: entry.at, source: entry.source, result: entry.result });
+    }
+    if (steps.length === 0) throw new Error('Nenhum dos envios escolhidos está mais no histórico.');
+    return steps;
+  };
+  handle('evidence:render', async (_e, ids, options) =>
+    maskWorkspaceSecrets(renderEvidenceMarkdown(await evidenceSteps(ids), options)),
+  );
+  handle('evidence:save', async (event, ids, options, format) => {
+    const steps = await evidenceSteps(ids);
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const name = `${slugify(options.title) || 'relatorio'}.${format}`;
+    const dialogOptions: Electron.SaveDialogOptions = {
+      title: 'Salvar relatório',
+      defaultPath: join(app.getPath('documents'), name),
+      filters: [
+        format === 'pdf' ? { name: 'PDF', extensions: ['pdf'] } : { name: 'Markdown', extensions: ['md'] },
+      ],
+    };
+    const result = win
+      ? await dialog.showSaveDialog(win, dialogOptions)
+      : await dialog.showSaveDialog(dialogOptions);
+    if (result.canceled || !result.filePath) return null;
+    if (format === 'md') {
+      await writeFile(result.filePath, maskWorkspaceSecrets(renderEvidenceMarkdown(steps, options)), 'utf8');
+    } else {
+      await writeFile(
+        result.filePath,
+        await htmlToPdf(maskWorkspaceSecrets(renderEvidenceHtml(steps, options))),
+      );
+    }
     return result.filePath;
   });
   handle('export:variables', (event, id) => {

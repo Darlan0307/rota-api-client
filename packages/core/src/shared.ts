@@ -15,6 +15,7 @@ export * from './database/describe';
 export * from './database/profile';
 export * from './database/sql';
 export * from './database/types';
+export * from './evidence/report';
 export * from './export/backup';
 export * from './export/markdown';
 export * from './export/postman-export';
