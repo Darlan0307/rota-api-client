@@ -115,7 +115,7 @@ export function TrashPanel({ filter }: { filter: string }) {
         return (
           <li key={entry.id}>
             <ContextActions entries={menu}>
-              <div className="group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-surface-2">
+              <div className="group flex items-center gap-2 rounded-md px-2 py-(--row-py) hover:bg-surface-2">
                 <Icon className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13px] text-fg">{entry.name}</p>

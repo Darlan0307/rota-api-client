@@ -344,15 +344,21 @@ export class WorkspaceStore {
     });
   }
 
-  /** Ícone e cor de uma coleção ou pasta; `null` volta ao padrão. */
+  /** Ícone e cor de uma coleção, pasta ou ambiente; `null` volta ao padrão. */
   setAppearance(id: string, appearance: Appearance | null): Promise<void> {
     return this.mutate(async () => {
       const entry = this.entries.get(id);
-      if (entry?.kind !== 'collection' && entry?.kind !== 'folder') throw notFound(id);
+      if (entry?.kind !== 'collection' && entry?.kind !== 'folder' && entry?.kind !== 'environment')
+        throw notFound(id);
       const next =
         appearance && (appearance.icon || appearance.color) ? AppearanceSchema.parse(appearance) : undefined;
       const { appearance: _previous, ...rest } = entry.file;
-      if (entry.kind === 'collection') {
+      if (entry.kind === 'environment') {
+        await writeJsonAtomic(
+          entry.path,
+          EnvironmentFileSchema.parse({ ...rest, ...(next ? { appearance: next } : {}) }),
+        );
+      } else if (entry.kind === 'collection') {
         await writeJsonAtomic(
           join(entry.dir, COLLECTION_FILE),
           CollectionFileSchema.parse({ ...rest, ...(next ? { appearance: next } : {}) }),
@@ -914,6 +920,7 @@ export class WorkspaceStore {
         id,
         name: file.name,
         variables: viewVariables(file.variables, { kind: 'environment', id }, this.secrets),
+        appearance: file.appearance,
       });
     }
     environments.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));

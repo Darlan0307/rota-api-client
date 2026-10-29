@@ -3,6 +3,7 @@
  * local. Tipos sem dependências de Node (usados também pelo renderer).
  */
 
+import type { Appearance } from '../model/schemas';
 import type { SignatureCheck, WebhookSettings } from '../webhooks/providers';
 
 /** "forward": repassa para a API local. "capture": só registra e responde. */
@@ -23,6 +24,8 @@ export interface TunnelConfig {
   webhookPath: string;
   /** Provedor do webhook: assina as chamadas simuladas e confere as recebidas. */
   webhook: WebhookSettings;
+  /** Ícone e cor na lista (objeto vazio na atualização volta ao padrão). */
+  appearance?: Appearance | undefined;
 }
 
 export type TunnelStatus = 'stopped' | 'starting' | 'running' | 'error';

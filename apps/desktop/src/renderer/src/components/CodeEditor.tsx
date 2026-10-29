@@ -1,6 +1,7 @@
 import Editor, { type OnMount } from '@monaco-editor/react';
 import { findVariableRefs, jsonSyntaxError, variableRefAt } from '@rota/core/shared';
 import { useEffect, useRef } from 'react';
+import { useEditorFont } from '../lib/editor-font';
 import { monaco, ROTA_THEME } from '../lib/monaco';
 import { DYNAMIC_SUGGESTIONS, useVariableNames, useVariableResolver } from '../lib/variables';
 import { useVariableHover, VariablePopover } from './VariablePopover';
@@ -97,6 +98,7 @@ export function CodeEditor({
   const shortcutRef = useRef(onShortcut);
   shortcutRef.current = onShortcut;
   const popover = useVariableHover();
+  const editorFont = useEditorFont();
   const popoverRef = useRef(popover);
   popoverRef.current = popover;
 
@@ -219,9 +221,7 @@ export function CodeEditor({
           readOnly,
           domReadOnly: readOnly,
           minimap: { enabled: false },
-          fontFamily: "'JetBrains Mono Variable', Consolas, monospace",
-          fontSize: 13,
-          lineHeight: 20,
+          ...editorFont,
           fontLigatures: false,
           scrollBeyondLastLine: false,
           wordWrap: wordWrap ? 'on' : 'off',

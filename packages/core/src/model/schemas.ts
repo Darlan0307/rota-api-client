@@ -214,6 +214,7 @@ export const EnvironmentFileSchema = z.object({
   id: z.string(),
   name: z.string(),
   variables: z.array(VariableSchema).default([]),
+  appearance: appearanceField,
 });
 export type EnvironmentFile = z.infer<typeof EnvironmentFileSchema>;
 

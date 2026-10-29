@@ -18,6 +18,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { Checkbox, Select } from '../../components/form';
 import { api, errorMessage } from '../../lib/api';
 import { cn } from '../../lib/cn';
+import { useEditorFont } from '../../lib/editor-font';
 import { formatBytes, formatDateTime, formatDuration } from '../../lib/format';
 import { type monaco, ROTA_THEME } from '../../lib/monaco';
 import { useElementWidth } from '../../lib/use-element-width';
@@ -401,6 +402,7 @@ function BodyDiff({
     },
     [],
   );
+  const editorFont = useEditorFont();
   return (
     <DiffEditor
       keepCurrentOriginalModel
@@ -418,9 +420,7 @@ function BodyDiff({
         originalEditable: false,
         renderSideBySide: sideBySide,
         minimap: { enabled: false },
-        fontFamily: "'JetBrains Mono Variable', Consolas, monospace",
-        fontSize: 13,
-        lineHeight: 20,
+        ...editorFont,
         scrollBeyondLastLine: false,
         automaticLayout: true,
         wordWrap: 'on',

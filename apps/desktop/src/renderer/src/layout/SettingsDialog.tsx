@@ -1,6 +1,6 @@
 import { type AppSettings, contrastRatio, WCAG } from '@rota/core/shared';
 import { Bot, Check, Clock, Info, Network, Palette as PaletteIcon } from 'lucide-react';
-import { type ReactNode, useEffect, useState } from 'react';
+import { type CSSProperties, type ReactNode, useEffect, useState } from 'react';
 import type { AppInfo } from '../../../shared/ipc';
 import { formatZoom, ZOOM_STEPS } from '../../../shared/zoom';
 import { Button } from '../components/Button';
@@ -8,10 +8,12 @@ import { Dialog } from '../components/Dialog';
 import { Field, Switch, TextInput } from '../components/form';
 import { api, errorMessage } from '../lib/api';
 import { cn } from '../lib/cn';
+import { useEditorFont } from '../lib/editor-font';
 import { HTTP_METHODS, methodTextClass } from '../lib/http-method';
 import { setUiZoom, useUiZoom } from '../lib/zoom';
 import { toast } from '../state/toasts';
 import { type SettingsSection, useUiStore } from '../state/ui';
+import { DENSITIES, EDITOR_FONT_SIZES, EDITOR_FONTS } from '../theme/display';
 import { contrastPairs, PALETTES, type Palette } from '../theme/palettes';
 
 /** Seção do MCP, registrada pela feature do Claude. */
@@ -177,6 +179,13 @@ function AppearanceSettings() {
   const setPalette = useUiStore((s) => s.setPalette);
   const active = PALETTES[paletteId];
   const zoom = useUiZoom();
+  const density = useUiStore((s) => s.density);
+  const setDensity = useUiStore((s) => s.setDensity);
+  const editorFont = useUiStore((s) => s.editorFont);
+  const setEditorFont = useUiStore((s) => s.setEditorFont);
+  const editorFontSize = useUiStore((s) => s.editorFontSize);
+  const setEditorFontSize = useUiStore((s) => s.setEditorFontSize);
+  const fontPreview = useEditorFont();
 
   return (
     <div className="space-y-8">
@@ -203,6 +212,46 @@ function AppearanceSettings() {
             </button>
           ))}
         </div>
+      </section>
+
+      <section>
+        <Header
+          title="Densidade das listas"
+          description="Altura das linhas na barra lateral (coleções, ambientes, histórico, túneis, bancos e lixeira)."
+        />
+        <Segmented
+          options={DENSITIES.map((d) => ({ id: d.id, label: d.label, title: d.description }))}
+          value={density}
+          onChange={setDensity}
+        />
+      </section>
+
+      <section>
+        <Header
+          title="Fonte dos editores"
+          description="Corpo da requisição, resposta, scripts, SQL e comparação. As fontes do Windows que não estiverem instaladas caem na JetBrains Mono."
+        />
+        <Segmented
+          options={EDITOR_FONTS.map((f) => ({ id: f.id, label: f.label, style: { fontFamily: f.family } }))}
+          value={editorFont}
+          onChange={setEditorFont}
+        />
+        <Segmented
+          options={EDITOR_FONT_SIZES.map((size) => ({ id: size, label: `${size}px` }))}
+          value={editorFontSize}
+          onChange={setEditorFontSize}
+          mono
+        />
+        <pre
+          className="mt-3 overflow-hidden rounded-lg border border-border bg-bg px-3 py-2 text-fg"
+          style={{
+            fontFamily: fontPreview.fontFamily,
+            fontSize: fontPreview.fontSize,
+            lineHeight: `${fontPreview.lineHeight}px`,
+          }}
+        >
+          {'{\n  "cliente": "{{nomeCliente}}",\n  "total": 1290.50, "ativo": true  // 0O 1lI\n}'}
+        </pre>
       </section>
 
       <section>
@@ -248,6 +297,43 @@ function AppearanceSettings() {
         />
         <ContrastTable palette={active} />
       </section>
+    </div>
+  );
+}
+
+/** Grupo de botões em que só um fica marcado (mesmo visual do zoom). */
+function Segmented<T extends string | number>({
+  options,
+  value,
+  onChange,
+  mono,
+}: {
+  options: { id: T; label: string; title?: string; style?: CSSProperties }[];
+  value: T;
+  onChange: (value: T) => void;
+  mono?: boolean;
+}) {
+  return (
+    <div className="mt-3 flex w-fit flex-wrap gap-1 rounded-lg border border-border bg-surface p-1">
+      {options.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          title={option.title}
+          aria-pressed={option.id === value}
+          onClick={() => onChange(option.id)}
+          style={option.style}
+          className={cn(
+            'h-7 rounded-md px-3 text-xs transition-colors',
+            mono && 'font-mono',
+            option.id === value
+              ? 'bg-primary text-primary-fg'
+              : 'text-fg-muted hover:bg-surface-2 hover:text-fg',
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
     </div>
   );
 }

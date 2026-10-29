@@ -5,16 +5,45 @@ import { create } from 'zustand';
 import { Button } from '../../components/Button';
 import { Dialog } from '../../components/Dialog';
 import { TextInput } from '../../components/form';
-import { api, runCommand } from '../../lib/api';
+import { api, errorMessage, runCommand } from '../../lib/api';
 import { cn } from '../../lib/cn';
-import { ChoiceIcon, findIconChoice, ICON_GROUPS, ITEM_COLORS, ItemIcon } from '../../lib/item-icons';
+import {
+  type AppearanceKind,
+  ChoiceIcon,
+  findIconChoice,
+  ICON_GROUPS,
+  ITEM_COLORS,
+  ItemIcon,
+} from '../../lib/item-icons';
+import { toast } from '../../state/toasts';
 import { offerUndo } from '../../state/undo';
 
 interface AppearanceTarget {
   id: string;
   name: string;
-  kind: 'collection' | 'folder';
+  kind: AppearanceKind;
   appearance?: Appearance | undefined;
+}
+
+const TITLES: Record<AppearanceKind, string> = {
+  collection: 'da coleção',
+  folder: 'da pasta',
+  environment: 'do ambiente',
+  tunnel: 'do túnel',
+};
+
+/** Coleções, pastas e ambientes ficam no workspace; túneis, nas configurações da máquina. */
+async function save(target: AppearanceTarget, appearance: Appearance | null): Promise<boolean> {
+  if (target.kind !== 'tunnel')
+    return (await runCommand({ type: 'setAppearance', id: target.id, appearance })) !== undefined;
+  try {
+    // Objeto vazio volta ao padrão (o túnel guarda só o que vier preenchido).
+    await api.invoke('tunnel:update', target.id, { appearance: appearance ?? {} });
+    return true;
+  } catch (error) {
+    toast.error(errorMessage(error));
+    return false;
+  }
 }
 
 const useAppearanceDialog = create<{ target: AppearanceTarget | null }>()(() => ({ target: null }));
@@ -55,12 +84,11 @@ function AppearanceForm({ target }: { target: AppearanceTarget }) {
 
   async function apply(value: Appearance | null) {
     const previous = target.appearance ?? null;
-    const result = await runCommand({ type: 'setAppearance', id: target.id, appearance: value });
-    if (!result) return;
+    if (!(await save(target, value))) return;
     close();
     offerUndo(
       value ? `Aparência de "${target.name}" alterada.` : `"${target.name}" voltou ao ícone padrão.`,
-      () => api.invoke('workspace:command', { type: 'setAppearance', id: target.id, appearance: previous }),
+      () => save(target, previous),
     );
   }
 
@@ -68,7 +96,7 @@ function AppearanceForm({ target }: { target: AppearanceTarget }) {
     <Dialog
       open
       onOpenChange={(open) => !open && close()}
-      title={target.kind === 'collection' ? 'Ícone e cor da coleção' : 'Ícone e cor da pasta'}
+      title={`Ícone e cor ${TITLES[target.kind]}`}
       placement="top"
       className="w-[min(560px,94vw)]"
     >

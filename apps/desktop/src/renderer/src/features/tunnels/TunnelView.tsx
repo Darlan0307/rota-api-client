@@ -41,6 +41,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { Checkbox, TextInput } from '../../components/form';
 import { IconButton } from '../../components/IconButton';
 import { MethodBadge } from '../../components/MethodBadge';
+import { Tooltip } from '../../components/Tooltip';
 import { api, errorMessage } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import { formatBytes, formatDuration, statusTone } from '../../lib/format';
@@ -65,7 +66,7 @@ import {
   useTunnels,
 } from './state';
 import { openTunnelGuide, TunnelDiagram } from './TunnelGuide';
-import { STATUS_LABEL, StatusDot } from './TunnelsPanel';
+import { STATUS_LABEL, TunnelIcon, tunnelAppearanceEntry } from './TunnelsPanel';
 
 function copy(text: string, message: string) {
   void navigator.clipboard.writeText(text);
@@ -126,7 +127,16 @@ function Header({ view }: { view: TunnelViewData }) {
 
   return (
     <div className="flex h-14 shrink-0 items-center gap-3 px-5">
-      <StatusDot status={status} />
+      <Tooltip label="Ícone e cor">
+        <button
+          type="button"
+          aria-label="Ícone e cor"
+          onClick={() => tunnelAppearanceEntry(view).onSelect()}
+          className="flex size-8 items-center justify-center rounded-md transition-colors hover:bg-surface-2"
+        >
+          <TunnelIcon view={view} ring="ring-bg" />
+        </button>
+      </Tooltip>
       <input
         value={name}
         aria-label="Nome do túnel"

@@ -7,6 +7,7 @@ import { Logo } from '../components/Logo';
 import { Tooltip } from '../components/Tooltip';
 import { api } from '../lib/api';
 import { cn } from '../lib/cn';
+import { ItemIcon } from '../lib/item-icons';
 import { useTabs } from '../state/tabs';
 import { useUiStore } from '../state/ui';
 import { useActiveEnvironmentId, useSnapshot, useWorkspace } from '../state/workspace';
@@ -83,11 +84,17 @@ function EnvironmentSelector() {
           type="button"
           aria-label="Ambiente ativo"
           className="no-drag flex h-7 min-w-44 max-w-64 items-center gap-2 rounded-md border border-border bg-surface-2 px-2.5 text-xs transition-colors hover:border-border-strong data-[state=open]:border-border-strong"
+          // A cor do ambiente na borda deixa claro onde as requisições vão bater (ex.: produção em vermelho).
+          {...(active?.appearance?.color ? { style: { borderColor: `${active.appearance.color}99` } } : {})}
         >
-          <span
-            className={cn('size-1.5 shrink-0 rounded-full', active ? 'bg-primary' : 'bg-fg-subtle')}
-            aria-hidden="true"
-          />
+          {active?.appearance ? (
+            <ItemIcon kind="environment" appearance={active.appearance} className="size-3.5" />
+          ) : (
+            <span
+              className={cn('size-1.5 shrink-0 rounded-full', active ? 'bg-primary' : 'bg-fg-subtle')}
+              aria-hidden="true"
+            />
+          )}
           <span className={cn('flex-1 truncate text-left', active ? 'text-fg' : 'text-fg-muted')}>
             {active?.name ?? 'Sem ambiente'}
           </span>
@@ -113,6 +120,9 @@ function EnvironmentSelector() {
                 className={cn('size-3.5 text-primary', env.id !== activeId && 'invisible')}
                 strokeWidth={2}
               />
+              {'appearance' in env && env.appearance && (
+                <ItemIcon kind="environment" appearance={env.appearance} className="size-3.5" />
+              )}
               <span className={env.id ? 'text-fg' : 'text-fg-muted'}>{env.name}</span>
             </Dropdown.Item>
           ))}

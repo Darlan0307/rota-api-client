@@ -11,7 +11,6 @@ import {
   Plus,
   Rows2,
   SquareX,
-  Webhook,
   X,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -19,6 +18,7 @@ import { ContextActions } from '../components/ActionMenu';
 import { IconButton } from '../components/IconButton';
 import { MethodBadge } from '../components/MethodBadge';
 import { useConnection } from '../features/databases/state';
+import { useTunnel } from '../features/tunnels/state';
 import { cn } from '../lib/cn';
 import { EngineIcon, ItemIcon } from '../lib/item-icons';
 import { closeTab, closeUnpinnedTabs } from '../state/actions';
@@ -197,6 +197,16 @@ function ContainerTabIcon({ kind, itemId }: { kind: 'collection' | 'folder'; ite
   return <ItemIcon kind={kind} appearance={appearance} className="size-3.5 text-fg-subtle" />;
 }
 
+function TunnelTabIcon({ itemId }: { itemId: string | null }) {
+  const appearance = useTunnel(itemId)?.config.appearance;
+  return <ItemIcon kind="tunnel" appearance={appearance} className="size-3.5 text-fg-subtle" />;
+}
+
+function EnvironmentTabIcon({ itemId }: { itemId: string | null }) {
+  const appearance = useSnapshot().environments.find((e) => e.id === itemId)?.appearance;
+  return <ItemIcon kind="environment" appearance={appearance} className="size-3.5 text-fg-subtle" />;
+}
+
 function DatabaseTabIcon({ itemId }: { itemId: string | null }) {
   const engine = useConnection(itemId)?.config.engine;
   if (!engine) return <Database className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
@@ -213,7 +223,9 @@ function TabIcon({ tab }: { tab: Tab }) {
     case 'loadtest':
       return <Gauge className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
     case 'tunnel':
-      return <Webhook className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
+      return <TunnelTabIcon itemId={tab.itemId} />;
+    case 'environment':
+      return <EnvironmentTabIcon itemId={tab.itemId} />;
     case 'database':
       return <DatabaseTabIcon itemId={tab.itemId} />;
     case 'example':

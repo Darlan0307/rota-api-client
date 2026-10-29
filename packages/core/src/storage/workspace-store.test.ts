@@ -110,6 +110,21 @@ describe('WorkspaceStore: aparência', () => {
     expect(await read('collections', 'pagamentos', '_collection.json')).not.toHaveProperty('appearance');
   });
 
+  it('grava ícone e cor do ambiente sem mexer nas variáveis', async () => {
+    const env = await store.createEnvironment('Produção', [
+      { key: 'baseUrl', value: 'https://api.exemplo.com', type: 'default', enabled: true },
+    ]);
+    await store.setAppearance(env, { icon: 'shield', color: '#F87171' });
+    await store.updateEnvironment(env, [
+      { key: 'baseUrl', value: 'https://api2.exemplo.com', type: 'default', enabled: true },
+    ]);
+    const view = store.snapshot().environments.find((e) => e.id === env);
+    expect(view).toMatchObject({ appearance: { icon: 'shield', color: '#F87171' } });
+    expect(view?.variables[0]?.value).toBe('https://api2.exemplo.com');
+    await store.setAppearance(env, null);
+    expect(store.snapshot().environments.find((e) => e.id === env)).not.toHaveProperty('appearance.icon');
+  });
+
   it('ignora aparência inválida editada à mão sem perder a coleção', async () => {
     const col = await store.createCollection('C');
     const path = join(root, 'collections', 'c', '_collection.json');

@@ -389,21 +389,29 @@ export function ChoiceIcon({
   );
 }
 
-/** Ícone de coleção/pasta: o escolhido pelo usuário ou o padrão (pasta abre e fecha). */
+export type AppearanceKind = 'collection' | 'folder' | 'environment' | 'tunnel';
+
+const DEFAULT_ICONS: Record<Exclude<AppearanceKind, 'folder'>, LucideIcon> = {
+  collection: Library,
+  environment: Globe,
+  tunnel: Webhook,
+};
+
+/** Ícone do item: o escolhido pelo usuário ou o padrão do tipo (pasta abre e fecha). */
 export function ItemIcon({
   kind,
   appearance,
   open = false,
   className,
 }: {
-  kind: 'collection' | 'folder';
+  kind: AppearanceKind;
   appearance?: Appearance | undefined;
   open?: boolean;
   className?: string | undefined;
 }) {
   const choice = findIconChoice(appearance?.icon);
   if (choice) return <ChoiceIcon choice={choice} className={className} color={appearance?.color} />;
-  const Icon = kind === 'collection' ? Library : open ? FolderOpen : Folder;
+  const Icon = kind === 'folder' ? (open ? FolderOpen : Folder) : DEFAULT_ICONS[kind];
   return (
     <Icon
       className={cn('shrink-0', className)}

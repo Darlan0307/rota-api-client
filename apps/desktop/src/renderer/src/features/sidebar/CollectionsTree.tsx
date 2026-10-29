@@ -353,7 +353,7 @@ function TreeRow({
           title={url}
           style={{ paddingLeft: `${depth * 14 + 6}px` }}
           className={cn(
-            'group relative flex h-7 cursor-pointer items-center gap-1.5 rounded-md pr-1 text-[13px] outline-none transition-colors duration-100',
+            'group relative flex h-(--row-h) cursor-pointer items-center gap-1.5 rounded-md pr-1 text-[13px] outline-none transition-colors duration-100',
             selected || marked
               ? 'bg-primary-soft text-fg'
               : 'text-fg-muted hover:bg-surface-2 hover:text-fg focus-visible:bg-surface-2',
@@ -505,7 +505,7 @@ function ExampleRow({
           onKeyDown={(e) => e.key === 'Enter' && open()}
           style={{ paddingLeft: `${depth * 14 + 26}px` }}
           className={cn(
-            'flex h-7 cursor-pointer items-center gap-1.5 rounded-md pr-2 text-xs transition-colors',
+            'flex h-(--row-h) cursor-pointer items-center gap-1.5 rounded-md pr-2 text-xs transition-colors',
             selected ? 'bg-primary-soft text-fg' : 'text-fg-muted hover:bg-surface-2 hover:text-fg',
           )}
         >

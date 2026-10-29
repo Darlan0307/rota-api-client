@@ -1,10 +1,13 @@
 import type { TunnelStatus, TunnelView } from '@rota/core/shared';
-import { CircleHelp, Play, Plus, Square } from 'lucide-react';
+import { CircleHelp, Palette, Play, Plus, Square } from 'lucide-react';
+import { ContextActions, type MenuEntry } from '../../components/ActionMenu';
 import { Button } from '../../components/Button';
 import { IconButton } from '../../components/IconButton';
 import { cn } from '../../lib/cn';
+import { ItemIcon } from '../../lib/item-icons';
 import { useActiveTab } from '../../state/tabs';
 import { useUiStore } from '../../state/ui';
+import { openAppearanceDialog } from '../appearance/AppearanceDialog';
 import { newTunnel, openTunnel, startTunnel, stopTunnel, useTunnels } from './state';
 import { openTunnelGuide, TunnelSteps } from './TunnelGuide';
 
@@ -28,6 +31,44 @@ export function StatusDot({ status, className }: { status: TunnelStatus; classNa
       )}
     />
   );
+}
+
+/** Ícone escolhido para o túnel com o estado num ponto no canto; sem ícone, só o ponto. */
+export function TunnelIcon({
+  view,
+  ring = 'ring-surface',
+}: {
+  view: TunnelView;
+  ring?: 'ring-surface' | 'ring-bg';
+}) {
+  if (!view.config.appearance)
+    return (
+      <span className="flex size-5 shrink-0 items-center justify-center">
+        <StatusDot status={view.status} />
+      </span>
+    );
+  return (
+    <span className="relative flex size-5 shrink-0 items-center justify-center">
+      <ItemIcon kind="tunnel" appearance={view.config.appearance} className="size-4" />
+      <span className={cn('absolute -bottom-0.5 -right-0.5 flex rounded-full ring-2', ring)}>
+        <StatusDot status={view.status} />
+      </span>
+    </span>
+  );
+}
+
+export function tunnelAppearanceEntry(view: TunnelView): Exclude<MenuEntry, 'separator'> {
+  return {
+    label: 'Ícone e cor',
+    icon: Palette,
+    onSelect: () =>
+      openAppearanceDialog({
+        id: view.config.id,
+        name: view.config.name,
+        kind: 'tunnel',
+        appearance: view.config.appearance,
+      }),
+  };
 }
 
 function targetLabel(target: string): string {
@@ -88,36 +129,38 @@ function TunnelItem({ view, selected }: { view: TunnelView; selected: boolean })
   const on = status === 'running' || status === 'starting';
   return (
     <li>
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => openTunnel(config.id)}
-        onKeyDown={(e) => e.key === 'Enter' && openTunnel(config.id)}
-        className={cn(
-          'group flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors',
-          selected ? 'bg-surface-2' : 'hover:bg-surface-2/60',
-        )}
-      >
-        <StatusDot status={status} />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] text-fg">{config.name}</p>
-          <p className="truncate font-mono text-2xs text-fg-subtle">
-            {targetLabel(config.target)}
-            {view.exchanges.length > 0 &&
-              ` · ${view.exchanges.length} chamada${view.exchanges.length > 1 ? 's' : ''}`}
-          </p>
+      <ContextActions entries={[tunnelAppearanceEntry(view)]}>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => openTunnel(config.id)}
+          onKeyDown={(e) => e.key === 'Enter' && openTunnel(config.id)}
+          className={cn(
+            'group flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-(--row-py) transition-colors',
+            selected ? 'bg-surface-2' : 'hover:bg-surface-2/60',
+          )}
+        >
+          <TunnelIcon view={view} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] text-fg">{config.name}</p>
+            <p className="truncate font-mono text-2xs text-fg-subtle">
+              {targetLabel(config.target)}
+              {view.exchanges.length > 0 &&
+                ` · ${view.exchanges.length} chamada${view.exchanges.length > 1 ? 's' : ''}`}
+            </p>
+          </div>
+          <IconButton
+            icon={on ? Square : Play}
+            label={status === 'starting' ? 'Cancelar' : on ? 'Desligar' : 'Ligar'}
+            size="sm"
+            className={cn(!on && 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100')}
+            onClick={(e) => {
+              e.stopPropagation();
+              void (on ? stopTunnel(config.id) : startTunnel(config.id));
+            }}
+          />
         </div>
-        <IconButton
-          icon={on ? Square : Play}
-          label={status === 'starting' ? 'Cancelar' : on ? 'Desligar' : 'Ligar'}
-          size="sm"
-          className={cn(!on && 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100')}
-          onClick={(e) => {
-            e.stopPropagation();
-            void (on ? stopTunnel(config.id) : startTunnel(config.id));
-          }}
-        />
-      </div>
+      </ContextActions>
     </li>
   );
 }

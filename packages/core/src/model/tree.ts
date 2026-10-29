@@ -52,6 +52,7 @@ export interface EnvironmentView {
   id: string;
   name: string;
   variables: VariableView[];
+  appearance?: Appearance | undefined;
 }
 
 export interface LoadProblem {

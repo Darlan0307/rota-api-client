@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import {
+  type Appearance,
+  AppearanceSchema,
   cloudflaredDownloadUrl,
   DEFAULT_CAPTURE_BODY,
   DEFAULT_HMAC,
@@ -58,6 +60,12 @@ async function readConfig(file: string): Promise<unknown> {
     await rename(file, `${file}.corrompido-${Date.now()}`).catch(() => undefined);
     return null;
   }
+}
+
+/** Aparência inválida ou vazia some (o túnel volta ao ícone padrão). */
+function normalizeAppearance(value: unknown): Appearance | undefined {
+  const parsed = AppearanceSchema.safeParse(value);
+  return parsed.success && (parsed.data.icon || parsed.data.color) ? parsed.data : undefined;
 }
 
 const HMAC_ALGORITHMS = ['sha1', 'sha256', 'sha512'] as const;
@@ -159,17 +167,22 @@ export class TunnelService {
     await this.killOrphans();
     const saved = await readConfig(this.file);
     const list = Array.isArray(saved) ? saved : [];
-    this.configs = list.filter(isConfig).map((c) => ({
-      mode: 'forward',
-      preserveHost: false,
-      captureStatus: 200,
-      captureBody: DEFAULT_CAPTURE_BODY,
-      webhookPath: '',
-      ...c,
-      // Arquivo editado à mão: destino inválido volta ao padrão.
-      target: normalizeTarget(c.target) ?? 'http://localhost:3000',
-      webhook: normalizeWebhook(c.webhook),
-    }));
+    this.configs = list.filter(isConfig).map((c) => {
+      const { appearance, ...rest } = c;
+      const valid = normalizeAppearance(appearance);
+      return {
+        mode: 'forward',
+        preserveHost: false,
+        captureStatus: 200,
+        captureBody: DEFAULT_CAPTURE_BODY,
+        webhookPath: '',
+        ...rest,
+        // Arquivo editado à mão: destino inválido volta ao padrão.
+        target: normalizeTarget(c.target) ?? 'http://localhost:3000',
+        webhook: normalizeWebhook(c.webhook),
+        ...(valid ? { appearance: valid } : {}),
+      };
+    });
   }
 
   private persist(): Promise<void> {
@@ -335,6 +348,11 @@ export class TunnelService {
     if (patch.name !== undefined) next.name = patch.name.trim() || current.name;
     if (patch.webhook !== undefined)
       next.webhook = normalizeWebhook({ ...current.webhook, ...patch.webhook });
+    if ('appearance' in patch) {
+      const appearance = normalizeAppearance(patch.appearance);
+      if (appearance) next.appearance = appearance;
+      else delete next.appearance;
+    }
     if (patch.captureStatus !== undefined && !(patch.captureStatus >= 100 && patch.captureStatus <= 599))
       throw new Error('Status HTTP inválido (100 a 599).');
     this.configs = this.configs.map((c) => (c.id === id ? next : c));

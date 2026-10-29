@@ -1,5 +1,13 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import {
+  DEFAULT_EDITOR_FONT_SIZE,
+  type Density,
+  type EditorFontId,
+  isDensity,
+  isEditorFont,
+  isEditorFontSize,
+} from '../theme/display';
 import { DEFAULT_PALETTE, isPaletteId, type PaletteId } from '../theme/palettes';
 
 export type SidebarSection = 'collections' | 'environments' | 'history' | 'trash' | 'tunnels' | 'databases';
@@ -8,6 +16,9 @@ export type SettingsSection = 'appearance' | 'requests' | 'network' | 'mcp' | 'a
 
 interface UiState {
   paletteId: PaletteId;
+  density: Density;
+  editorFont: EditorFontId;
+  editorFontSize: number;
   sidebarCollapsed: boolean;
   sidebarSection: SidebarSection;
   paneLayout: PaneLayout;
@@ -21,6 +32,9 @@ interface UiState {
   saveAsTabId: string | null;
 
   setPalette(id: PaletteId): void;
+  setDensity(density: Density): void;
+  setEditorFont(font: EditorFontId): void;
+  setEditorFontSize(size: number): void;
   toggleSidebar(): void;
   /** Clicar na seção já ativa recolhe a sidebar (como no VS Code). */
   selectSection(section: SidebarSection): void;
@@ -39,6 +53,9 @@ export const useUiStore = create<UiState>()(
   persist(
     (set) => ({
       paletteId: DEFAULT_PALETTE,
+      density: 'normal',
+      editorFont: 'jetbrains',
+      editorFontSize: DEFAULT_EDITOR_FONT_SIZE,
       sidebarCollapsed: false,
       sidebarSection: 'collections',
       paneLayout: 'horizontal',
@@ -49,6 +66,9 @@ export const useUiStore = create<UiState>()(
       saveAsTabId: null,
 
       setPalette: (paletteId) => set({ paletteId }),
+      setDensity: (density) => set({ density }),
+      setEditorFont: (editorFont) => set({ editorFont }),
+      setEditorFontSize: (editorFontSize) => set({ editorFontSize }),
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       selectSection: (section) =>
         set((s) =>
@@ -77,6 +97,9 @@ export const useUiStore = create<UiState>()(
       // Coleções, com a sidebar visível.
       partialize: (s) => ({
         paletteId: s.paletteId,
+        density: s.density,
+        editorFont: s.editorFont,
+        editorFontSize: s.editorFontSize,
         paneLayout: s.paneLayout,
         expanded: s.expanded,
       }),
@@ -90,6 +113,9 @@ export const useUiStore = create<UiState>()(
           sidebarSection: current.sidebarSection,
           sidebarCollapsed: current.sidebarCollapsed,
           paletteId: isPaletteId(p.paletteId) ? p.paletteId : current.paletteId,
+          density: isDensity(p.density) ? p.density : current.density,
+          editorFont: isEditorFont(p.editorFont) ? p.editorFont : current.editorFont,
+          editorFontSize: isEditorFontSize(p.editorFontSize) ? p.editorFontSize : current.editorFontSize,
         };
       },
     },

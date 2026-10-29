@@ -6,6 +6,7 @@ import {
   Layers,
   Lock,
   MoreHorizontal,
+  Palette,
   Pencil,
   Plus,
   Trash2,
@@ -15,8 +16,10 @@ import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { api } from '../../lib/api';
 import { cn } from '../../lib/cn';
+import { ItemIcon } from '../../lib/item-icons';
 import { useTabs } from '../../state/tabs';
 import { useActiveEnvironmentId, useSnapshot } from '../../state/workspace';
+import { openAppearanceDialog } from '../appearance/AppearanceDialog';
 import {
   deleteItem,
   duplicateItem,
@@ -88,6 +91,17 @@ export function EnvironmentsPanel({ filter }: { filter: string }) {
                 shortcut: 'Ctrl+D',
               },
               {
+                label: 'Ícone e cor',
+                icon: Palette,
+                onSelect: () =>
+                  openAppearanceDialog({
+                    id: env.id,
+                    name: env.name,
+                    kind: 'environment',
+                    appearance: env.appearance,
+                  }),
+              },
+              {
                 label: 'Exportar para o Postman',
                 icon: FileDown,
                 onSelect: () => void exportVariables(env.id),
@@ -112,7 +126,7 @@ export function EnvironmentsPanel({ filter }: { filter: string }) {
                       e.key === 'Enter' && useTabs.getState().openItem('environment', env.id, snapshot)
                     }
                     className={cn(
-                      'group flex h-7 cursor-pointer items-center gap-2 rounded-md pl-2 pr-1 text-[13px] transition-colors',
+                      'group flex h-(--row-h) cursor-pointer items-center gap-2 rounded-md pl-2 pr-1 text-[13px] transition-colors',
                       selected ? 'bg-primary-soft text-fg' : 'text-fg-muted hover:bg-surface-2 hover:text-fg',
                     )}
                   >
@@ -121,6 +135,11 @@ export function EnvironmentsPanel({ filter }: { filter: string }) {
                         'size-1.5 shrink-0 rounded-full',
                         isActive ? 'bg-primary' : 'bg-border-strong',
                       )}
+                    />
+                    <ItemIcon
+                      kind="environment"
+                      appearance={env.appearance}
+                      className={cn('size-3.5', !env.appearance && 'text-fg-subtle')}
                     />
                     <span className="min-w-0 flex-1 truncate">{env.name}</span>
                     {secrets > 0 && (

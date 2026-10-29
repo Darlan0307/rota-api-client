@@ -149,7 +149,7 @@ function ConnectionItem({ view, selected }: { view: DbConnectionView; selected: 
         onClick={() => openConnection(config.id)}
         onKeyDown={(e) => e.key === 'Enter' && openConnection(config.id)}
         className={cn(
-          'group flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors',
+          'group flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-(--row-py) transition-colors',
           selected ? 'bg-surface-2' : 'hover:bg-surface-2/60',
         )}
       >
