@@ -5,7 +5,7 @@ import {
   TECHNICAL_HEADERS,
 } from '@rota/core/shared';
 import { Check } from 'lucide-react';
-import type { KeyboardEvent, ReactNode } from 'react';
+import { type KeyboardEvent, type ReactNode, useEffect, useState } from 'react';
 import { Field, TextArea, TextInput } from '../../components/form';
 import { cn } from '../../lib/cn';
 
@@ -102,25 +102,19 @@ export function ContentPanel({ options, patch }: { options: EvidenceOptions; pat
       <Group title="Tamanho">
         <div className="grid grid-cols-2 gap-3">
           <Field label="Caracteres por corpo">
-            <TextInput
-              type="number"
-              min={500}
-              step={1000}
+            <NumberInput
               value={options.maxBodyChars}
-              onChange={(e) =>
-                patch({ maxBodyChars: clampInt(e.target.value, 500, 500_000, options.maxBodyChars) })
-              }
+              min={500}
+              max={500_000}
+              onCommit={(maxBodyChars) => patch({ maxBodyChars })}
             />
           </Field>
           <Field label="Linhas por corpo (cartões)">
-            <TextInput
-              type="number"
+            <NumberInput
+              value={options.cardBodyLines}
               min={3}
               max={200}
-              value={options.cardBodyLines}
-              onChange={(e) =>
-                patch({ cardBodyLines: clampInt(e.target.value, 3, 200, options.cardBodyLines) })
-              }
+              onCommit={(cardBodyLines) => patch({ cardBodyLines })}
             />
           </Field>
         </div>
@@ -193,9 +187,39 @@ export function TextsPanel({
   );
 }
 
-function clampInt(raw: string, min: number, max: number, fallback: number): number {
-  const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
+/**
+ * Número que só é conferido ao sair do campo (ou Enter): limitar a cada tecla
+ * impediria digitar "5000" (o "5" viraria o mínimo na hora).
+ */
+function NumberInput({
+  value,
+  min,
+  max,
+  onCommit,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  onCommit: (value: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+  const commit = () => {
+    const n = Number.parseInt(text, 10);
+    const next = Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : value;
+    setText(String(next));
+    if (next !== value) onCommit(next);
+  };
+  return (
+    <TextInput
+      inputMode="numeric"
+      value={text}
+      onChange={(e) => setText(e.target.value.replace(/\D/g, ''))}
+      onBlur={commit}
+      onKeyDown={(e) => e.key === 'Enter' && commit()}
+      title={`De ${min.toLocaleString('pt-BR')} a ${max.toLocaleString('pt-BR')}`}
+    />
+  );
 }
 
 function Group({ title, children }: { title: string; children: ReactNode }) {

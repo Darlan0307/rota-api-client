@@ -84,19 +84,24 @@ function EvidenceForm({ preselect }: { preselect: Preselect }) {
 
   useEffect(() => {
     let alive = true;
-    api
-      .invoke('history:list', '', LIST_LIMIT)
-      .then(({ items: list }) => {
-        if (!alive) return;
-        setItems(list);
-        const found = preselect
-          ? list.find((i) =>
-              'historyId' in preselect ? i.id === preselect.historyId : i.at === preselect.at,
-            )
-          : list[0];
-        if (found) setSelected([found.id]);
-      })
-      .catch((error: unknown) => toast.error(errorMessage(error)));
+    (async () => {
+      const { items: list } = await api.invoke('history:list', '', LIST_LIMIT);
+      let found = preselect
+        ? list.find((i) => ('historyId' in preselect ? i.id === preselect.historyId : i.at === preselect.at))
+        : list[0];
+      // Envio antigo (fora dos mais recentes): entra na lista para poder vir marcado.
+      if (!found && preselect && 'historyId' in preselect) {
+        const entry = await api.invoke('history:get', preselect.historyId);
+        if (entry) {
+          const { data: _data, result: _result, parentId: _parentId, ...summary } = entry;
+          found = summary;
+          list.push(summary);
+        }
+      }
+      if (!alive) return;
+      setItems(list);
+      if (found) setSelected([found.id]);
+    })().catch((error: unknown) => toast.error(errorMessage(error)));
     return () => {
       alive = false;
     };
