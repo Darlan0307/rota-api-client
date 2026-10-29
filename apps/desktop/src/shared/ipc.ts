@@ -253,6 +253,20 @@ export interface IpcContract {
     args: [historyIds: string[], options: EvidenceOptions, format: 'md' | 'pdf'];
     result: string | null;
   };
+  /**
+   * Relatório como imagem PNG: cartões resumidos ou o relatório completo.
+   * "preview" devolve a primeira parte como data URL; "copy" põe na área de
+   * transferência (só cabe uma parte); "save" grava (uma imagem por parte).
+   */
+  'evidence:image': {
+    args: [
+      historyIds: string[],
+      options: EvidenceOptions,
+      layout: 'cards' | 'full',
+      action: 'preview' | 'copy' | 'save',
+    ];
+    result: { parts: number; path?: string | null; preview?: string };
+  };
 
   /** Resolve ao terminar (ou ser cancelado); o progresso chega por 'loadtest:progress'. */
   'loadtest:start': { args: [input: LoadTestInput]; result: LoadTestResult };
@@ -421,6 +435,7 @@ export const IPC_CHANNELS = [
   'context:save',
   'evidence:render',
   'evidence:save',
+  'evidence:image',
   'export:all',
   'examples:save',
   'loadtest:start',

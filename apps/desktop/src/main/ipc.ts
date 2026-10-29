@@ -5,6 +5,7 @@ import {
   collectionToMarkdown,
   createdWorkspacesDir,
   type EvidenceStep,
+  escapeHtml,
   exportCollectionToPostman,
   exportEnvironmentToPostman,
   exportGlobalsToPostman,
@@ -18,6 +19,7 @@ import {
   prepareProjectFolder,
   previewPostmanFiles,
   readJsonIfExists,
+  renderEvidenceCards,
   renderEvidenceHtml,
   renderEvidenceMarkdown,
   slugify,
@@ -26,7 +28,16 @@ import {
   WorkspaceStore,
   withRecentWorkspace,
 } from '@rota/core';
-import { app, BrowserWindow, dialog, type IpcMainInvokeEvent, ipcMain, shell } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  ClipboardItem,
+  clipboard,
+  dialog,
+  type IpcMainInvokeEvent,
+  ipcMain,
+  shell,
+} from 'electron';
 import {
   IPC_ERROR_PREFIX,
   type IpcArgs,
@@ -35,7 +46,7 @@ import {
   type McpLaunchConfig,
   type McpStatus,
 } from '../shared/ipc';
-import { htmlToPdf } from './pdf';
+import { htmlToImages, htmlToPdf } from './pdf';
 import type { DatabaseService } from './services/database-service';
 import type { LoadTestService } from './services/loadtest-service';
 import type { McpBridge } from './services/mcp-bridge';
@@ -343,7 +354,7 @@ export function registerIpcHandlers({
 
   // Pacote de contexto: antes de sair do app (copiar ou salvar), troca todo valor
   // secreto conhecido do workspace (qualquer coleção e ambiente) por ••••••.
-  const maskWorkspaceSecrets = (text: string) => {
+  const maskWorkspaceSecrets = (text: string, html = false) => {
     const store = workspace.current;
     const snapshot = store.snapshot();
     const secrets = new Set<string>();
@@ -351,7 +362,9 @@ export function registerIpcHandlers({
       for (const parentId of [undefined, ...snapshot.collections.map((c) => c.id)])
         for (const value of variableScopeFor(store, { parentId, environmentId }).secretValues())
           secrets.add(value);
-    return maskSecretValues(text, [...secrets]);
+    const values = [...secrets];
+    if (html) values.push(...values.map(escapeHtml));
+    return maskSecretValues(text, values);
   };
   handle('context:mask', (_e, markdown) => maskWorkspaceSecrets(markdown));
   handle('context:save', async (event, markdown, folder) => {
@@ -372,38 +385,84 @@ export function registerIpcHandlers({
     const steps: EvidenceStep[] = [];
     for (const id of ids) {
       const entry = await workspace.history.get(id);
-      if (entry) steps.push({ name: entry.name, at: entry.at, source: entry.source, result: entry.result });
+      if (entry)
+        steps.push({
+          id: entry.id,
+          name: entry.name,
+          at: entry.at,
+          source: entry.source,
+          result: entry.result,
+        });
     }
     if (steps.length === 0) throw new Error('Nenhum dos envios escolhidos está mais no histórico.');
     return steps;
+  };
+  const askSavePath = async (
+    event: IpcMainInvokeEvent,
+    name: string,
+    filter: Electron.FileFilter,
+  ): Promise<string | null> => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const options: Electron.SaveDialogOptions = {
+      title: 'Salvar relatório',
+      defaultPath: join(app.getPath('documents'), name),
+      filters: [filter],
+    };
+    const result = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
+    return result.canceled || !result.filePath ? null : result.filePath;
   };
   handle('evidence:render', async (_e, ids, options) =>
     maskWorkspaceSecrets(renderEvidenceMarkdown(await evidenceSteps(ids), options)),
   );
   handle('evidence:save', async (event, ids, options, format) => {
     const steps = await evidenceSteps(ids);
-    const win = BrowserWindow.fromWebContents(event.sender);
-    const name = `${slugify(options.title) || 'relatorio'}.${format}`;
-    const dialogOptions: Electron.SaveDialogOptions = {
-      title: 'Salvar relatório',
-      defaultPath: join(app.getPath('documents'), name),
-      filters: [
-        format === 'pdf' ? { name: 'PDF', extensions: ['pdf'] } : { name: 'Markdown', extensions: ['md'] },
-      ],
-    };
-    const result = win
-      ? await dialog.showSaveDialog(win, dialogOptions)
-      : await dialog.showSaveDialog(dialogOptions);
-    if (result.canceled || !result.filePath) return null;
+    const path = await askSavePath(
+      event,
+      `${slugify(options.title) || 'relatorio'}.${format}`,
+      format === 'pdf' ? { name: 'PDF', extensions: ['pdf'] } : { name: 'Markdown', extensions: ['md'] },
+    );
+    if (!path) return null;
     if (format === 'md') {
-      await writeFile(result.filePath, maskWorkspaceSecrets(renderEvidenceMarkdown(steps, options)), 'utf8');
+      await writeFile(path, maskWorkspaceSecrets(renderEvidenceMarkdown(steps, options)), 'utf8');
     } else {
-      await writeFile(
-        result.filePath,
-        await htmlToPdf(maskWorkspaceSecrets(renderEvidenceHtml(steps, options))),
-      );
+      await writeFile(path, await htmlToPdf(maskWorkspaceSecrets(renderEvidenceHtml(steps, options), true)));
     }
-    return result.filePath;
+    return path;
+  });
+  handle('evidence:image', async (event, ids, options, layout, action) => {
+    const steps = await evidenceSteps(ids);
+    const html =
+      layout === 'cards' ? renderEvidenceCards(steps, options) : renderEvidenceHtml(steps, options);
+    const parts = await htmlToImages(maskWorkspaceSecrets(html, true), layout === 'cards' ? 760 : 900);
+    if (action === 'preview') {
+      const first = parts[0];
+      return { parts: parts.length, preview: first ? first.toDataURL() : '' };
+    }
+    if (action === 'copy') {
+      if (parts.length > 1 || !parts[0])
+        throw new Error(
+          `A imagem ficou grande demais para copiar (${parts.length} partes). Salve como PNG, use os cartões resumidos ou desmarque algumas partes.`,
+        );
+      await clipboard.write([
+        new ClipboardItem({
+          'image/png': new Blob([new Uint8Array(parts[0].toPNG())], { type: 'image/png' }),
+        }),
+      ]);
+      return { parts: 1 };
+    }
+    const path = await askSavePath(event, `${slugify(options.title) || 'relatorio'}.png`, {
+      name: 'Imagem PNG',
+      extensions: ['png'],
+    });
+    if (!path) return { parts: parts.length, path: null };
+    if (parts.length === 1 && parts[0]) {
+      await writeFile(path, parts[0].toPNG());
+    } else {
+      // Relatório longo: uma imagem por parte (relatorio-1.png, relatorio-2.png...).
+      const base = path.replace(/\.png$/i, '');
+      for (const [i, part] of parts.entries()) await writeFile(`${base}-${i + 1}.png`, part.toPNG());
+    }
+    return { parts: parts.length, path };
   });
   handle('export:variables', (event, id) => {
     const snap = workspace.current.snapshot();
