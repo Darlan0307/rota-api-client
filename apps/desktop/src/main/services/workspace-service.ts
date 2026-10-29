@@ -156,6 +156,9 @@ export class WorkspaceService {
       case 'rename':
         await store.rename(command.id, command.name);
         break;
+      case 'setAppearance':
+        await store.setAppearance(command.id, command.appearance);
+        break;
       case 'move':
         await store.move(command.id, command.parentId, command.index);
         break;

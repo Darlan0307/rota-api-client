@@ -1,4 +1,5 @@
-import { Folder, Library, Save } from 'lucide-react';
+import { findNode } from '@rota/core/shared';
+import { Save } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button } from '../../components/Button';
 import { TextArea } from '../../components/form';
@@ -6,9 +7,12 @@ import { TabStrip } from '../../components/TabStrip';
 import { Tooltip } from '../../components/Tooltip';
 import { useInheritedAuth } from '../../lib/auth';
 import { cn } from '../../lib/cn';
+import { ItemIcon } from '../../lib/item-icons';
 import { VariableContextProvider } from '../../lib/variables';
 import { saveTab } from '../../state/actions';
 import { type CollectionTab, type FolderTab, isDirty, useTabs } from '../../state/tabs';
+import { useSnapshot } from '../../state/workspace';
+import { openAppearanceDialog } from '../appearance/AppearanceDialog';
 import { ConflictBanner } from '../conflict/ConflictBanner';
 import { AuthEditor } from '../request/AuthEditor';
 import { openItemById } from '../request/open';
@@ -21,6 +25,9 @@ export function ContainerTabView({ tab }: { tab: CollectionTab | FolderTab }) {
   const dirty = isDirty(tab);
   const inherited = useInheritedAuth(tab.kind === 'folder' ? tab.itemId : null);
   const isCollection = tab.kind === 'collection';
+  const snapshot = useSnapshot();
+  const found = tab.itemId ? findNode(snapshot, tab.itemId) : undefined;
+  const node = found && found.kind !== 'request' ? found : undefined;
 
   const sections: { id: string; label: string }[] = isCollection
     ? [
@@ -95,11 +102,25 @@ export function ContainerTabView({ tab }: { tab: CollectionTab | FolderTab }) {
       <div className="flex h-full min-h-0 flex-col bg-bg">
         <ConflictBanner tab={tab} />
         <div className="flex h-14 shrink-0 items-center gap-3 px-6">
-          {isCollection ? (
-            <Library className="size-4 text-fg-subtle" strokeWidth={1.75} />
-          ) : (
-            <Folder className="size-4 text-fg-subtle" strokeWidth={1.75} />
-          )}
+          <Tooltip label="Ícone e cor">
+            <button
+              type="button"
+              aria-label="Ícone e cor"
+              disabled={!node}
+              onClick={() =>
+                node &&
+                openAppearanceDialog({
+                  id: node.id,
+                  name: node.name,
+                  kind: tab.kind,
+                  appearance: node.appearance,
+                })
+              }
+              className="flex size-8 items-center justify-center rounded-md text-fg-subtle transition-colors hover:bg-surface-2 hover:text-fg"
+            >
+              <ItemIcon kind={tab.kind} appearance={node?.appearance} className="size-4" />
+            </button>
+          </Tooltip>
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-sm font-semibold">{tab.title}</h1>
             <p className="text-xs text-fg-muted">

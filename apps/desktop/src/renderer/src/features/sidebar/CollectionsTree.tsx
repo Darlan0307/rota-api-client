@@ -13,12 +13,11 @@ import {
   Copy,
   FileDown,
   FilePlus2,
-  Folder,
   FolderOpen,
   FolderPlus,
   FolderTree,
-  Library,
   MoreHorizontal,
+  Palette,
   Pencil,
   Plus,
   Settings2,
@@ -33,9 +32,11 @@ import { EmptyState } from '../../components/EmptyState';
 import { MethodBadge } from '../../components/MethodBadge';
 import { cn } from '../../lib/cn';
 import { statusTone } from '../../lib/format';
+import { ItemIcon } from '../../lib/item-icons';
 import { useTabs } from '../../state/tabs';
 import { useUiStore } from '../../state/ui';
 import { useSnapshot } from '../../state/workspace';
+import { openAppearanceDialog } from '../appearance/AppearanceDialog';
 import { claudePrompts, copyPrompt } from '../claude/AskClaude';
 import {
   deleteItem,
@@ -264,6 +265,17 @@ function TreeRow({
           { label: 'Nova requisição', icon: FilePlus2, onSelect: () => void newRequest(node.id) },
           { label: 'Nova pasta', icon: FolderPlus, onSelect: () => void newFolder(node.id) },
           { label: 'Configurações', icon: Settings2, onSelect: () => openContainerSettings(node.id) },
+          {
+            label: 'Ícone e cor',
+            icon: Palette,
+            onSelect: () =>
+              openAppearanceDialog({
+                id: node.id,
+                name: node.name,
+                kind: node.kind,
+                appearance: node.appearance,
+              }),
+          },
           'separator',
         ] satisfies MenuEntry[])
       : ([
@@ -384,13 +396,9 @@ function TreeRow({
           ) : (
             <span className="w-3.5 shrink-0" />
           )}
-          {node.kind === 'collection' && <Library className="size-3.5 shrink-0" strokeWidth={1.75} />}
-          {node.kind === 'folder' &&
-            (open ? (
-              <FolderOpen className="size-3.5 shrink-0" strokeWidth={1.75} />
-            ) : (
-              <Folder className="size-3.5 shrink-0" strokeWidth={1.75} />
-            ))}
+          {container && (
+            <ItemIcon kind={node.kind} appearance={node.appearance} open={open} className="size-3.5" />
+          )}
           {node.kind === 'request' && <MethodBadge method={node.data.method} />}
 
           {renaming ? (

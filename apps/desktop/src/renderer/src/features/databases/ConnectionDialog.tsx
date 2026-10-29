@@ -25,6 +25,7 @@ import { Dialog } from '../../components/Dialog';
 import { Field, Select, Switch, TextInput } from '../../components/form';
 import { api, errorMessage } from '../../lib/api';
 import { cn } from '../../lib/cn';
+import { EngineIcon } from '../../lib/item-icons';
 import { confirmDialog } from '../../state/dialogs';
 import { openDatabaseGuide } from './DatabaseGuide';
 import {
@@ -238,13 +239,14 @@ function ConnectionForm({ id }: { id: string | null }) {
                 type="button"
                 onClick={() => chooseEngine(e.id)}
                 className={cn(
-                  'h-7 truncate rounded-md px-1 text-xs transition-colors',
+                  'flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md px-1 text-xs transition-colors',
                   form.engine === e.id
                     ? 'bg-elevated font-medium text-fg shadow-sm'
                     : 'text-fg-muted hover:text-fg',
                 )}
               >
-                {e.label}
+                <EngineIcon engine={e.id} className="size-4" />
+                <span className="truncate">{e.label}</span>
               </button>
             ))}
           </div>

@@ -2,6 +2,8 @@ import { cp, mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
 import { basename, dirname, join, relative, sep } from 'node:path';
 import { z } from 'zod';
 import {
+  type Appearance,
+  AppearanceSchema,
   type Auth,
   type CollectionFile,
   CollectionFileSchema,
@@ -339,6 +341,28 @@ export class WorkspaceStore {
           ...(patch.description !== undefined ? { description: patch.description || undefined } : {}),
         }),
       );
+    });
+  }
+
+  /** Ícone e cor de uma coleção ou pasta; `null` volta ao padrão. */
+  setAppearance(id: string, appearance: Appearance | null): Promise<void> {
+    return this.mutate(async () => {
+      const entry = this.entries.get(id);
+      if (entry?.kind !== 'collection' && entry?.kind !== 'folder') throw notFound(id);
+      const next =
+        appearance && (appearance.icon || appearance.color) ? AppearanceSchema.parse(appearance) : undefined;
+      const { appearance: _previous, ...rest } = entry.file;
+      if (entry.kind === 'collection') {
+        await writeJsonAtomic(
+          join(entry.dir, COLLECTION_FILE),
+          CollectionFileSchema.parse({ ...rest, ...(next ? { appearance: next } : {}) }),
+        );
+      } else {
+        await writeJsonAtomic(
+          join(entry.dir, FOLDER_FILE),
+          FolderFileSchema.parse({ ...rest, ...(next ? { appearance: next } : {}) }),
+        );
+      }
     });
   }
 
@@ -915,6 +939,7 @@ export class WorkspaceStore {
         variables: viewVariables(file.variables, { kind: 'collection', id }, this.secrets),
         scripts: file.scripts,
         description: file.description,
+        appearance: file.appearance,
         children: await this.loadChildren(dir, id, file.order, entries, seen, problems),
       });
     }
@@ -966,6 +991,7 @@ export class WorkspaceStore {
           auth: file.auth,
           scripts: file.scripts,
           description: file.description,
+          appearance: file.appearance,
           children: await this.loadChildren(path, id, file.order, entries, seen, problems),
         };
         children.push(node);

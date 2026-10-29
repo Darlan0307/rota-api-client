@@ -164,6 +164,20 @@ export type ExampleFile = z.infer<typeof ExampleFileSchema>;
 // ---------------------------------------------------------------------------
 // Pastas e coleções
 
+/** Ícone e cor escolhidos para a coleção/pasta na árvore. */
+export const AppearanceSchema = z.object({
+  /** Id do catálogo de ícones do app (ex.: "credit-card", "brand:stripe"). */
+  icon: z.string().max(60).optional(),
+  color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .optional(),
+});
+export type Appearance = z.infer<typeof AppearanceSchema>;
+
+// Aparência inválida (editada à mão) não pode impedir a coleção de abrir.
+const appearanceField = AppearanceSchema.optional().catch(undefined);
+
 export const FolderFileSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
   id: z.string(),
@@ -172,6 +186,7 @@ export const FolderFileSchema = z.object({
   /** Scripts executados para todas as requisições da pasta (como no Postman). */
   scripts: ScriptsSchema.default({ preRequest: '', postResponse: '' }),
   description: z.string().optional(),
+  appearance: appearanceField,
   /** Ids dos filhos na ordem de exibição. Filhos fora da lista vão para o fim. */
   order: z.array(z.string()).default([]),
 });
@@ -186,6 +201,7 @@ export const CollectionFileSchema = z.object({
   /** Scripts executados para todas as requisições da coleção (como no Postman). */
   scripts: ScriptsSchema.default({ preRequest: '', postResponse: '' }),
   description: z.string().optional(),
+  appearance: appearanceField,
   order: z.array(z.string()).default([]),
 });
 export type CollectionFile = z.infer<typeof CollectionFileSchema>;

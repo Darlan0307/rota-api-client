@@ -1,11 +1,10 @@
+import { findNode } from '@rota/core/shared';
 import {
   Bookmark,
   Columns2,
   Database,
-  Folder,
   Gauge,
   Globe,
-  Library,
   PanelLeftOpen,
   Pin,
   PinOff,
@@ -19,10 +18,13 @@ import { useState } from 'react';
 import { ContextActions } from '../components/ActionMenu';
 import { IconButton } from '../components/IconButton';
 import { MethodBadge } from '../components/MethodBadge';
+import { useConnection } from '../features/databases/state';
 import { cn } from '../lib/cn';
+import { EngineIcon, ItemIcon } from '../lib/item-icons';
 import { closeTab, closeUnpinnedTabs } from '../state/actions';
 import { isDirty, type Tab, useTabs } from '../state/tabs';
 import { useUiStore } from '../state/ui';
+import { useSnapshot } from '../state/workspace';
 
 export function TabBar() {
   const tabs = useTabs((s) => s.tabs);
@@ -188,20 +190,32 @@ export function TabBar() {
   );
 }
 
+function ContainerTabIcon({ kind, itemId }: { kind: 'collection' | 'folder'; itemId: string | null }) {
+  const snapshot = useSnapshot();
+  const node = itemId ? findNode(snapshot, itemId) : undefined;
+  const appearance = node && node.kind !== 'request' ? node.appearance : undefined;
+  return <ItemIcon kind={kind} appearance={appearance} className="size-3.5 text-fg-subtle" />;
+}
+
+function DatabaseTabIcon({ itemId }: { itemId: string | null }) {
+  const engine = useConnection(itemId)?.config.engine;
+  if (!engine) return <Database className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
+  return <EngineIcon engine={engine} className="size-4" />;
+}
+
 function TabIcon({ tab }: { tab: Tab }) {
   switch (tab.kind) {
     case 'request':
       return <MethodBadge method={tab.draft.method} />;
     case 'collection':
-      return <Library className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
     case 'folder':
-      return <Folder className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
+      return <ContainerTabIcon kind={tab.kind} itemId={tab.itemId} />;
     case 'loadtest':
       return <Gauge className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
     case 'tunnel':
       return <Webhook className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
     case 'database':
-      return <Database className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
+      return <DatabaseTabIcon itemId={tab.itemId} />;
     case 'example':
       return <Bookmark className="size-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />;
     default:

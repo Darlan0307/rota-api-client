@@ -48,7 +48,7 @@ import { type DatabaseTab, useTabs } from '../../state/tabs';
 import { toast } from '../../state/toasts';
 import { addProfileToPack, addTablesToPack } from '../context-pack/state';
 import { openTypesForTable } from '../types/TypesDialog';
-import { ConnectionDot, EnvironmentBadge } from './DatabasesPanel';
+import { EngineStatusIcon, EnvironmentBadge } from './DatabasesPanel';
 import { ProfileView } from './ProfileView';
 import { cancelProfile, closeProfile, runProfile, showProfile, useProfiles } from './profile-state';
 import { QueryHistory } from './QueryHistory';
@@ -185,7 +185,7 @@ function Header({ id }: { id: string }) {
   const connected = status === 'connected';
   return (
     <div className="flex h-14 shrink-0 items-center gap-3 px-5">
-      <ConnectionDot status={status} />
+      <EngineStatusIcon engine={config.engine} status={status} ring="ring-bg" />
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-2 text-[15px] font-semibold text-fg">
           <span className="truncate">{config.name}</span>

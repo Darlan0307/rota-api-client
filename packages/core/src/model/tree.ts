@@ -1,4 +1,4 @@
-import type { Auth, ExampleFile, RequestData, Scripts, Variable } from './schemas';
+import type { Appearance, Auth, ExampleFile, RequestData, Scripts, Variable } from './schemas';
 
 /**
  * Visão em memória do workspace, montada a partir dos arquivos. É o que o app
@@ -28,6 +28,7 @@ export interface FolderNode {
   auth: Auth;
   scripts: Scripts;
   description?: string | undefined;
+  appearance?: Appearance | undefined;
   children: ChildNode[];
 }
 
@@ -39,6 +40,7 @@ export interface CollectionNode {
   variables: VariableView[];
   scripts: Scripts;
   description?: string | undefined;
+  appearance?: Appearance | undefined;
   children: ChildNode[];
 }
 

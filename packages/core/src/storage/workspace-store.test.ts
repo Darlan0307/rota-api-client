@@ -88,6 +88,40 @@ describe('WorkspaceStore: estrutura', () => {
   });
 });
 
+describe('WorkspaceStore: aparência', () => {
+  it('grava ícone e cor da coleção e da pasta, e volta ao padrão com null', async () => {
+    const col = await store.createCollection('Pagamentos');
+    const folder = await store.createFolder(col, 'Pix');
+    await store.setAppearance(col, { icon: 'brand:stripe', color: '#635BFF' });
+    await store.setAppearance(folder, { icon: 'qr-code' });
+
+    expect(await read('collections', 'pagamentos', '_collection.json')).toMatchObject({
+      appearance: { icon: 'brand:stripe', color: '#635BFF' },
+    });
+    const snap = store.snapshot();
+    expect(findNode(snap, col)).toMatchObject({ appearance: { icon: 'brand:stripe' } });
+    expect(findNode(snap, folder)).toMatchObject({ appearance: { icon: 'qr-code' } });
+
+    // Salvar as configurações da coleção não apaga a aparência.
+    await store.updateCollection(col, { description: 'Gateway' });
+    expect(findNode(store.snapshot(), col)).toMatchObject({ appearance: { color: '#635BFF' } });
+
+    await store.setAppearance(col, null);
+    expect(await read('collections', 'pagamentos', '_collection.json')).not.toHaveProperty('appearance');
+  });
+
+  it('ignora aparência inválida editada à mão sem perder a coleção', async () => {
+    const col = await store.createCollection('C');
+    const path = join(root, 'collections', 'c', '_collection.json');
+    const file = JSON.parse(await readFile(path, 'utf8'));
+    await writeFile(path, JSON.stringify({ ...file, appearance: { color: 'vermelho' } }));
+    const reopened = await WorkspaceStore.open(root, { secrets, defaultName: 'Teste' });
+    const node = findNode(reopened.snapshot(), col);
+    expect(node?.name).toBe('C');
+    expect(node).not.toHaveProperty('appearance.color');
+  });
+});
+
 describe('WorkspaceStore: renomear, mover, duplicar, excluir', () => {
   it('renomeia arquivo e pasta junto com o nome, levando os exemplos', async () => {
     const col = await store.createCollection('C');

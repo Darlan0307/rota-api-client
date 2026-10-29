@@ -6,6 +6,7 @@ import { registerSearchContent } from '../layout/SearchDialog';
 import { registerMcpSettings } from '../layout/SettingsDialog';
 import { registerSidebarExtensions } from '../layout/Sidebar';
 import { registerWorkspaceMenu } from '../layout/TitleBar';
+import { AppearanceDialog } from './appearance/AppearanceDialog';
 import { BackupDialog, openBackupDialog } from './backup/BackupDialog';
 import { AskClaudeButton } from './claude/AskClaude';
 import { CodegenButton, CodegenDialog } from './codegen/CodegenDialog';
@@ -134,6 +135,9 @@ export function registerFeatures(): void {
 
   // Backup completo no formato do Postman.
   registerOverlay(BackupDialog);
+
+  // Ícone e cor de coleções e pastas.
+  registerOverlay(AppearanceDialog);
   registerSidebarExtensions({ onBackup: openBackupDialog });
   registerWelcomeExtensions({ onBackup: openBackupDialog });
 }

@@ -1,6 +1,7 @@
 import {
   type DbConnectionStatus,
   type DbConnectionView,
+  type DbEngine,
   type DbEnvironment,
   engineInfo,
 } from '@rota/core/shared';
@@ -8,6 +9,7 @@ import { CircleHelp, KeyRound, Lock, Pencil, Plus } from 'lucide-react';
 import { Button } from '../../components/Button';
 import { IconButton } from '../../components/IconButton';
 import { cn } from '../../lib/cn';
+import { EngineIcon } from '../../lib/item-icons';
 import { useActiveTab } from '../../state/tabs';
 import { openDatabaseGuide } from './DatabaseGuide';
 import { openConnection, openConnectionDialog, setCredentialsOpen, useDatabases } from './state';
@@ -36,6 +38,32 @@ export function EnvironmentBadge({
       )}
     >
       {ENVIRONMENT_LABEL[environment]}
+    </span>
+  );
+}
+
+/** Logo do banco com o estado da conexão num ponto no canto. */
+export function EngineStatusIcon({
+  engine,
+  status,
+  className,
+  ring = 'ring-surface',
+}: {
+  engine: DbEngine;
+  status: DbConnectionStatus;
+  className?: string;
+  /** Cor do fundo atrás do ícone (o anel separa o ponto do logo). */
+  ring?: 'ring-surface' | 'ring-bg';
+}) {
+  return (
+    <span
+      className={cn('relative flex size-5 shrink-0 items-center justify-center', className)}
+      title={engineInfo(engine).label}
+    >
+      <EngineIcon engine={engine} className="size-5" />
+      <span className={cn('absolute -bottom-0.5 -right-0.5 flex rounded-full ring-2', ring)}>
+        <ConnectionDot status={status} />
+      </span>
     </span>
   );
 }
@@ -125,7 +153,7 @@ function ConnectionItem({ view, selected }: { view: DbConnectionView; selected: 
           selected ? 'bg-surface-2' : 'hover:bg-surface-2/60',
         )}
       >
-        <ConnectionDot status={view.status} />
+        <EngineStatusIcon engine={config.engine} status={view.status} />
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 text-[13px] text-fg">
             <span className="truncate">{config.name}</span>
@@ -134,12 +162,6 @@ function ConnectionItem({ view, selected }: { view: DbConnectionView; selected: 
             )}
           </p>
           <p className="flex items-center gap-1.5 text-2xs text-fg-subtle">
-            <span
-              className="shrink-0 rounded bg-surface-2 px-1 font-mono text-2xs text-fg-muted"
-              title={engineInfo(config.engine).label}
-            >
-              {engineInfo(config.engine).short}
-            </span>
             <EnvironmentBadge environment={config.environment} />
             <span className="truncate font-mono">
               {config.host}:{config.database}

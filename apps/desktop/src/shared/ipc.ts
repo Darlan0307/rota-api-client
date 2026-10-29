@@ -8,6 +8,7 @@
  * adicionar um canal: declare aqui, inclua na lista e registre em src/main/ipc.ts.
  */
 import type {
+  Appearance,
   AppSettings,
   Auth,
   CodegenTarget,
@@ -82,6 +83,7 @@ export type WorkspaceCommand =
     }
   | { type: 'updateFolder'; id: string; auth?: Auth; description?: string; scripts?: Scripts }
   | { type: 'rename'; id: string; name: string }
+  | { type: 'setAppearance'; id: string; appearance: Appearance | null }
   | { type: 'move'; id: string; parentId: string; index?: number }
   | { type: 'duplicate'; id: string }
   | { type: 'remove'; id: string }
