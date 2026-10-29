@@ -17,7 +17,7 @@ import { IconButton } from './IconButton';
  */
 
 const WIDTH = 384;
-const CLOSE_DELAY = 220;
+const CLOSE_DELAY = 150;
 
 export interface VariableHover {
   name: string;
@@ -44,10 +44,15 @@ export function useVariableHover() {
     setHover(null);
   }, [cancelClose]);
   const scheduleClose = useCallback(() => {
-    cancelClose();
+    // Chamado a cada movimento do mouse fora da variável: reiniciar o prazo
+    // aqui deixaria o popover aberto enquanto o mouse não parasse.
+    if (timer.current) return;
     if (pinned.current || inside.current) return;
-    timer.current = setTimeout(() => setHover(null), CLOSE_DELAY);
-  }, [cancelClose]);
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      setHover(null);
+    }, CLOSE_DELAY);
+  }, []);
   const enter = useCallback(() => {
     inside.current = true;
     cancelClose();

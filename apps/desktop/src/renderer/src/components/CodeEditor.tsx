@@ -54,6 +54,12 @@ function registerVariableCompletion(): void {
   }
 }
 
+/** Parte do controlador de busca do Monaco que não vem tipada na API pública. */
+interface FindController {
+  getState(): { isRevealed: boolean };
+  closeFindWidget(): void;
+}
+
 interface CodeEditorProps {
   value: string;
   onChange?: (value: string) => void;
@@ -173,6 +179,21 @@ export function CodeEditor({
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => shortcutRef.current?.('send'));
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => shortcutRef.current?.('save'));
   };
+
+  // O Monaco só fecha a busca (Ctrl+F) com Esc se o foco estiver no editor;
+  // depois de clicar fora, ela ficava aberta sem jeito de sair pelo teclado.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const editor = editorRef.current;
+      if (event.key !== 'Escape' || event.defaultPrevented || !editor || editor.hasWidgetFocus()) return;
+      // Com um diálogo do app aberto, o Esc é dele (a busca do Monaco também é role=dialog).
+      if (document.querySelector('[role="dialog"]:not(.editor-widget)')) return;
+      const find = editor.getContribution('editor.contrib.findController') as FindController | null;
+      if (find?.getState().isRevealed) find.closeFindWidget();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   // Redesenha os destaques quando o texto ou os valores das variáveis mudam.
   // biome-ignore lint/correctness/useExhaustiveDependencies: updateDecorations lê refs atualizadas
