@@ -295,7 +295,8 @@ export function resultToTsv(columns: readonly string[], rows: readonly DbValue[]
   return [columns.map((c) => cell(c)).join('\t'), ...rows.map((row) => row.map(cell).join('\t'))].join('\n');
 }
 
-function sqlLiteral(engine: DbEngine, value: DbValue): string {
+/** Valor pronto para o SQL do motor (texto entre aspas, N prefixado no SQL Server). */
+export function sqlLiteral(engine: DbEngine, value: DbValue): string {
   if (value === null) return 'NULL';
   if (typeof value === 'number') return String(value);
   if (typeof value === 'boolean')

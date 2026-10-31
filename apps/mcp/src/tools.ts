@@ -1,6 +1,8 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
+  type Appearance,
   AuthSchema,
+  applyAppearanceChange,
   BodySchema,
   type ChildNode,
   CODEGEN_TARGETS,
@@ -10,10 +12,13 @@ import {
   describeContractIssue,
   diffRequestData,
   effectiveAuth,
+  findIconCatalogItem,
   findNode,
   generateCode,
   HttpMethodSchema,
   type HttpResponse,
+  ICON_CATALOG,
+  ITEM_COLORS,
   KeyValueSchema,
   loadAppSettings,
   maskSecretValues,
@@ -137,9 +142,35 @@ function compactTree(nodes: readonly (CollectionNode | ChildNode)[]): unknown[] 
       tipo: node.kind === 'collection' ? 'colecao' : 'pasta',
       id: node.id,
       nome: node.name,
+      ...viewAppearance(node.appearance),
       filhos: compactTree(node.children),
     };
   });
+}
+
+/** Ícone (id do catálogo) e cor (pelo nome da paleta), só quando há algum. */
+function viewAppearance(appearance: Appearance | undefined): {
+  aparencia?: { icone?: string; cor?: string };
+} {
+  if (!appearance?.icon && !appearance?.color) return {};
+  const color = appearance.color;
+  return {
+    aparencia: {
+      ...(appearance.icon ? { icone: appearance.icon } : {}),
+      ...(color ? { cor: ITEM_COLORS.find((c) => c.value === color)?.label ?? color } : {}),
+    },
+  };
+}
+
+function describeAppearance(appearance: Appearance | null): string {
+  if (!appearance) return 'padrão (sem ícone nem cor)';
+  const icon = appearance.icon
+    ? (findIconCatalogItem(appearance.icon)?.label ?? appearance.icon)
+    : 'ícone padrão';
+  const color = appearance.color
+    ? (ITEM_COLORS.find((c) => c.value === appearance.color)?.label ?? appearance.color)
+    : 'sem cor';
+  return `${icon}, ${color.toLowerCase()}`;
 }
 
 /** Variáveis com segredos mascarados: o Claude vê o nome, nunca o valor. */
@@ -561,6 +592,90 @@ export function registerTools(server: McpServer, session: McpSession): void {
   );
 
   tool(
+    'listar_icones_e_cores',
+    'Lista os ícones (por grupo, com id e palavras-chave) e as cores que podem ser usados em coleções, pastas e ambientes com definir_aparencia.',
+    {},
+    async () => ({
+      icones: ICON_CATALOG.map((g) => ({
+        grupo: g.label,
+        itens: g.items.map((i) => ({
+          id: i.id,
+          nome: i.label,
+          ...('keywords' in i ? { palavras: i.keywords } : {}),
+        })),
+      })),
+      cores: ITEM_COLORS.map((c) => ({ nome: c.label, hex: c.value })),
+      dica: 'Ícone de marca (brand:...) sem cor usa a cor da própria marca. Ambientes de produção costumam ficar em vermelho, para servir de aviso.',
+    }),
+    true,
+  );
+
+  tool(
+    'definir_aparencia',
+    'Muda ícone e/ou cor de coleções, pastas e ambientes (vários de uma vez, com uma só confirmação). Ícone: id de listar_icones_e_cores. Cor: nome da paleta (ex.: "Verde") ou o hex dela. null tira; campo ausente mantém. Pode pedir confirmação no app.',
+    {
+      itens: z
+        .array(
+          z.object({
+            id,
+            icone: z
+              .string()
+              .nullable()
+              .optional()
+              .describe('Id do catálogo, ex.: "credit-card" ou "brand:stripe"'),
+            cor: z.string().nullable().optional().describe('Nome da cor da paleta ou o hex dela'),
+          }),
+        )
+        .min(1)
+        .max(200),
+    },
+    async ({ itens }) => {
+      const store = await session.store();
+      const snap = store.snapshot();
+      const changes: { id: string; label: string; next: Appearance | null }[] = [];
+      for (const item of itens) {
+        const env = snap.environments.find((e) => e.id === item.id);
+        const node = env ? undefined : findNode(snap, item.id);
+        if (!env && (!node || node.kind === 'request'))
+          throw new ToolError(
+            `"${item.id}" não é uma coleção, pasta ou ambiente (requisições não têm ícone).`,
+          );
+        const current = env ? env.appearance : node?.kind === 'request' ? undefined : node?.appearance;
+        let next: Appearance | null;
+        try {
+          next = applyAppearanceChange(current, {
+            ...(item.icone !== undefined ? { icon: item.icone } : {}),
+            ...(item.cor !== undefined ? { color: item.cor } : {}),
+          });
+        } catch (error) {
+          throw new ToolError((error as Error).message);
+        }
+        const same =
+          (next?.icon ?? '') === (current?.icon ?? '') && (next?.color ?? '') === (current?.color ?? '');
+        if (!same) changes.push({ id: item.id, label: itemLabel(store, item.id), next });
+      }
+      if (changes.length === 0) return { mensagem: 'Nada mudou.' };
+      await session.confirm({
+        title: 'Ícone e cor',
+        description:
+          changes.length === 1
+            ? `O Claude quer mudar a aparência de ${changes[0]?.label}.`
+            : `O Claude quer mudar a aparência de ${changes.length} itens.`,
+        details: changes.map((c) => `${c.label}: ${describeAppearance(c.next)}`),
+        danger: false,
+        category: 'organize',
+      });
+      for (const change of changes) await store.setAppearance(change.id, change.next);
+      await session.notifyChanged(
+        changes.length === 1
+          ? `mudou a aparência de ${changes[0]?.label}`
+          : `mudou a aparência de ${changes.length} itens`,
+      );
+      return { alterados: changes.map((c) => ({ id: c.id, aparencia: describeAppearance(c.next) })) };
+    },
+  );
+
+  tool(
     'excluir',
     'Exclui um item (vai para a lixeira do app e pode ser restaurado). Pode pedir confirmação no app.',
     { id },
@@ -598,6 +713,7 @@ export function registerTools(server: McpServer, session: McpSession): void {
           nome: e.name,
           ativo: e.id === active,
           variaveis: e.variables.length,
+          ...viewAppearance(e.appearance),
         })),
         variaveisGlobais: snap.globals.length,
       };

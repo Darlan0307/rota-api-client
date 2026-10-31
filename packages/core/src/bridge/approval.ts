@@ -13,7 +13,7 @@ export type McpAutoApprove = Record<McpAutoApprovable, boolean>;
 export const MCP_CATEGORY_INFO: Record<McpAutoApprovable, { label: string; description: string }> = {
   organize: {
     label: 'Organizar',
-    description: 'Renomear e mover coleções, pastas e requisições.',
+    description: 'Renomear e mover coleções, pastas e requisições, e mudar ícone e cor.',
   },
   edit: {
     label: 'Editar',

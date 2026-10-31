@@ -14,6 +14,8 @@ export * from './database/connection-string';
 export * from './database/describe';
 export * from './database/profile';
 export * from './database/sql';
+export * from './database/sql-builder';
+export * from './database/sql-examples';
 export * from './database/types';
 export * from './evidence/report';
 export * from './export/backup';
@@ -35,6 +37,7 @@ export * from './http/url';
 export type { ImportFileKind, ImportPreview, ImportReport, ImportResultItem } from './import/import-postman';
 export type { ImportCounts, ImportWarning, PostmanFileKind } from './import/postman';
 export * from './loadtest/config';
+export * from './model/appearance-catalog';
 export * from './model/schemas';
 export * from './model/tree';
 export type {

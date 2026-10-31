@@ -46,6 +46,7 @@ Marque envios do histórico (por exemplo login → consulta → erro) e gere um 
 
 Conecta em **Firebird (2.5+), PostgreSQL, MySQL/MariaDB e SQL Server** sem instalar cliente. Mostra tabelas, views, colunas e chaves, tem editor SQL com autocomplete (inclusive por alias) e resultado em tabela com filtro, CSV e cópia como JSON, tabela do Excel ou INSERT.
 
+- **Sem decorar SQL**: "Montar" gera SELECT, INSERT, UPDATE e DELETE preenchendo um formulário (com prévia, explicação do que o comando faz e um SELECT para conferir as linhas antes de alterar). Clique direito numa linha do resultado para editar, duplicar ou excluir aquela linha. "Exemplos" traz uma colinha de comandos do banco conectado, com os campos prontos para preencher.
 - Conexões de **produção começam somente leitura**: o próprio banco recusa alterações (no SQL Server, que não tem esse recurso, o Rota bloqueia os comandos de escrita).
 - Clique direito numa tabela para copiar a estrutura em Markdown, gerar o tipo TypeScript ou **analisar a tabela** (preenchimento, valores distintos, mínimo/máximo e os mais comuns de cada coluna).
 - Cole a URL de conexão (`postgresql://...`, JDBC, connection string do .NET) e o formulário se preenche. Uma credencial salva pode ser usada em várias conexões, e as senhas ficam cifradas.
@@ -69,7 +70,7 @@ Por total de requisições ou duração, com concorrência configurável, percen
 
 ### Integração com o Claude (MCP)
 
-O servidor MCP vem embutido no próprio executável. O Claude Desktop ou o Claude Code podem ler e criar coleções, enviar requisições, importar documentação e gerar testes, usando o mesmo código do app. Você escolhe o que ele faz direto e o que pede confirmação na tela, e segredos nunca vão para o Claude.
+O servidor MCP vem embutido no próprio executável. O Claude Desktop ou o Claude Code podem ler e criar coleções, enviar requisições, importar documentação, gerar testes e até organizar a aparência (ícone e cor de coleções, pastas e ambientes), usando o mesmo código do app. Você escolhe o que ele faz direto e o que pede confirmação na tela, e segredos nunca vão para o Claude.
 
 O **pacote de contexto** junta requisições com a resposta, estrutura de tabelas, perfis, webhooks e notas num `.md` para colar no Claude Code, com os valores secretos mascarados.
 

@@ -17,6 +17,8 @@ import { ConnectionDialog } from './databases/ConnectionDialog';
 import { CredentialsDialog } from './databases/CredentialsDialog';
 import { DatabaseGuideDialog } from './databases/DatabaseGuide';
 import { DatabasesActions, DatabasesPanel } from './databases/DatabasesPanel';
+import { SqlBuilderDialog } from './databases/SqlBuilderDialog';
+import { SqlExamplesDialog } from './databases/SqlExamplesDialog';
 import { subscribeDatabaseEvents } from './databases/state';
 import { DynamicVariablesDialog, dynamicVariablesAction } from './dynamic/DynamicVariablesDialog';
 import { FillTestDataDialog } from './dynamic/FillTestDataDialog';
@@ -135,6 +137,9 @@ export function registerFeatures(): void {
   registerOverlay(CredentialsDialog);
   // Depois do ConnectionDialog: abre por cima dele.
   registerOverlay(DatabaseGuideDialog);
+  registerOverlay(SqlBuilderDialog);
+  // Depois do SqlBuilderDialog: os exemplos abrem por cima dele.
+  registerOverlay(SqlExamplesDialog);
   subscribeDatabaseEvents();
 
   // Backup completo no formato do Postman.

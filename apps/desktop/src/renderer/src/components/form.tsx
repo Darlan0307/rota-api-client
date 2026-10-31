@@ -127,7 +127,7 @@ export function Select<T extends string>({
           align={align}
           sideOffset={4}
           className={cn(
-            'z-50 min-w-40 rounded-lg border border-border bg-elevated p-1 text-xs shadow-xl shadow-black/40 animate-pop-in',
+            'z-50 max-h-(--radix-dropdown-menu-content-available-height) min-w-40 overflow-y-auto rounded-lg border border-border bg-elevated p-1 text-xs shadow-xl shadow-black/40 animate-pop-in',
             className,
           )}
         >

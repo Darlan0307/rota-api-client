@@ -2,6 +2,8 @@ import {
   type DbEngine,
   type DbSchema,
   type DbTable,
+  type DbValue,
+  editableTableFor,
   isReadQuery,
   previewSql,
   quoteIdentifier,
@@ -10,11 +12,14 @@ import {
 import {
   Activity,
   AlertTriangle,
+  BookOpen,
   Braces,
   ChevronRight,
+  CopyPlus,
   Database,
   Eye,
   FileText,
+  Filter,
   KeyRound,
   Link2,
   LoaderCircle,
@@ -23,11 +28,15 @@ import {
   PackagePlus,
   Pencil,
   Play,
+  Plus,
   RefreshCw,
   Search,
   Square,
+  SquarePen,
   Table2,
+  Trash2,
   Unplug,
+  Wand2,
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -53,7 +62,10 @@ import { ProfileView } from './ProfileView';
 import { cancelProfile, closeProfile, runProfile, showProfile, useProfiles } from './profile-state';
 import { QueryHistory } from './QueryHistory';
 import { ResultGrid } from './ResultGrid';
+import { openSqlBuilder } from './SqlBuilderDialog';
+import { openSqlExamples } from './SqlExamplesDialog';
 import { bindSqlEditor } from './sql-completion';
+import { registerSqlEditor } from './sql-editors';
 import {
   cancelQuery,
   disconnect,
@@ -274,6 +286,22 @@ function SchemaTree({
     return (schema?.tables ?? []).filter((t) => selected.has(t.name));
   }
 
+  function builderEntries(table: DbTable): MenuEntry[] {
+    const open = (kind: 'select' | 'insert' | 'update' | 'delete') => () =>
+      openSqlBuilder({ connectionId, kind, tableName: table.name });
+    return [
+      { label: 'Consultar com filtros…', icon: Filter, onSelect: open('select') },
+      ...(table.kind === 'table'
+        ? [
+            { label: 'Inserir linha (INSERT)…', icon: Plus, onSelect: open('insert') },
+            { label: 'Alterar linhas (UPDATE)…', icon: SquarePen, onSelect: open('update') },
+            { label: 'Excluir linhas (DELETE)…', icon: Trash2, onSelect: open('delete') },
+          ]
+        : []),
+      'separator' as const,
+    ];
+  }
+
   function entriesFor(table: DbTable): MenuEntry[] {
     const targets = targetsOf(table);
     const many = targets.length > 1;
@@ -284,6 +312,7 @@ function SchemaTree({
         : [
             { label: 'Consultar (100 linhas)', icon: Play, onSelect: () => query(table) },
             'separator' as const,
+            ...builderEntries(table),
           ]),
       {
         label: `Copiar estrutura em Markdown${suffix}`,
@@ -584,7 +613,23 @@ function SqlEditor({
             void runText(text);
           }}
         />
-        <span className="hidden text-2xs text-fg-subtle xl:inline">
+        <Button
+          size="sm"
+          variant="ghost"
+          title="Monta SELECT, INSERT, UPDATE ou DELETE preenchendo um formulário"
+          onClick={() => openSqlBuilder({ connectionId: id, kind: 'select' })}
+        >
+          <Wand2 className="size-3.5" /> Montar
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          title="Colinha de comandos SQL deste banco, prontos para preencher"
+          onClick={() => openSqlExamples(id)}
+        >
+          <BookOpen className="size-3.5" /> Exemplos
+        </Button>
+        <span className="hidden text-2xs text-fg-subtle 2xl:inline">
           <Kbd keys="Ctrl+Enter" /> roda a seleção ou o comando onde está o cursor
         </span>
         <div className="flex-1" />
@@ -613,6 +658,7 @@ function SqlEditor({
           onEditor={(editor) => {
             editorRef.current = editor;
             bindSqlEditor(editor, id);
+            registerSqlEditor(id, editor);
           }}
           onShortcut={(shortcut) => shortcut === 'send' && void execute()}
         />
@@ -692,8 +738,14 @@ function ResultArea({ id, name }: { id: string; name: string }) {
 
 function QueryResultArea({ id, name }: { id: string; name: string }) {
   const query = useDatabases((s) => s.queries[id]);
+  const schema = useDatabases((s) => s.schemas[id]);
   const view = useConnection(id);
   const running = view?.running ?? false;
+  const ranSql = query?.ranSql ?? '';
+  const table = useMemo(
+    () => (schema && ranSql ? editableTableFor(ranSql, schema.tables) : undefined),
+    [schema, ranSql],
+  );
 
   if (query?.error)
     return (
@@ -729,14 +781,27 @@ function QueryResultArea({ id, name }: { id: string; name: string }) {
         {query.result.affected === 1 ? 'linha afetada' : 'linhas afetadas'} ({query.result.durationMs} ms).
       </div>
     );
+  const columns = query.result.columns.map((c) => c.name);
+  const rowActions = table
+    ? (values: readonly DbValue[]): MenuEntry[] => {
+        const open = (kind: 'insert' | 'update' | 'delete') => () =>
+          openSqlBuilder({ connectionId: id, kind, tableName: table.name, row: { columns, values } });
+        return [
+          { label: 'Editar esta linha (UPDATE)…', icon: SquarePen, onSelect: open('update') },
+          { label: 'Duplicar como nova linha (INSERT)…', icon: CopyPlus, onSelect: open('insert') },
+          { label: 'Excluir esta linha (DELETE)…', icon: Trash2, danger: true, onSelect: open('delete') },
+        ];
+      }
+    : undefined;
   return (
     <div className={cn('h-full', running && 'opacity-60')}>
       <ResultGrid
-        key={query.ranSql ?? ''}
+        key={ranSql}
         result={query.result}
         name={name}
         engine={view?.config.engine ?? 'firebird'}
-        sql={query.ranSql ?? ''}
+        sql={ranSql}
+        {...(rowActions ? { rowActions } : {})}
       />
     </div>
   );

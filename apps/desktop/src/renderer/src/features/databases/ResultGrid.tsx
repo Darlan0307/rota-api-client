@@ -22,7 +22,7 @@ import {
   Table2,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { DropdownActions } from '../../components/ActionMenu';
+import { ContextActions, DropdownActions, type MenuEntry } from '../../components/ActionMenu';
 import { Button } from '../../components/Button';
 import { IconButton } from '../../components/IconButton';
 import { api, errorMessage } from '../../lib/api';
@@ -53,12 +53,15 @@ export function ResultGrid({
   name,
   engine,
   sql,
+  rowActions,
 }: {
   result: DbQueryResult;
   name: string;
   engine: DbEngine;
   /** Comando que gerou o resultado (para achar a tabela dos INSERTs). */
   sql: string;
+  /** Editar, duplicar e excluir uma linha (só quando o SELECT é de uma tabela). */
+  rowActions?: (row: readonly DbValue[]) => MenuEntry[];
 }) {
   const [filter, setFilter] = useState('');
   const [sort, setSort] = useState<Sort>(null);
@@ -124,6 +127,54 @@ export function ResultGrid({
 
   const selectedValue = selected ? result.rows[selected.row]?.[selected.column] : undefined;
   const selectedColumn = selected ? result.columns[selected.column] : undefined;
+  const selectedRow = selected ? result.rows[selected.row] : undefined;
+  const rowEntries = rowActions && selectedRow ? rowActions(selectedRow) : [];
+
+  /** Clique direito numa célula: seleciona antes, para o menu agir sobre aquela linha. */
+  function selectFromEvent(event: React.MouseEvent) {
+    const cell = (event.target as HTMLElement).closest<HTMLElement>('[data-cell]');
+    const [row, column] = (cell?.dataset.cell ?? '').split(':').map(Number);
+    if (row !== undefined && column !== undefined && !Number.isNaN(row) && !Number.isNaN(column))
+      setSelected({ row, column });
+  }
+
+  const body = (
+    <tbody onContextMenuCapture={rowActions ? selectFromEvent : undefined}>
+      {rows.slice(0, MAX_RENDERED).map(({ row, index }) => (
+        <tr key={index} className={cn('hover:bg-surface/60', selected?.row === index && 'bg-surface/40')}>
+          <td className="border-b border-border px-2 py-1 text-right font-mono text-2xs text-fg-subtle">
+            {index + 1}
+          </td>
+          {row.map((value, i) => (
+            <td
+              // biome-ignore lint/suspicious/noArrayIndexKey: posição da coluna
+              key={i}
+              data-cell={`${index}:${i}`}
+              className={cn(
+                'max-w-[22rem] border-b border-l border-border p-0',
+                selected?.row === index &&
+                  selected.column === i &&
+                  'bg-primary-soft outline outline-1 -outline-offset-1 outline-primary',
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => setSelected({ row: index, column: i })}
+                className={cn(
+                  'block w-full truncate px-2.5 py-1 text-left font-mono',
+                  value === null ? 'italic text-fg-subtle' : 'text-fg',
+                  (typeof value === 'number' || NUMERIC_TYPE.test(result.columns[i]?.type ?? '')) &&
+                    'text-right',
+                )}
+              >
+                {text(value)}
+              </button>
+            </td>
+          ))}
+        </tr>
+      ))}
+    </tbody>
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -210,40 +261,7 @@ export function ResultGrid({
               ))}
             </tr>
           </thead>
-          <tbody>
-            {rows.slice(0, MAX_RENDERED).map(({ row, index }) => (
-              <tr key={index} className="hover:bg-surface/60">
-                <td className="border-b border-border px-2 py-1 text-right font-mono text-2xs text-fg-subtle">
-                  {index + 1}
-                </td>
-                {row.map((value, i) => (
-                  <td
-                    // biome-ignore lint/suspicious/noArrayIndexKey: posição da coluna
-                    key={i}
-                    className={cn(
-                      'max-w-[22rem] border-b border-l border-border p-0',
-                      selected?.row === index &&
-                        selected.column === i &&
-                        'bg-primary-soft outline outline-1 -outline-offset-1 outline-primary',
-                    )}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setSelected({ row: index, column: i })}
-                      className={cn(
-                        'block w-full truncate px-2.5 py-1 text-left font-mono',
-                        value === null ? 'italic text-fg-subtle' : 'text-fg',
-                        (typeof value === 'number' || NUMERIC_TYPE.test(result.columns[i]?.type ?? '')) &&
-                          'text-right',
-                      )}
-                    >
-                      {text(value)}
-                    </button>
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
+          {rowActions ? <ContextActions entries={rowEntries}>{body}</ContextActions> : body}
         </table>
         {rows.length > MAX_RENDERED && (
           <p className="px-3 py-2 text-2xs text-fg-subtle">
@@ -278,6 +296,19 @@ export function ResultGrid({
               toast.success('Valor copiado.');
             }}
           />
+          {rowEntries.map(
+            (entry) =>
+              entry !== 'separator' && (
+                <IconButton
+                  key={entry.label}
+                  icon={entry.icon ?? Copy}
+                  label={entry.label}
+                  size="sm"
+                  className={entry.danger ? 'hover:text-danger' : undefined}
+                  onClick={entry.onSelect}
+                />
+              ),
+          )}
         </div>
       )}
     </div>

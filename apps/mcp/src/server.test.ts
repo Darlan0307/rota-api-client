@@ -171,6 +171,50 @@ describe('servidor MCP', () => {
     expect((trash.data as unknown as { nome: string }[]).map((e) => e.nome)).toEqual(['Apagar']);
   });
 
+  it('muda ícone e cor de coleção, pasta e ambiente com uma confirmação', async () => {
+    const col = await call('criar_colecao', { nome: 'Pagamentos' });
+    const folder = await call('criar_pasta', { paiId: col.data.id, nome: 'Pix' });
+    const env = await call('criar_ambiente', { nome: 'Produção' });
+
+    const catalog = await call('listar_icones_e_cores');
+    expect(catalog.text).toContain('brand:stripe');
+    expect(catalog.text).toContain('Vermelho');
+
+    await openApp(true);
+    const res = await call('definir_aparencia', {
+      itens: [
+        { id: col.data.id, icone: 'brand:stripe' },
+        { id: folder.data.id, icone: 'qr-code', cor: 'verde' },
+        { id: env.data.id, cor: '#f87171' },
+      ],
+    });
+    expect(res.isError).toBe(false);
+    expect(confirmations).toHaveLength(1);
+    expect(confirmations[0]).toMatchObject({ category: 'organize', danger: false });
+    expect(confirmations[0]?.details).toContain('pasta "Pagamentos › Pix": QR Code, verde');
+
+    const tree = await call('listar_colecoes');
+    const [colView] = (tree.data as unknown as { colecoes: Record<string, unknown>[] }).colecoes;
+    expect(colView).toMatchObject({
+      aparencia: { icone: 'brand:stripe' },
+      filhos: [{ nome: 'Pix', aparencia: { icone: 'qr-code', cor: 'Verde' } }],
+    });
+    const envs = await call('listar_ambientes');
+    expect(envs.data).toMatchObject({ ambientes: [{ nome: 'Produção', aparencia: { cor: 'Vermelho' } }] });
+
+    // Tirar só a cor mantém o ícone; repetir o que já está não pede confirmação.
+    await call('definir_aparencia', { itens: [{ id: folder.data.id, cor: null }] });
+    const again = await call('definir_aparencia', { itens: [{ id: folder.data.id, icone: 'qr-code' }] });
+    expect(again.data).toMatchObject({ mensagem: 'Nada mudou.' });
+    expect(confirmations).toHaveLength(2);
+
+    const badIcon = await call('definir_aparencia', { itens: [{ id: col.data.id, icone: 'unicornio' }] });
+    expect(badIcon.isError).toBe(true);
+    expect(badIcon.text).toMatch(/não existe no catálogo/);
+    const badColor = await call('definir_aparencia', { itens: [{ id: col.data.id, cor: '#123456' }] });
+    expect(badColor.text).toMatch(/fora da paleta/);
+  });
+
   it('não pede confirmação para GET nem para criar', async () => {
     await openApp(true);
     const col = await call('criar_colecao', { nome: 'API' });

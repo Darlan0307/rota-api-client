@@ -1,4 +1,12 @@
-import { type Appearance, contrastRatio, type DbEngine } from '@rota/core/shared';
+import {
+  type Appearance,
+  contrastRatio,
+  type DbEngine,
+  ICON_CATALOG,
+  type IconCatalogItem,
+  type IconId,
+  ITEM_COLORS,
+} from '@rota/core/shared';
 import {
   Banknote,
   BookOpen,
@@ -131,16 +139,135 @@ import {
 import { cn } from './cn';
 
 /**
- * Catálogo de ícones para coleções e pastas. O id é o que fica gravado no
- * arquivo (`appearance.icon`): nunca renomeie um id existente, só acrescente.
- * Marcas vêm do simple-icons (CC0) com prefixo "brand:".
+ * Desenho de cada ícone do catálogo (`ICON_CATALOG`, no core, que também é
+ * usado pelo MCP). O tipo obriga a cobrir todos os ids. Marcas vêm do
+ * simple-icons (CC0).
  */
+type Glyph = LucideIcon | SimpleIcon;
 
-export interface IconChoice {
-  id: string;
-  label: string;
-  /** Palavras extras para a busca do seletor. */
-  keywords?: string;
+const GLYPHS: Record<IconId, Glyph> = {
+  library: Library,
+  globe: Globe,
+  code: Code,
+  terminal: Terminal,
+  rocket: Rocket,
+  puzzle: Puzzle,
+  webhook: Webhook,
+  bot: Bot,
+  sparkles: Sparkles,
+  flask: FlaskConical,
+  bug: Bug,
+  'git-branch': GitBranch,
+  star: Star,
+  zap: Zap,
+  'credit-card': CreditCard,
+  wallet: Wallet,
+  'qr-code': QrCode,
+  banknote: Banknote,
+  receipt: Receipt,
+  landmark: Landmark,
+  coins: Coins,
+  'piggy-bank': PiggyBank,
+  calculator: Calculator,
+  'shopping-cart': ShoppingCart,
+  store: Store,
+  package: Package,
+  tag: Tag,
+  truck: Truck,
+  warehouse: Warehouse,
+  building: Building2,
+  briefcase: Briefcase,
+  clipboard: ClipboardList,
+  spreadsheet: FileSpreadsheet,
+  'file-text': FileText,
+  chart: ChartColumn,
+  users: Users,
+  user: User,
+  key: KeyRound,
+  lock: Lock,
+  shield: ShieldCheck,
+  fingerprint: Fingerprint,
+  mail: Mail,
+  message: MessageSquare,
+  send: Send,
+  smartphone: Smartphone,
+  database: Database,
+  server: Server,
+  cloud: Cloud,
+  'hard-drive': HardDrive,
+  network: Network,
+  boxes: Boxes,
+  layers: Layers,
+  gauge: Gauge,
+  image: Image,
+  house: House,
+  heart: Heart,
+  gamepad: Gamepad2,
+  music: Music,
+  book: BookOpen,
+  graduation: GraduationCap,
+  'map-pin': MapPin,
+  car: Car,
+  plane: Plane,
+  stethoscope: Stethoscope,
+  pill: Pill,
+  utensils: Utensils,
+  leaf: Leaf,
+  calendar: Calendar,
+  'brand:stripe': siStripe,
+  'brand:mercadopago': siMercadopago,
+  'brand:pagseguro': siPagseguro,
+  'brand:pix': siPix,
+  'brand:paypal': siPaypal,
+  'brand:nubank': siNubank,
+  'brand:picpay': siPicpay,
+  'brand:shopify': siShopify,
+  'brand:vtex': siVtex,
+  'brand:woocommerce': siWoocommerce,
+  'brand:shopee': siShopee,
+  'brand:ifood': siIfood,
+  'brand:sap': siSap,
+  'brand:totvs': siTotvs,
+  'brand:hubspot': siHubspot,
+  'brand:whatsapp': siWhatsapp,
+  'brand:telegram': siTelegram,
+  'brand:discord': siDiscord,
+  'brand:meta': siMeta,
+  'brand:instagram': siInstagram,
+  'brand:mailchimp': siMailchimp,
+  'brand:resend': siResend,
+  'brand:github': siGithub,
+  'brand:gitlab': siGitlab,
+  'brand:jira': siJira,
+  'brand:notion': siNotion,
+  'brand:google': siGoogle,
+  'brand:googlecloud': siGooglecloud,
+  'brand:cloudflare': siCloudflare,
+  'brand:vercel': siVercel,
+  'brand:firebase': siFirebase,
+  'brand:supabase': siSupabase,
+  'brand:auth0': siAuth0,
+  'brand:clerk': siClerk,
+  'brand:keycloak': siKeycloak,
+  'brand:anthropic': siAnthropic,
+  'brand:zapier': siZapier,
+  'brand:n8n': siN8n,
+  'brand:docker': siDocker,
+  'brand:graphql': siGraphql,
+  'brand:nodejs': siNodedotjs,
+  'brand:nestjs': siNestjs,
+  'brand:python': siPython,
+  'brand:dotnet': siDotnet,
+  'brand:spring': siSpring,
+  'brand:laravel': siLaravel,
+  'brand:wordpress': siWordpress,
+  'brand:postgresql': siPostgresql,
+  'brand:mysql': siMysql,
+  'brand:mongodb': siMongodb,
+  'brand:redis': siRedis,
+};
+
+export interface IconChoice extends IconCatalogItem {
   icon?: LucideIcon;
   brand?: SimpleIcon;
 }
@@ -150,169 +277,16 @@ export interface IconGroup {
   items: IconChoice[];
 }
 
-const brand = (id: string, si: SimpleIcon, keywords?: string): IconChoice => ({
-  id: `brand:${id}`,
-  label: si.title,
-  brand: si,
-  ...(keywords ? { keywords } : {}),
-});
+// Componentes do lucide também são objetos (forwardRef): a marca se reconhece pelo path.
+const isBrand = (glyph: Glyph): glyph is SimpleIcon => 'path' in glyph && 'hex' in glyph;
 
-export const ICON_GROUPS: IconGroup[] = [
-  {
-    label: 'Geral',
-    items: [
-      { id: 'library', label: 'Coleção', icon: Library },
-      { id: 'globe', label: 'API web', icon: Globe, keywords: 'rest http site' },
-      { id: 'code', label: 'Código', icon: Code, keywords: 'dev projeto' },
-      { id: 'terminal', label: 'Terminal', icon: Terminal, keywords: 'cli' },
-      { id: 'rocket', label: 'Projeto', icon: Rocket, keywords: 'lançamento deploy' },
-      { id: 'puzzle', label: 'Integração', icon: Puzzle, keywords: 'plugin conector' },
-      { id: 'webhook', label: 'Webhook', icon: Webhook, keywords: 'eventos' },
-      { id: 'bot', label: 'Bot', icon: Bot, keywords: 'ia robô automação' },
-      { id: 'sparkles', label: 'IA', icon: Sparkles, keywords: 'llm inteligência' },
-      { id: 'flask', label: 'Testes', icon: FlaskConical, keywords: 'laboratório experimento' },
-      { id: 'bug', label: 'Bug', icon: Bug, keywords: 'erro depuração' },
-      { id: 'git-branch', label: 'Versão', icon: GitBranch, keywords: 'git branch' },
-      { id: 'star', label: 'Favorito', icon: Star },
-      { id: 'zap', label: 'Rápido', icon: Zap, keywords: 'energia raio' },
-    ],
-  },
-  {
-    label: 'Pagamentos e finanças',
-    items: [
-      { id: 'credit-card', label: 'Cartão', icon: CreditCard, keywords: 'gateway pagamento' },
-      { id: 'wallet', label: 'Carteira', icon: Wallet, keywords: 'pagamento' },
-      { id: 'qr-code', label: 'QR Code', icon: QrCode, keywords: 'pix' },
-      { id: 'banknote', label: 'Dinheiro', icon: Banknote, keywords: 'boleto cobrança' },
-      { id: 'receipt', label: 'Recibo', icon: Receipt, keywords: 'nota fiscal nfe fatura' },
-      { id: 'landmark', label: 'Banco', icon: Landmark, keywords: 'instituição financeira' },
-      { id: 'coins', label: 'Moedas', icon: Coins, keywords: 'financeiro' },
-      { id: 'piggy-bank', label: 'Poupança', icon: PiggyBank, keywords: 'investimento' },
-      { id: 'calculator', label: 'Cálculo', icon: Calculator, keywords: 'fiscal imposto contábil' },
-    ],
-  },
-  {
-    label: 'Comércio e empresa',
-    items: [
-      { id: 'shopping-cart', label: 'Carrinho', icon: ShoppingCart, keywords: 'ecommerce loja pedido' },
-      { id: 'store', label: 'Loja', icon: Store, keywords: 'varejo' },
-      { id: 'package', label: 'Produto', icon: Package, keywords: 'estoque item' },
-      { id: 'tag', label: 'Preço', icon: Tag, keywords: 'promoção' },
-      { id: 'truck', label: 'Entrega', icon: Truck, keywords: 'frete logística' },
-      { id: 'warehouse', label: 'Depósito', icon: Warehouse, keywords: 'estoque logística' },
-      { id: 'building', label: 'Empresa', icon: Building2, keywords: 'erp corporativo' },
-      { id: 'briefcase', label: 'Trabalho', icon: Briefcase, keywords: 'negócio cliente' },
-      { id: 'clipboard', label: 'Orçamento', icon: ClipboardList, keywords: 'pedido lista' },
-      { id: 'spreadsheet', label: 'Planilha', icon: FileSpreadsheet, keywords: 'relatório excel' },
-      { id: 'file-text', label: 'Documento', icon: FileText, keywords: 'contrato' },
-      { id: 'chart', label: 'Relatórios', icon: ChartColumn, keywords: 'dashboard métricas bi' },
-    ],
-  },
-  {
-    label: 'Pessoas e acesso',
-    items: [
-      { id: 'users', label: 'Clientes', icon: Users, keywords: 'usuários crm' },
-      { id: 'user', label: 'Usuário', icon: User, keywords: 'perfil conta' },
-      { id: 'key', label: 'Autenticação', icon: KeyRound, keywords: 'login token oauth' },
-      { id: 'lock', label: 'Segurança', icon: Lock, keywords: 'privado' },
-      { id: 'shield', label: 'Permissões', icon: ShieldCheck, keywords: 'acesso' },
-      { id: 'fingerprint', label: 'Identidade', icon: Fingerprint, keywords: 'biometria' },
-      { id: 'mail', label: 'E-mail', icon: Mail, keywords: 'smtp' },
-      { id: 'message', label: 'Mensagens', icon: MessageSquare, keywords: 'chat sms' },
-      { id: 'send', label: 'Envio', icon: Send, keywords: 'notificação' },
-      { id: 'smartphone', label: 'App mobile', icon: Smartphone, keywords: 'celular' },
-    ],
-  },
-  {
-    label: 'Infraestrutura',
-    items: [
-      { id: 'database', label: 'Banco de dados', icon: Database, keywords: 'sql' },
-      { id: 'server', label: 'Servidor', icon: Server },
-      { id: 'cloud', label: 'Nuvem', icon: Cloud, keywords: 'cloud' },
-      { id: 'hard-drive', label: 'Armazenamento', icon: HardDrive, keywords: 'arquivos storage' },
-      { id: 'network', label: 'Rede', icon: Network, keywords: 'microsserviços' },
-      { id: 'boxes', label: 'Serviços', icon: Boxes, keywords: 'containers módulos' },
-      { id: 'layers', label: 'Camadas', icon: Layers, keywords: 'arquitetura' },
-      { id: 'gauge', label: 'Desempenho', icon: Gauge, keywords: 'carga monitoramento' },
-      { id: 'image', label: 'Mídia', icon: Image, keywords: 'imagens upload' },
-    ],
-  },
-  {
-    label: 'Pessoal e outros',
-    items: [
-      { id: 'house', label: 'Casa', icon: House, keywords: 'pessoal home' },
-      { id: 'heart', label: 'Pessoal', icon: Heart, keywords: 'saúde favorito' },
-      { id: 'gamepad', label: 'Jogos', icon: Gamepad2 },
-      { id: 'music', label: 'Música', icon: Music },
-      { id: 'book', label: 'Estudos', icon: BookOpen, keywords: 'curso documentação' },
-      { id: 'graduation', label: 'Educação', icon: GraduationCap, keywords: 'escola' },
-      { id: 'map-pin', label: 'Localização', icon: MapPin, keywords: 'mapa endereço cep' },
-      { id: 'car', label: 'Veículos', icon: Car, keywords: 'frota' },
-      { id: 'plane', label: 'Viagens', icon: Plane },
-      { id: 'stethoscope', label: 'Saúde', icon: Stethoscope, keywords: 'clínica médico' },
-      { id: 'pill', label: 'Farmácia', icon: Pill, keywords: 'remédio' },
-      { id: 'utensils', label: 'Restaurante', icon: Utensils, keywords: 'comida delivery' },
-      { id: 'leaf', label: 'Agro', icon: Leaf, keywords: 'natureza' },
-      { id: 'calendar', label: 'Agenda', icon: Calendar, keywords: 'eventos reservas' },
-    ],
-  },
-  {
-    label: 'Marcas',
-    items: [
-      brand('stripe', siStripe, 'pagamento gateway'),
-      brand('mercadopago', siMercadopago, 'pagamento gateway'),
-      brand('pagseguro', siPagseguro, 'pagamento gateway'),
-      brand('pix', siPix, 'pagamento'),
-      brand('paypal', siPaypal, 'pagamento'),
-      brand('nubank', siNubank, 'banco'),
-      brand('picpay', siPicpay, 'pagamento'),
-      brand('shopify', siShopify, 'ecommerce loja'),
-      brand('vtex', siVtex, 'ecommerce loja'),
-      brand('woocommerce', siWoocommerce, 'ecommerce loja'),
-      brand('shopee', siShopee, 'marketplace'),
-      brand('ifood', siIfood, 'delivery'),
-      brand('sap', siSap, 'erp'),
-      brand('totvs', siTotvs, 'erp'),
-      brand('hubspot', siHubspot, 'crm'),
-      brand('whatsapp', siWhatsapp, 'mensagens'),
-      brand('telegram', siTelegram, 'mensagens bot'),
-      brand('discord', siDiscord, 'mensagens bot'),
-      brand('meta', siMeta, 'facebook'),
-      brand('instagram', siInstagram),
-      brand('mailchimp', siMailchimp, 'email marketing'),
-      brand('resend', siResend, 'email'),
-      brand('github', siGithub, 'git'),
-      brand('gitlab', siGitlab, 'git'),
-      brand('jira', siJira, 'tarefas'),
-      brand('notion', siNotion, 'documentação'),
-      brand('google', siGoogle),
-      brand('googlecloud', siGooglecloud, 'nuvem'),
-      brand('cloudflare', siCloudflare, 'nuvem'),
-      brand('vercel', siVercel, 'deploy'),
-      brand('firebase', siFirebase, 'nuvem'),
-      brand('supabase', siSupabase, 'banco'),
-      brand('auth0', siAuth0, 'login autenticação'),
-      brand('clerk', siClerk, 'login autenticação'),
-      brand('keycloak', siKeycloak, 'login autenticação'),
-      brand('anthropic', siAnthropic, 'ia claude'),
-      brand('zapier', siZapier, 'automação'),
-      brand('n8n', siN8n, 'automação'),
-      brand('docker', siDocker),
-      brand('graphql', siGraphql),
-      brand('nodejs', siNodedotjs, 'javascript'),
-      brand('nestjs', siNestjs, 'javascript'),
-      brand('python', siPython),
-      brand('dotnet', siDotnet, 'csharp'),
-      brand('spring', siSpring, 'java'),
-      brand('laravel', siLaravel, 'php'),
-      brand('wordpress', siWordpress),
-      brand('postgresql', siPostgresql, 'banco'),
-      brand('mysql', siMysql, 'banco'),
-      brand('mongodb', siMongodb, 'banco'),
-      brand('redis', siRedis, 'cache'),
-    ],
-  },
-];
+export const ICON_GROUPS: IconGroup[] = ICON_CATALOG.map((group) => ({
+  label: group.label,
+  items: group.items.map((item): IconChoice => {
+    const glyph = GLYPHS[item.id];
+    return { ...item, ...(isBrand(glyph) ? { brand: glyph } : { icon: glyph }) };
+  }),
+}));
 
 const BY_ID = new Map(ICON_GROUPS.flatMap((g) => g.items.map((item) => [item.id, item] as const)));
 
@@ -320,20 +294,7 @@ export function findIconChoice(id: string | undefined): IconChoice | undefined {
   return id ? BY_ID.get(id) : undefined;
 }
 
-/** Cores pensadas para o tema escuro (contraste AA com o fundo). */
-export const ITEM_COLORS: { value: string; label: string }[] = [
-  { value: '#F87171', label: 'Vermelho' },
-  { value: '#FB923C', label: 'Laranja' },
-  { value: '#FBBF24', label: 'Amarelo' },
-  { value: '#A3E635', label: 'Lima' },
-  { value: '#34D399', label: 'Verde' },
-  { value: '#2DD4BF', label: 'Turquesa' },
-  { value: '#38BDF8', label: 'Azul' },
-  { value: '#818CF8', label: 'Índigo' },
-  { value: '#C084FC', label: 'Roxo' },
-  { value: '#F472B6', label: 'Rosa' },
-  { value: '#94A3B8', label: 'Cinza' },
-];
+export { ITEM_COLORS };
 
 // Fundo das duas paletas (ambas quase pretas): basta um para decidir se a cor
 // da marca aparece. Marcas pretas (GitHub, Vercel...) usam a cor do texto.
