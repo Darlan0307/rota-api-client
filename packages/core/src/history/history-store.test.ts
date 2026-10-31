@@ -84,7 +84,8 @@ describe('HistoryStore', () => {
     expect((await h.list()).total).toBe(0);
   });
 
-  it('mantém no máximo 500 entradas', async () => {
+  // 620 gravações em disco: sozinho leva menos de 1 s, mas passa de 5 s com a suíte inteira em paralelo.
+  it('mantém no máximo 500 entradas', { timeout: 30_000 }, async () => {
     const h = new HistoryStore(dir);
     for (let i = 0; i < 620; i++) await h.add({ name: `R${i}`, data }, result(200, ''), []);
     const fresh = new HistoryStore(dir);
