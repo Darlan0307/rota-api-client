@@ -133,14 +133,37 @@ export async function updateTunnel(id: string, patch: Partial<Omit<TunnelConfig,
 
 export async function startTunnel(id: string): Promise<void> {
   const state = useTunnels.getState();
-  if (!state.binary?.installed) {
+  const view = state.views.find((v) => v.config.id === id);
+  const ngrok = view?.config.provider === 'ngrok';
+  if (ngrok && !view?.hasNgrokToken) {
+    // Abre a aba: é lá que o authtoken é informado.
+    openTunnel(id);
+    toast.info('Cole o authtoken do ngrok no cartão "Endereço público" e ligue de novo.');
+    return;
+  }
+  if (!ngrok && !state.binary?.installed) {
     // Abre a aba para o progresso do download ficar visível.
     openTunnel(id);
     const info = await installCloudflared();
     if (!info?.installed) return;
   }
   const ok = await guarded(() => api.invoke('tunnel:start', id));
-  if (ok) toast.success('Túnel ligado. Copie a URL pública e cole no serviço.');
+  if (ok)
+    toast.success(
+      ngrok
+        ? 'Túnel ligado. A URL é fixa: configure no serviço uma vez só.'
+        : 'Túnel ligado. Copie a URL pública e cole no serviço.',
+    );
+}
+
+/** Authtoken do ngrok desta máquina (null apaga). */
+export async function setNgrokToken(value: string | null): Promise<boolean> {
+  const ok = (await guarded(() => api.invoke('tunnel:setNgrokToken', value).then(() => true))) ?? false;
+  if (ok)
+    toast.success(
+      value ? 'Authtoken do ngrok salvo (cifrado nesta máquina).' : 'Authtoken do ngrok removido.',
+    );
+  return ok;
 }
 
 export async function stopTunnel(id: string): Promise<void> {

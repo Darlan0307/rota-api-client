@@ -157,6 +157,8 @@ describe('envio simulado pelo inspetor', () => {
     const config: TunnelConfig = {
       id: 't',
       name: 't',
+      provider: 'cloudflare',
+      ngrokDomain: '',
       target: `http://127.0.0.1:${(api.address() as AddressInfo).port}`,
       mode: 'capture',
       preserveHost: false,

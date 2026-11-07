@@ -63,8 +63,13 @@ const STEPS: { title: string; body: ReactNode }[] = [
 
 const TIPS: ReactNode[] = [
   <>
-    <b>A URL muda toda vez que o túnel liga.</b> Deixe ligado enquanto testa; se religar, atualize a URL no
-    serviço.
+    <b>Na Cloudflare, a URL muda toda vez que o túnel liga.</b> Deixe ligado enquanto testa; se religar,
+    atualize a URL no serviço.
+  </>,
+  <>
+    <b>Quer uma URL fixa?</b> Escolha <b>ngrok</b> no cartão "Endereço público" e cole o authtoken da sua
+    conta grátis: o domínio da conta (ex.: <Code>….ngrok-free.app</Code>) fica sempre o mesmo, então o serviço
+    é configurado uma vez só.
   </>,
   <>
     <b>Trocar a porta não muda a URL:</b> dá para apontar o mesmo túnel para outra API com ele ligado.

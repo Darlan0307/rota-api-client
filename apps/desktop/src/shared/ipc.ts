@@ -340,6 +340,9 @@ export interface IpcContract {
   /** Segredo do webhook (null apaga). Fica cifrado; a tela só recebe hasWebhookSecret. */
   // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
   'tunnel:setWebhookSecret': { args: [id: string, value: string | null]; result: void };
+  /** Authtoken do ngrok desta máquina (null apaga); a tela só sabe se há um salvo. */
+  // biome-ignore lint/suspicious/noConfusingVoidType: canal sem retorno
+  'tunnel:setNgrokToken': { args: [value: string | null]; result: void };
   /** Envia um webhook simulado e assinado direto para a API local. */
   'tunnel:simulate': {
     args: [id: string, input: { body: string; path: string; eventId?: string; label?: string }];
@@ -470,6 +473,7 @@ export const IPC_CHANNELS = [
   'tunnel:test',
   'tunnel:clear',
   'tunnel:setWebhookSecret',
+  'tunnel:setNgrokToken',
   'tunnel:simulate',
   'db:state',
   'db:saveConnection',

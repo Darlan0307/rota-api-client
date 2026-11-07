@@ -7,6 +7,7 @@ import { pipeline } from 'node:stream/promises';
 import {
   type Appearance,
   AppearanceSchema,
+  cleanNgrokAuthtoken,
   cloudflaredDownloadUrl,
   DEFAULT_CAPTURE_BODY,
   DEFAULT_HMAC,
@@ -16,6 +17,7 @@ import {
   joinUrl,
   Mutex,
   newId,
+  normalizeNgrokDomain,
   normalizeSavedEvents,
   normalizeTarget,
   QuickTunnel,
@@ -37,10 +39,11 @@ import {
   writeJsonAtomic,
 } from '@rota/core';
 import type { CloudflaredInfo } from '../../shared/ipc';
+import { NgrokTunnel } from './ngrok-tunnel';
 
 interface Runtime {
   inspector: TunnelInspector;
-  tunnel: QuickTunnel | null;
+  tunnel: QuickTunnel | NgrokTunnel | null;
   status: TunnelStatus;
   publicUrl: string | null;
   error: string | null;
@@ -88,6 +91,16 @@ function normalizeWebhook(value: Partial<WebhookSettings> | undefined): WebhookS
 
 const secretScope = (id: string): SecretScope => ({ kind: 'tunnel', id });
 const SECRET_KEY = 'webhook';
+/** Authtoken do ngrok: um só por máquina, para todos os túneis (cifrado no app-secrets.json). */
+const NGROK_SCOPE: SecretScope = { kind: 'tunnel', id: '__ngrok' };
+const NGROK_KEY = 'authtoken';
+
+function ngrokDomainOrThrow(value: string): string {
+  const domain = normalizeNgrokDomain(value);
+  if (domain === null)
+    throw new Error('Domínio do ngrok inválido. Exemplo: meu-nome.ngrok-free.app (ou deixe vazio).');
+  return domain;
+}
 
 /** Arquivo salvo: id, nome e destino obrigatórios; o resto ganha o padrão. */
 function isConfig(
@@ -113,9 +126,10 @@ export class TunnelService {
 
   constructor(
     private readonly dataDir: string,
-    /** Segredos de webhook dos túneis (cifrados, fora do tunnels.json). */
+    /** Segredos de webhook dos túneis e authtoken do ngrok (cifrados, fora do tunnels.json). */
     private readonly secrets: SecretStore,
     private readonly onChange: (views: TunnelView[]) => void,
+    private readonly appVersion = '0.0.0',
   ) {}
 
   private get file() {
@@ -128,7 +142,10 @@ export class TunnelService {
   }
 
   private savePids(): Promise<void> {
-    const pids = [...this.runtimes.values()].map((rt) => rt.tunnel?.pid).filter((p): p is number => !!p);
+    // O ngrok roda dentro do app (SDK): só o cloudflared vira processo à parte.
+    const pids = [...this.runtimes.values()]
+      .map((rt) => (rt.tunnel instanceof QuickTunnel ? rt.tunnel.pid : undefined))
+      .filter((p): p is number => !!p);
     return this.writes
       .run(async () => {
         await mkdir(this.dataDir, { recursive: true });
@@ -177,6 +194,9 @@ export class TunnelService {
         captureBody: DEFAULT_CAPTURE_BODY,
         webhookPath: '',
         ...rest,
+        // Túneis de antes do ngrok são da Cloudflare; valores editados à mão voltam ao padrão.
+        provider: c.provider === 'ngrok' ? 'ngrok' : 'cloudflare',
+        ngrokDomain: normalizeNgrokDomain(typeof c.ngrokDomain === 'string' ? c.ngrokDomain : '') ?? '',
         // Arquivo editado à mão: destino inválido volta ao padrão.
         target: normalizeTarget(c.target) ?? 'http://localhost:3000',
         webhook: normalizeWebhook(c.webhook),
@@ -228,6 +248,7 @@ export class TunnelService {
         error: rt?.error ?? null,
         logs: rt?.logs ?? [],
         hasWebhookSecret: this.secrets.has(secretScope(config.id), SECRET_KEY),
+        hasNgrokToken: this.secrets.has(NGROK_SCOPE, NGROK_KEY),
         exchanges: rt?.inspector.list().map(summarizeExchange) ?? [],
       };
     });
@@ -321,6 +342,8 @@ export class TunnelService {
     const config: TunnelConfig = {
       id: newId(),
       name: patch.name?.trim() || `API ${new URL(target).host}`,
+      provider: patch.provider === 'ngrok' ? 'ngrok' : 'cloudflare',
+      ngrokDomain: ngrokDomainOrThrow(patch.ngrokDomain ?? ''),
       target,
       mode: patch.mode ?? 'forward',
       preserveHost: patch.preserveHost ?? false,
@@ -346,6 +369,12 @@ export class TunnelService {
       next.target = target;
     }
     if (patch.name !== undefined) next.name = patch.name.trim() || current.name;
+    if (patch.provider !== undefined) next.provider = patch.provider === 'ngrok' ? 'ngrok' : 'cloudflare';
+    if (patch.ngrokDomain !== undefined) next.ngrokDomain = ngrokDomainOrThrow(patch.ngrokDomain);
+    const rt = this.runtimes.get(id);
+    const busy = rt?.status === 'running' || rt?.status === 'starting';
+    if (busy && (next.provider !== current.provider || next.ngrokDomain !== current.ngrokDomain))
+      throw new Error('Desligue o túnel antes de trocar o serviço ou o domínio (a URL pública muda).');
     if (patch.webhook !== undefined)
       next.webhook = normalizeWebhook({ ...current.webhook, ...patch.webhook });
     if ('appearance' in patch) {
@@ -374,47 +403,87 @@ export class TunnelService {
 
   /** true = ligado; false = cancelado no meio (Desligar durante o "Ligando…"). */
   async start(id: string): Promise<boolean> {
-    this.config(id);
+    const config = this.config(id);
     const rt = this.runtime(id);
     if (rt.status === 'running') return true;
     if (rt.status === 'starting') return false;
-    const binary = this.binary();
-    if (!binary.path) throw new Error('Baixe o cloudflared antes de ligar o túnel.');
+    const ngrok = config.provider === 'ngrok';
+    const binary = ngrok ? null : this.binary();
+    if (binary && !binary.path) throw new Error('Baixe o cloudflared antes de ligar o túnel.');
+    const authtoken = ngrok ? this.secrets.get(NGROK_SCOPE, NGROK_KEY) : undefined;
+    if (ngrok && !authtoken) throw new Error('Informe o authtoken do ngrok antes de ligar o túnel.');
+    if (ngrok) {
+      // Dois túneis no mesmo domínio: o ngrok recusa o segundo (ERR_NGROK_334) com mensagem confusa.
+      const clash = this.configs.find(
+        (c) =>
+          c.id !== id &&
+          c.provider === 'ngrok' &&
+          c.ngrokDomain === config.ngrokDomain &&
+          ['running', 'starting'].includes(this.runtimes.get(c.id)?.status ?? ''),
+      );
+      if (clash)
+        throw new Error(
+          `O túnel "${clash.name}" já usa ${config.ngrokDomain || 'o domínio do ngrok'}. Desligue-o antes (no plano grátis há um domínio só).`,
+        );
+    }
 
     rt.status = 'starting';
     rt.error = null;
     rt.logs = [];
     this.notify();
+    const onLog = (line: string) => {
+      rt.logs = [...rt.logs, line].slice(-MAX_LOGS);
+    };
     try {
       const port = await rt.inspector.start();
-      const tunnel = new QuickTunnel();
-      rt.tunnel = tunnel;
-      const starting = tunnel.start({
-        binary: binary.path,
-        localPort: port,
-        onLog: (line) => {
-          rt.logs = [...rt.logs, line].slice(-MAX_LOGS);
-        },
-        onExit: (_code, logs) => {
-          // Caiu sozinho (rede, Cloudflare): avisa e libera a porta local.
-          rt.tunnel = null;
-          rt.status = 'error';
-          rt.publicUrl = null;
-          rt.error = `O túnel caiu. ${describeCloudflaredFailure(logs)}`;
-          void rt.inspector.stop();
-          void this.savePids();
-          this.notify();
-        },
-      });
-      void this.savePids();
+      let starting: Promise<string>;
+      if (ngrok) {
+        const tunnel = new NgrokTunnel();
+        rt.tunnel = tunnel;
+        starting = tunnel.start({
+          authtoken: authtoken as string,
+          domain: config.ngrokDomain,
+          localPort: port,
+          appVersion: this.appVersion,
+          onLog: (line) => {
+            onLog(line);
+            this.notify(true);
+          },
+        });
+      } else {
+        const tunnel = new QuickTunnel();
+        rt.tunnel = tunnel;
+        starting = tunnel.start({
+          binary: binary?.path as string,
+          localPort: port,
+          onLog,
+          onExit: (_code, logs) => {
+            // Caiu sozinho (rede, Cloudflare): avisa e libera a porta local.
+            rt.tunnel = null;
+            rt.status = 'error';
+            rt.publicUrl = null;
+            rt.error = `O túnel caiu. ${describeCloudflaredFailure(logs)}`;
+            void rt.inspector.stop();
+            void this.savePids();
+            this.notify();
+          },
+        });
+        void this.savePids();
+      }
       rt.publicUrl = await starting;
       // Cancelado enquanto ligava.
       if (rt.status !== 'starting') return false;
       rt.status = 'running';
+      // Primeiro início sem domínio: grava o que a conta deu, e a URL fica fixa daqui em diante.
+      if (ngrok && !config.ngrokDomain) {
+        const host = new URL(rt.publicUrl).host;
+        this.configs = this.configs.map((c) => (c.id === id ? { ...c, ngrokDomain: host } : c));
+        await this.persist().catch(() => undefined);
+      }
     } catch (error) {
       // Cancelado pelo usuário (Desligar/Excluir durante o "Ligando…"): stop() já limpou tudo.
       if (rt.status !== 'starting') return false;
-      rt.tunnel?.stop();
+      await rt.tunnel?.stop();
       rt.tunnel = null;
       void this.savePids();
       await rt.inspector.stop();
@@ -431,8 +500,10 @@ export class TunnelService {
   async stop(id: string): Promise<void> {
     const rt = this.runtimes.get(id);
     if (!rt) return;
-    rt.tunnel?.stop();
+    const tunnel = rt.tunnel;
     rt.tunnel = null;
+    rt.status = 'stopped';
+    await tunnel?.stop();
     void this.savePids();
     await rt.inspector.stop();
     rt.status = 'stopped';
@@ -441,16 +512,25 @@ export class TunnelService {
     this.notify();
   }
 
-  /** Fechamento do app: encerra os cloudflared e libera as portas locais. */
+  /** Fechamento do app: encerra os cloudflared, as sessões do ngrok e libera as portas locais. */
   async stopAll(): Promise<void> {
     const stops: Promise<void>[] = [];
     for (const rt of this.runtimes.values()) {
-      rt.tunnel?.stop();
+      const tunnel = rt.tunnel;
       rt.tunnel = null;
+      if (tunnel) stops.push(Promise.resolve(tunnel.stop()));
       stops.push(rt.inspector.stop());
     }
     stops.push(this.savePids());
     await Promise.allSettled(stops);
+  }
+
+  /** Authtoken do ngrok desta máquina (null apaga). O valor nunca volta para a tela. */
+  setNgrokToken(value: string | null): void {
+    const token = value ? cleanNgrokAuthtoken(value) : '';
+    if (token) this.secrets.set(NGROK_SCOPE, NGROK_KEY, token);
+    else this.secrets.delete(NGROK_SCOPE, NGROK_KEY);
+    this.notify();
   }
 
   // -------------------------------------------------------------------------
@@ -555,7 +635,12 @@ export class TunnelService {
     try {
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'user-agent': 'Rota (teste do túnel)' },
+        headers: {
+          'content-type': 'application/json',
+          'user-agent': 'Rota (teste do túnel)',
+          // Plano grátis do ngrok: sem isso, uma página de aviso pode responder no lugar da API.
+          'ngrok-skip-browser-warning': '1',
+        },
         body: JSON.stringify({ teste: 'Rota', enviadoEm: new Date().toISOString() }),
         signal: AbortSignal.timeout(20_000),
       });

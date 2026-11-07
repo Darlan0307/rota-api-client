@@ -46,6 +46,8 @@ function config(patch: Partial<TunnelConfig> = {}): TunnelConfig {
   return {
     id: 't1',
     name: 'API',
+    provider: 'cloudflare',
+    ngrokDomain: '',
     target: `http://127.0.0.1:${apiPort}`,
     mode: 'forward',
     preserveHost: false,

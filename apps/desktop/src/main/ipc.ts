@@ -131,6 +131,7 @@ export function registerIpcHandlers({
   handle('tunnel:clear', (_e, id) => tunnels.clear(id));
   handle('tunnel:test', (_e, id, path) => tunnels.test(id, path));
   handle('tunnel:setWebhookSecret', (_e, id, value) => tunnels.setWebhookSecret(id, value));
+  handle('tunnel:setNgrokToken', (_e, value) => tunnels.setNgrokToken(value));
   // O corpo simulado aceita {{variáveis}} das globais e do ambiente ativo, além dos dados de teste.
   handle('tunnel:simulate', (_e, id, input) =>
     tunnels.simulate(

@@ -9,9 +9,21 @@ import type { SignatureCheck, WebhookSettings } from '../webhooks/providers';
 /** "forward": repassa para a API local. "capture": só registra e responde. */
 export type TunnelMode = 'forward' | 'capture';
 
+/**
+ * "cloudflare": túnel rápido do cloudflared, sem conta (a URL muda a cada vez).
+ * "ngrok": URL fixa com a conta do usuário (o plano grátis dá um domínio).
+ */
+export type TunnelProvider = 'cloudflare' | 'ngrok';
+
 export interface TunnelConfig {
   id: string;
   name: string;
+  provider: TunnelProvider;
+  /**
+   * Domínio do ngrok (ex.: meu-nome.ngrok-free.app). Vazio = o domínio da
+   * conta; depois do primeiro início fica gravado aqui, e a URL não muda mais.
+   */
+  ngrokDomain: string;
   /** Destino local, ex.: http://localhost:3000. Pode mudar com o túnel ligado. */
   target: string;
   mode: TunnelMode;
@@ -80,6 +92,8 @@ export interface TunnelView {
   logs: string[];
   /** Há segredo de webhook salvo (o valor fica só no processo principal). */
   hasWebhookSecret: boolean;
+  /** Há authtoken do ngrok salvo nesta máquina (vale para todos os túneis). */
+  hasNgrokToken: boolean;
   /** Mais recentes primeiro. */
   exchanges: TunnelExchangeSummary[];
 }

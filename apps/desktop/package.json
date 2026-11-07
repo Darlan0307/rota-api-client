@@ -18,6 +18,8 @@
   "dependencies": {
     "@napi-rs/keyring": "^2.1.1",
     "@napi-rs/keyring-win32-x64-msvc": "2.1.1",
+    "@ngrok/ngrok": "1.7.0",
+    "@ngrok/ngrok-win32-x64-msvc": "1.7.0",
     "chai": "^4.5.0",
     "chokidar": "^5.0.0",
     "mssql": "12.7.9",

@@ -12,6 +12,8 @@ files:
 asarUnpack:
   # Módulo nativo do Credential Manager precisa estar fora do asar.
   - "**/node_modules/@napi-rs/**"
+  # SDK do ngrok (túnel com URL fixa) também é módulo nativo.
+  - "**/node_modules/@ngrok/**"
   - "**/*.node"
 win:
   target:

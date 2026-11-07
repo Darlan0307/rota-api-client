@@ -154,9 +154,14 @@ if (!app.requestSingleInstanceLock()) {
     const machineSecrets = new EncryptedFileSecretStore(join(appDataDir(), 'app-secrets.json'), () =>
       keyringMasterKey(),
     );
-    const tunnels = new TunnelService(appDataDir(), machineSecrets, (views) => {
-      for (const win of BrowserWindow.getAllWindows()) win.webContents.send('tunnel:changed', views);
-    });
+    const tunnels = new TunnelService(
+      appDataDir(),
+      machineSecrets,
+      (views) => {
+        for (const win of BrowserWindow.getAllWindows()) win.webContents.send('tunnel:changed', views);
+      },
+      app.getVersion(),
+    );
     await tunnels.load();
     // Senhas de banco ficam no mesmo arquivo cifrado da máquina, em escopos próprios.
     const databases = new DatabaseService(appDataDir(), machineSecrets, (state) => {

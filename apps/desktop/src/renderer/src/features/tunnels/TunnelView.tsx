@@ -4,6 +4,7 @@ import {
   formatJson,
   HTTP_METHODS,
   joinUrl,
+  NGROK_AUTHTOKEN_URL,
   type RequestData,
   type SignatureCheck,
   type TunnelBody,
@@ -58,6 +59,7 @@ import {
   replayExchange,
   saveWebhookEvent,
   selectExchange,
+  setNgrokToken,
   startTunnel,
   stopTunnel,
   testTunnel,
@@ -317,17 +319,169 @@ function TargetCard({ config }: { config: TunnelConfig }) {
 // ---------------------------------------------------------------------------
 // URL pública
 
+/** Cloudflare (sem conta, URL muda) ou ngrok (conta, URL fixa). */
+function ProviderPicker({ view }: { view: TunnelViewData }) {
+  const { config, status } = view;
+  const locked = status === 'running' || status === 'starting';
+  const options = [
+    ['cloudflare', 'Cloudflare', 'sem conta · URL muda'],
+    ['ngrok', 'ngrok', 'com conta · URL fixa'],
+  ] as const;
+  return (
+    <div className="space-y-1.5">
+      <div
+        className="grid grid-cols-2 gap-1 rounded-lg bg-surface-2 p-1"
+        title={locked ? 'Desligue o túnel para trocar o serviço.' : undefined}
+      >
+        {options.map(([provider, label, hint]) => (
+          <button
+            key={provider}
+            type="button"
+            disabled={locked && config.provider !== provider}
+            onClick={() => provider !== config.provider && void updateTunnel(config.id, { provider })}
+            className={cn(
+              'flex h-9 flex-col items-center justify-center rounded-md text-xs leading-tight transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+              config.provider === provider
+                ? 'bg-elevated font-medium text-fg shadow-sm'
+                : 'text-fg-muted hover:text-fg',
+            )}
+          >
+            {label}
+            <span className="text-2xs font-normal text-fg-subtle">{hint}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Authtoken (da máquina) e domínio (do túnel) do ngrok. */
+function NgrokSetup({ view }: { view: TunnelViewData }) {
+  const { config, status, hasNgrokToken } = view;
+  const [token, setToken] = useState('');
+  const [editingToken, setEditingToken] = useState(false);
+  const [domain, setDomain] = useState(config.ngrokDomain);
+  useEffect(() => setDomain(config.ngrokDomain), [config.ngrokDomain]);
+  const locked = status === 'running' || status === 'starting';
+
+  const saveToken = async () => {
+    if (!token.trim()) return;
+    if (await setNgrokToken(token)) {
+      setToken('');
+      setEditingToken(false);
+    }
+  };
+  const commitDomain = async () => {
+    if (domain.trim() === config.ngrokDomain) return;
+    if (!(await updateTunnel(config.id, { ngrokDomain: domain }))) setDomain(config.ngrokDomain);
+  };
+
+  return (
+    <div className="space-y-3">
+      {hasNgrokToken && !editingToken ? (
+        <div className="flex items-center gap-2 text-xs">
+          <CircleCheck className="size-3.5 shrink-0 text-success" />
+          <span className="text-fg-muted">Authtoken do ngrok salvo nesta máquina (cifrado).</span>
+          <div className="flex-1" />
+          <Button size="sm" variant="ghost" onClick={() => setEditingToken(true)}>
+            Trocar
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={locked}
+            title={locked ? 'Desligue o túnel antes de remover o authtoken.' : undefined}
+            onClick={async () => {
+              const choice = await confirmDialog({
+                title: 'Remover o authtoken do ngrok?',
+                description: 'Os túneis do ngrok deixam de ligar até você informar um authtoken de novo.',
+                confirmLabel: 'Remover',
+                danger: true,
+              });
+              if (choice === 'confirm') await setNgrokToken(null);
+            }}
+          >
+            Remover
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <span className="block text-xs font-medium text-fg-muted">Authtoken do ngrok</span>
+          <div className="flex gap-2">
+            <TextInput
+              mono
+              type="password"
+              autoComplete="off"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void saveToken()}
+              placeholder="Cole o authtoken (ou o comando add-authtoken)"
+              aria-label="Authtoken do ngrok"
+              className="min-w-0 flex-1"
+            />
+            <Button size="sm" variant="primary" disabled={!token.trim()} onClick={() => void saveToken()}>
+              Salvar
+            </Button>
+            {hasNgrokToken && (
+              <Button size="sm" variant="ghost" onClick={() => setEditingToken(false)}>
+                Cancelar
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-fg-subtle">
+            Crie uma conta grátis no ngrok e copie em{' '}
+            <a
+              href={NGROK_AUTHTOKEN_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-0.5 text-primary hover:underline"
+            >
+              Your Authtoken <ExternalLink className="size-3" />
+            </a>
+            . Vale para todos os túneis do ngrok desta máquina e nunca vai para o workspace.
+          </p>
+        </div>
+      )}
+
+      <div className="space-y-1.5">
+        <span className="block text-xs font-medium text-fg-muted">Domínio</span>
+        <TextInput
+          mono
+          value={domain}
+          disabled={locked}
+          onChange={(e) => setDomain(e.target.value)}
+          onBlur={() => void commitDomain()}
+          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+          placeholder="Vazio = o domínio grátis da sua conta"
+          aria-label="Domínio do ngrok"
+        />
+        <p className="text-xs text-fg-subtle">
+          {config.ngrokDomain
+            ? 'A URL fica sempre a mesma: configure no serviço uma vez só.'
+            : 'Na primeira vez que ligar, o Rota grava o domínio que a conta recebeu e a URL não muda mais.'}{' '}
+          O plano grátis mostra uma página de aviso só para quem abre a URL no navegador; webhooks e APIs não
+          são afetados.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function PublicUrlCard({ view }: { view: TunnelViewData }) {
   const { config, status, publicUrl, error, logs } = view;
   const binary = useTunnels((s) => s.binary);
   const download = useTunnels((s) => s.download);
   const [path, setPath] = useState(config.webhookPath);
   useEffect(() => setPath(config.webhookPath), [config.webhookPath]);
-  const fullUrl = publicUrl ? joinUrl(publicUrl, path) : null;
+  const ngrok = config.provider === 'ngrok';
+  // No ngrok a URL é conhecida mesmo com o túnel desligado: dá para configurar o serviço antes.
+  const baseUrl = publicUrl ?? (ngrok && config.ngrokDomain ? `https://${config.ngrokDomain}` : null);
+  const fullUrl = baseUrl ? joinUrl(baseUrl, path) : null;
   const arrives = joinUrl(config.target, path);
+  const running = status === 'running';
 
   let content: ReactNode;
-  if (download) {
+  if (!ngrok && download) {
     const pct = download.total ? Math.round((download.received / download.total) * 100) : null;
     content = (
       <div className="space-y-2">
@@ -346,7 +500,7 @@ function PublicUrlCard({ view }: { view: TunnelViewData }) {
         </div>
       </div>
     );
-  } else if (binary && !binary.installed && status !== 'running') {
+  } else if (!ngrok && binary && !binary.installed && status !== 'running') {
     content = (
       <div className="space-y-3">
         <p className="text-xs leading-relaxed text-fg-muted">
@@ -362,13 +516,15 @@ function PublicUrlCard({ view }: { view: TunnelViewData }) {
     content = (
       <div className="flex items-center gap-2.5 text-xs text-fg-muted">
         <LoaderCircle className="size-4 animate-spin text-primary" />
-        Criando a URL https e conectando à Cloudflare (alguns segundos)…
+        {ngrok
+          ? 'Conectando ao ngrok (alguns segundos)…'
+          : 'Criando a URL https e conectando à Cloudflare (alguns segundos)…'}
       </div>
     );
-  } else if (status === 'running' && publicUrl && fullUrl) {
+  } else if (baseUrl && fullUrl && (running || status !== 'error')) {
     content = (
       <div className="space-y-3">
-        <CopyRow label="URL base" value={publicUrl} />
+        <CopyRow label="URL base" value={baseUrl} />
         <div className="space-y-1.5">
           <span className="block text-xs font-medium text-fg-muted">Caminho do webhook na sua API</span>
           <TextInput
@@ -400,9 +556,15 @@ function PublicUrlCard({ view }: { view: TunnelViewData }) {
             </span>
           </p>
         </div>
-        <Button size="sm" onClick={() => void testTunnel(config.id, path)}>
-          <Send className="size-3.5" /> Testar agora
-        </Button>
+        {running ? (
+          <Button size="sm" onClick={() => void testTunnel(config.id, path)}>
+            <Send className="size-3.5" /> Testar agora
+          </Button>
+        ) : (
+          <p className="text-xs text-fg-subtle">
+            Túnel desligado: a URL já é esta, mas só responde depois de ligar.
+          </p>
+        )}
       </div>
     );
   } else {
@@ -412,19 +574,27 @@ function PublicUrlCard({ view }: { view: TunnelViewData }) {
           <div className="rounded-lg border border-danger/40 bg-danger/5 p-2.5 text-xs text-fg">{error}</div>
         )}
         <p className="text-xs text-fg-muted">
-          Ligue o túnel para gerar o endereço https. Ele vale enquanto o túnel estiver ligado.
+          {ngrok
+            ? 'Ligue o túnel para receber o endereço https fixo da sua conta do ngrok.'
+            : 'Ligue o túnel para gerar o endereço https. Ele vale enquanto o túnel estiver ligado e muda a cada vez (para uma URL fixa, use o ngrok).'}
         </p>
-        <TunnelDiagram target={config.target.replace(/^https?:\/\//, '')} />
+        {!ngrok && <TunnelDiagram target={config.target.replace(/^https?:\/\//, '')} />}
       </div>
     );
   }
 
   return (
     <Card step={2} title="Endereço público">
-      {content}
+      <div className="space-y-3">
+        <ProviderPicker view={view} />
+        {ngrok && <NgrokSetup view={view} />}
+        {content}
+      </div>
       {logs.length > 0 && (
         <details className="mt-3 text-2xs text-fg-subtle">
-          <summary className="cursor-pointer select-none hover:text-fg-muted">Log do cloudflared</summary>
+          <summary className="cursor-pointer select-none hover:text-fg-muted">
+            {ngrok ? 'Log do ngrok' : 'Log do cloudflared'}
+          </summary>
           <pre className="mt-1.5 max-h-40 select-text overflow-auto whitespace-pre-wrap rounded-md bg-bg p-2 font-mono">
             {logs.join('\n')}
           </pre>

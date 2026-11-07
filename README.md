@@ -44,7 +44,7 @@ Marque envios do histórico (por exemplo login → consulta → erro) e gere um 
 
 ### Bancos de dados
 
-Conecta em **Firebird (2.5+), PostgreSQL, MySQL/MariaDB e SQL Server** sem instalar cliente. Mostra tabelas, views, colunas e chaves, tem editor SQL com autocomplete (inclusive por alias) e resultado em tabela com filtro, CSV e cópia como JSON, tabela do Excel ou INSERT.
+Conecta em **Firebird (2.5+), PostgreSQL, MySQL/MariaDB e SQL Server** sem instalar cliente. Mostra tabelas, views, colunas e chaves, tem editor SQL com autocomplete (inclusive por alias) e resultado em tabela com filtro, CSV e cópia como JSON, tabela do Excel ou INSERT. Vários comandos rodam em sequência ("Executar tudo"), parando no primeiro erro, com o resultado de cada um.
 
 - **Sem decorar SQL**: "Montar" gera SELECT, INSERT, UPDATE e DELETE preenchendo um formulário (com prévia, explicação do que o comando faz e um SELECT para conferir as linhas antes de alterar). Clique direito numa linha do resultado para editar, duplicar ou excluir aquela linha. "Exemplos" traz uma colinha de comandos do banco conectado, com os campos prontos para preencher.
 - Conexões de **produção começam somente leitura**: o próprio banco recusa alterações (no SQL Server, que não tem esse recurso, o Rota bloqueia os comandos de escrita).
@@ -56,7 +56,7 @@ Conecta em **Firebird (2.5+), PostgreSQL, MySQL/MariaDB e SQL Server** sem insta
 
 ### Túneis e simulador de webhooks
 
-- **Túnel**: cria uma URL `https://….trycloudflare.com` (via cloudflared, gratuito e sem cadastro) que entrega as chamadas na porta da sua API local e registra cada uma para inspecionar e reenviar.
+- **Túnel**: cria uma URL pública https que entrega as chamadas na porta da sua API local e registra cada uma para inspecionar e reenviar. Pela Cloudflare (`….trycloudflare.com`, gratuito e sem cadastro, a URL muda a cada vez) ou pelo **ngrok com URL fixa** (o domínio grátis da sua conta: o serviço é configurado uma vez só).
 - **Simulador**: dispara eventos de exemplo do Stripe, Mercado Pago, GitHub, Asaas, Shopify, Standard Webhooks (Svix, Clerk, Resend) ou de qualquer serviço com HMAC, **assinados** como o provedor faria, direto na sua API.
 - As chamadas recebidas mostram se a assinatura confere com o seu segredo, o que separa "segredo errado" de "código de validação errado". Uma chamada real pode ser salva como evento para repetir depois.
 
