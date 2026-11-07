@@ -191,27 +191,66 @@ export async function closeTab(
 
 /**
  * Fecha as abas não fixadas (exceto `keepId`). Com uma só alterada, pergunta
- * como no fechamento normal; com várias, pergunta uma vez em vez de abrir um
- * diálogo por aba.
+ * como no fechamento normal; com várias, pergunta uma vez (salvar todas,
+ * descartar todas ou cancelar) em vez de abrir um diálogo por aba.
  */
 export async function closeUnpinnedTabs(keepId?: string): Promise<void> {
   const targets = useTabs.getState().tabs.filter((t) => !t.pinned && t.id !== keepId);
   const dirty = targets.filter(isDirty);
-  let discard = false;
-  if (dirty.length > 1) {
-    const choice = await confirmDialog({
-      title: `${dirty.length} abas têm alterações não salvas`,
-      description: `Fechar descarta as alterações em: ${dirty
-        .slice(0, 6)
-        .map((t) => `"${t.title}"`)
-        .join(
-          ', ',
-        )}${dirty.length > 6 ? ` e mais ${dirty.length - 6}` : ''}. Para manter alguma, cancele e salve-a antes (Ctrl+S).`,
-      confirmLabel: 'Descartar e fechar',
-      danger: true,
-    });
-    if (choice !== 'confirm') return;
-    discard = true;
+  if (dirty.length <= 1) {
+    for (const tab of targets) await closeTab(tab.id);
+    return;
   }
-  for (const tab of targets) await closeTab(tab.id, { discard });
+
+  // Requisição nova precisa de "Salvar como" (escolher coleção e nome): não dá para salvar em lote.
+  const unsaved = dirty.filter((t) => t.kind === 'request' && !t.itemId);
+  const names = (tabs: Tab[]) =>
+    `${tabs
+      .slice(0, 6)
+      .map((t) => `"${t.title}"`)
+      .join(', ')}${tabs.length > 6 ? ` e mais ${tabs.length - 6}` : ''}`;
+  const choice = await confirmDialog({
+    title: `${dirty.length} abas têm alterações não salvas`,
+    description: `Alteradas: ${names(dirty)}.${
+      unsaved.length
+        ? `\n\n${unsaved.length === 1 ? 'Uma requisição nova ainda não tem' : `${unsaved.length} requisições novas ainda não têm`} lugar na coleção: ao salvar todas, ${unsaved.length === 1 ? 'ela fica aberta' : 'elas ficam abertas'} para você escolher onde salvar.`
+        : ''
+    }`,
+    confirmLabel: 'Salvar todas e fechar',
+    alternateLabel: 'Descartar e fechar',
+    cancelLabel: 'Cancelar',
+  });
+  if (choice === 'cancel') return;
+
+  if (choice === 'alternate') {
+    for (const tab of targets) await closeTab(tab.id, { discard: true });
+    return;
+  }
+
+  const kept: Tab[] = [];
+  for (const tab of targets) {
+    const current = getTab(tab.id);
+    if (!current) continue;
+    if (isDirty(current)) {
+      if (current.kind === 'request' && !current.itemId) {
+        kept.push(current);
+        continue;
+      }
+      if (!(await saveTab(current.id))) {
+        kept.push(current);
+        continue;
+      }
+    }
+    await closeTab(current.id, { discard: true });
+  }
+  const failed = kept.filter((t) => !(t.kind === 'request' && !t.itemId));
+  if (failed.length)
+    toast.error(
+      `Não foi possível salvar ${names(failed)}: ${failed.length === 1 ? 'a aba ficou aberta' : 'as abas ficaram abertas'}.`,
+    );
+  const first = kept[0];
+  if (first) {
+    useTabs.getState().setActive(first.id);
+    if (first.kind === 'request' && !first.itemId) useUiStore.getState().setSaveAsTabId(first.id);
+  }
 }

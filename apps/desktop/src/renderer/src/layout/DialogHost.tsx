@@ -52,7 +52,9 @@ function ConfirmView({
     >
       <div className="space-y-5 p-5">
         {options.description && (
-          <div className="text-[13px] leading-relaxed text-fg-muted">{options.description}</div>
+          <div className="whitespace-pre-line text-[13px] leading-relaxed text-fg-muted">
+            {options.description}
+          </div>
         )}
         <div className="flex justify-end gap-2">
           <Button onClick={() => resolve('cancel')}>{options.cancelLabel ?? 'Cancelar'}</Button>
