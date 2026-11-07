@@ -68,7 +68,7 @@ const TIPS: ReactNode[] = [
   </>,
   <>
     <b>Quer uma URL fixa?</b> Escolha <b>ngrok</b> no cartão "Endereço público" e cole o authtoken da sua
-    conta grátis: o domínio da conta (ex.: <Code>….ngrok-free.app</Code>) fica sempre o mesmo, então o serviço
+    conta grátis: o domínio da conta (ex.: <Code>….ngrok-free.dev</Code>) fica sempre o mesmo, então o serviço
     é configurado uma vez só.
   </>,
   <>

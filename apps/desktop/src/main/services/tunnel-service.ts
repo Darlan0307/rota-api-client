@@ -98,7 +98,7 @@ const NGROK_KEY = 'authtoken';
 function ngrokDomainOrThrow(value: string): string {
   const domain = normalizeNgrokDomain(value);
   if (domain === null)
-    throw new Error('Domínio do ngrok inválido. Exemplo: meu-nome.ngrok-free.app (ou deixe vazio).');
+    throw new Error('Domínio do ngrok inválido. Exemplo: meu-nome.ngrok-free.dev (ou deixe vazio).');
   return domain;
 }
 

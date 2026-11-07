@@ -20,7 +20,7 @@ export interface TunnelConfig {
   name: string;
   provider: TunnelProvider;
   /**
-   * Domínio do ngrok (ex.: meu-nome.ngrok-free.app). Vazio = o domínio da
+   * Domínio do ngrok (ex.: meu-nome.ngrok-free.dev). Vazio = o domínio da
    * conta; depois do primeiro início fica gravado aqui, e a URL não muda mais.
    */
   ngrokDomain: string;
