@@ -204,7 +204,7 @@ export class PostgresSession implements DbSession {
     const started = Date.now();
     const limit = options.limit ?? DEFAULT_ROW_LIMIT;
     if (options.readOnly) {
-      const violation = readOnlyViolation(sql);
+      const violation = readOnlyViolation(sql, 'postgres');
       if (violation) throw new DatabaseError(violation);
     }
     let open = false;

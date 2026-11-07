@@ -4,9 +4,11 @@ import {
   type DbTable,
   type DbValue,
   editableTableFor,
+  isBlankSql,
   isReadQuery,
   previewSql,
   quoteIdentifier,
+  splitSqlStatements,
   statementAt,
 } from '@rota/core/shared';
 import {
@@ -22,6 +24,7 @@ import {
   Filter,
   KeyRound,
   Link2,
+  ListOrdered,
   LoaderCircle,
   Lock,
   MoreHorizontal,
@@ -51,7 +54,7 @@ import { Kbd } from '../../components/Kbd';
 import { ResizeHandle } from '../../layout/ResizeHandle';
 import { errorMessage } from '../../lib/api';
 import { cn } from '../../lib/cn';
-import type { monaco } from '../../lib/monaco';
+import { monaco } from '../../lib/monaco';
 import { confirmDialog } from '../../state/dialogs';
 import { type DatabaseTab, useTabs } from '../../state/tabs';
 import { toast } from '../../state/toasts';
@@ -71,8 +74,11 @@ import {
   disconnect,
   loadSchema,
   openConnectionDialog,
+  type QueryStep,
   queryOf,
+  runQueries,
   runQuery,
+  showStep,
   updateQuery,
   useConnection,
   useDatabases,
@@ -554,36 +560,56 @@ function SqlEditor({
   const [limit, setLimit] = useState(savedLimit);
   const running = view?.running ?? false;
 
+  const engine = view?.config.engine ?? 'firebird';
+
+  /** Ctrl+Enter: a seleção (vários comandos rodam em sequência) ou o comando sob o cursor. */
   async function execute() {
-    if (!view) return;
     const editor = editorRef.current;
     const model = editor?.getModel();
-    let text = sql;
-    if (editor && model) {
-      const selection = editor.getSelection();
-      const position = editor.getPosition();
-      if (selection && !selection.isEmpty()) text = model.getValueInRange(selection);
-      else if (position) text = statementAt(model.getValue(), model.getOffsetAt(position))?.text ?? sql;
-    }
-    await runText(text);
+    if (!editor || !model) return runStatements(splitSqlStatements(sql, engine).map((s) => s.text));
+    const selection = editor.getSelection();
+    const position = editor.getPosition();
+    if (selection && !selection.isEmpty())
+      return runStatements(splitSqlStatements(model.getValueInRange(selection), engine).map((s) => s.text));
+    const text = model.getValue();
+    const current = position ? statementAt(text, model.getOffsetAt(position), engine) : undefined;
+    await runStatements(current ? [current.text] : []);
   }
 
+  /** Ctrl+Shift+Enter: todos os comandos do editor, um depois do outro. */
+  async function executeAll() {
+    await runStatements(splitSqlStatements(sql, engine).map((s) => s.text));
+  }
+  const executeAllRef = useRef(executeAll);
+  executeAllRef.current = executeAll;
+
   /** Confirma comandos de escrita em produção antes de executar (editor ou histórico). */
-  async function runText(raw: string) {
-    if (!view) return;
-    const text = raw.trim().replace(/;+$/, '');
-    if (!text) return;
-    if (!view.config.readOnly && view.config.environment === 'producao' && !isReadQuery(text)) {
+  async function runStatements(statements: string[]) {
+    if (!view || running) return;
+    if (statements.length === 0) {
+      toast.info('Nada para executar: o trecho está vazio ou só tem comentários.');
+      return;
+    }
+    const writes = statements.filter((s) => !isReadQuery(s, engine));
+    if (!view.config.readOnly && view.config.environment === 'producao' && writes.length > 0) {
+      const preview = writes
+        .slice(0, 3)
+        .map((s) => s.slice(0, 300))
+        .join('\n\n');
       const choice = await confirmDialog({
         title: 'Executar em produção?',
-        description: `Este comando pode alterar o banco "${view.config.name}" (produção):\n\n${text.slice(0, 400)}`,
+        description:
+          writes.length === 1
+            ? `Este comando pode alterar o banco "${view.config.name}" (produção):\n\n${preview}`
+            : `${writes.length} comandos podem alterar o banco "${view.config.name}" (produção). Eles rodam um por vez e param no primeiro erro (os anteriores continuam aplicados):\n\n${preview}${writes.length > 3 ? '\n\n…' : ''}`,
         confirmLabel: 'Executar',
         danger: true,
       });
       if (choice !== 'confirm') return;
     }
     showProfile(id, false);
-    await runQuery(id, text, Number(limit));
+    if (statements.length === 1) await runQuery(id, statements[0] as string, Number(limit));
+    else await runQueries(id, statements, Number(limit));
   }
 
   return (
@@ -601,16 +627,32 @@ function SqlEditor({
             <Square className="size-3.5" /> Cancelar
           </Button>
         ) : (
-          <Button size="sm" variant="primary" onClick={() => void execute()}>
-            <Play className="size-3.5" /> Executar
-          </Button>
+          <>
+            <Button
+              size="sm"
+              variant="primary"
+              title="Executa a seleção ou o comando onde está o cursor (Ctrl+Enter)"
+              onClick={() => void execute()}
+            >
+              <Play className="size-3.5" /> Executar
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              title="Executa todos os comandos do editor, um depois do outro, parando no primeiro erro (Ctrl+Shift+Enter)"
+              onClick={() => void executeAll()}
+            >
+              <ListOrdered className="size-3.5" /> Executar tudo
+            </Button>
+          </>
         )}
         <QueryHistory
           connectionId={id}
           onPick={(text) => updateQuery(id, { sql: text })}
           onRun={(text) => {
             updateQuery(id, { sql: text });
-            void runText(text);
+            // Cada entrada do histórico é um comando só (um corpo de procedure tem ";" dentro).
+            void runStatements(isBlankSql(text, engine) ? [] : [text.trim()]);
           }}
         />
         <Button
@@ -630,7 +672,8 @@ function SqlEditor({
           <BookOpen className="size-3.5" /> Exemplos
         </Button>
         <span className="hidden text-2xs text-fg-subtle 2xl:inline">
-          <Kbd keys="Ctrl+Enter" /> roda a seleção ou o comando onde está o cursor
+          <Kbd keys="Ctrl+Enter" /> roda a seleção ou o comando onde está o cursor ·{' '}
+          <Kbd keys="Ctrl+Shift+Enter" /> roda tudo
         </span>
         <div className="flex-1" />
         <span className="text-2xs text-fg-subtle">Até</span>
@@ -659,6 +702,9 @@ function SqlEditor({
             editorRef.current = editor;
             bindSqlEditor(editor, id);
             registerSqlEditor(id, editor);
+            editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => {
+              void executeAllRef.current();
+            });
           }}
           onShortcut={(shortcut) => shortcut === 'send' && void execute()}
         />
@@ -736,7 +782,83 @@ function ResultArea({ id, name }: { id: string; name: string }) {
   );
 }
 
+function stepSummary(step: QueryStep): string {
+  switch (step.status) {
+    case 'pending':
+      return 'na fila';
+    case 'running':
+      return 'executando…';
+    case 'skipped':
+      return 'não executado';
+    case 'error':
+      return 'erro';
+    case 'ok': {
+      const r = step.result;
+      if (!r) return 'ok';
+      if (r.affected !== undefined)
+        return `${r.affected} ${r.affected === 1 ? 'linha afetada' : 'linhas afetadas'}`;
+      return `${r.rows.length}${r.truncated ? '+' : ''} ${r.rows.length === 1 ? 'linha' : 'linhas'}`;
+    }
+  }
+}
+
+/** O comando em uma linha, sem os comentários que vêm antes dele. */
+function commandLabel(sql: string): string {
+  const text = sql.replace(/^(?:\s*(?:--[^\n]*(?:\n|$)|#[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/))+/, '');
+  return (text || sql).replace(/\s+/g, ' ').trim().slice(0, 40);
+}
+
+/** Comandos de uma execução em sequência: clique para ver o resultado de cada um. */
+function StepsBar({ id, steps, active }: { id: string; steps: QueryStep[]; active: number }) {
+  const done = steps.filter((s) => s.status === 'ok').length;
+  const failed = steps.some((s) => s.status === 'error');
+  return (
+    <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-border px-3 py-1.5">
+      <span className="shrink-0 text-2xs text-fg-subtle">
+        {done} de {steps.length} {failed ? '(parou no erro)' : ''}
+      </span>
+      {steps.map((step, i) => (
+        <button
+          // biome-ignore lint/suspicious/noArrayIndexKey: a lista é fixa durante a execução e o mesmo comando pode se repetir
+          key={i}
+          type="button"
+          onClick={() => showStep(id, i)}
+          title={step.sql}
+          className={cn(
+            'flex max-w-64 shrink-0 items-center gap-1.5 rounded-md border px-2 py-0.5 text-2xs transition-colors',
+            i === active
+              ? 'border-primary bg-primary/10 text-fg'
+              : 'border-border text-fg-muted hover:text-fg',
+            step.status === 'error' && 'border-danger/60 text-danger',
+            (step.status === 'skipped' || step.status === 'pending') && 'opacity-60',
+          )}
+        >
+          {step.status === 'running' && <LoaderCircle className="size-3 animate-spin text-primary" />}
+          {step.status === 'error' && <AlertTriangle className="size-3" />}
+          <span className="font-mono">{i + 1}</span>
+          <span className="truncate font-mono">{commandLabel(step.sql)}</span>
+          <span className="shrink-0 text-fg-subtle">· {stepSummary(step)}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function QueryResultArea({ id, name }: { id: string; name: string }) {
+  const query = useDatabases((s) => s.queries[id]);
+  const steps = query?.steps && query.steps.length > 1 ? query.steps : null;
+  if (!steps) return <QueryResultBody id={id} name={name} />;
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <StepsBar id={id} steps={steps} active={query?.stepIndex ?? 0} />
+      <div className="min-h-0 flex-1">
+        <QueryResultBody id={id} name={name} />
+      </div>
+    </div>
+  );
+}
+
+function QueryResultBody({ id, name }: { id: string; name: string }) {
   const query = useDatabases((s) => s.queries[id]);
   const schema = useDatabases((s) => s.schemas[id]);
   const view = useConnection(id);
@@ -747,11 +869,29 @@ function QueryResultArea({ id, name }: { id: string; name: string }) {
     [schema, ranSql],
   );
 
+  const step = query?.steps?.[query.stepIndex];
+  // Numa sequência, o que já rodou antes do erro continua aplicado (cada comando é uma transação).
+  const appliedBefore = query?.steps
+    ?.slice(0, query.stepIndex)
+    .filter((s) => s.result?.affected !== undefined).length;
+  if (step?.status === 'skipped')
+    return (
+      <div className="p-4 text-xs text-fg-muted">
+        Este comando não foi executado: a sequência parou no erro de um comando anterior.
+      </div>
+    );
   if (query?.error)
     return (
       <div className="space-y-2 p-4 text-xs">
         <div className="rounded-lg border border-danger/40 bg-danger/5 p-3 text-fg">
           <p className="whitespace-pre-wrap">{query.error}</p>
+          {step && appliedBefore ? (
+            <p className="mt-2 text-fg-muted">
+              {appliedBefore === 1
+                ? 'O comando de escrita anterior já foi aplicado e continua valendo.'
+                : `Os ${appliedBefore} comandos de escrita anteriores já foram aplicados e continuam valendo.`}
+            </p>
+          ) : null}
         </div>
         {query.ranSql && (
           <pre className="max-h-32 overflow-auto whitespace-pre-wrap rounded-md bg-surface p-2 font-mono text-2xs text-fg-subtle">

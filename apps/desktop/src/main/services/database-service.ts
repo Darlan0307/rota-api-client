@@ -14,6 +14,7 @@ import {
   type DbState,
   DEFAULT_ROW_LIMIT,
   engineInfo,
+  isBlankSql,
   Mutex,
   newId,
   readJsonIfExists,
@@ -398,6 +399,11 @@ export class DatabaseService {
     const recordHistory = options.history ?? true;
     const config = this.connection(id);
     if (!sql.trim()) throw new Error('Escreva uma consulta.');
+    // Sem isso o banco devolve erros confusos (o Firebird fala em "coluna -306857455").
+    if (isBlankSql(sql, config.engine))
+      throw new Error(
+        'Não há comando para executar: o trecho só tem comentários. Tire o "--" ou "/*" do comando.',
+      );
     const rt = this.runtime(id);
     rt.running++;
     rt.lastUsed = Date.now();

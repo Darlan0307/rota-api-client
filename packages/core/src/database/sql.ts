@@ -11,44 +11,121 @@ export interface SqlStatement {
   end: number;
 }
 
-/** Comandos separados por ";", ignorando os que estão dentro de textos e comentários. */
-export function splitSqlStatements(sql: string): SqlStatement[] {
+const ROUTINE_START =
+  /^\s*(?:(?:CREATE(?:\s+OR\s+(?:ALTER|REPLACE))?|ALTER|RECREATE)\s+(?:DEFINER\s*=\s*\S+\s+)?(?:PROCEDURE|PROC|FUNCTION|TRIGGER|PACKAGE(?:\s+BODY)?)\b|EXECUTE\s+BLOCK\b)/i;
+
+/**
+ * O trecho é o começo de uma procedure/trigger/bloco ainda dentro do
+ * BEGIN ... END? Aí o ";" faz parte do corpo e não separa comandos (vale para
+ * quem cola o corpo sem SET TERM, DELIMITER ou GO). BEGIN TRANSACTION não abre
+ * bloco; END IF/LOOP/WHILE/REPEAT (MySQL) fecham outras estruturas.
+ */
+function insideRoutineBody(chunk: string, engine: DbEngine | undefined): boolean {
+  const text = stripSqlLiterals(chunk, engine === 'mysql');
+  // No SQL Server, IF/WHILE/BEGIN soltos também abrem bloco; nos outros, "BEGIN;" é início de transação.
+  const tsqlBlock =
+    engine === 'sqlserver' && /^\s*(?:IF|WHILE|BEGIN(?!\s+(?:TRAN|TRANSACTION|DISTRIBUTED)\b))\b/i.test(text);
+  if (!tsqlBlock && !ROUTINE_START.test(text)) return false;
+  const opens =
+    text.match(/\b(?:BEGIN(?!\s+(?:TRAN|TRANSACTION|DISTRIBUTED|WORK)\b)|(?<!\bEND\s+)CASE)\b/gi)?.length ??
+    0;
+  const closes = text.match(/\bEND\b(?!\s+(?:IF|LOOP|WHILE|REPEAT)\b)/gi)?.length ?? 0;
+  return opens > 0 && opens > closes;
+}
+
+/** O texto só tem comentários e espaços (nada para o banco executar)? */
+export function isBlankSql(sql: string, engine?: DbEngine): boolean {
+  return stripSqlLiterals(sql, engine === 'mysql').trim() === '';
+}
+
+/**
+ * Comandos separados por ";", ignorando os que estão dentro de textos e
+ * comentários. Trechos só com comentários não viram comando. Com o motor,
+ * segue as regras dele: no MySQL, \' nos textos, # como comentário e
+ * DELIMITER; no Postgres, corpos $$...$$; no SQL Server, [nomes] e GO numa
+ * linha sozinha; no Firebird, SET TERM (scripts com procedures e triggers).
+ */
+export function splitSqlStatements(sql: string, engine?: DbEngine): SqlStatement[] {
+  const mysql = engine === 'mysql';
   const result: SqlStatement[] = [];
+  let terminator = ';';
   let start = 0;
   let i = 0;
   const push = (end: number) => {
     const raw = sql.slice(start, end);
     const text = raw.trim();
-    if (text) {
+    if (text && !isBlankSql(text, engine)) {
       const offset = raw.indexOf(text);
       result.push({ text, start: start + offset, end: start + offset + text.length });
     }
   };
+  /** Diretiva de ferramenta (SET TERM, DELIMITER) que muda o separador; não vai para o banco. */
+  const directive = (text: string): string | null => {
+    const clean = stripSqlLiterals(text, mysql).trim();
+    if (engine === 'firebird') return /^SET\s+TERM\s+(\S+)$/i.exec(clean)?.[1] ?? null;
+    return null;
+  };
+  const atLineStart = (pos: number) => /(^|\n)[ \t]*$/.test(sql.slice(Math.max(0, pos - 200), pos));
+
   while (i < sql.length) {
-    const ch = sql[i];
+    const ch = sql[i] as string;
     const next = sql[i + 1];
-    if (ch === "'" || ch === '"') {
+    if (ch === "'" || ch === '"' || (mysql && ch === '`')) {
       i++;
-      while (i < sql.length && !(sql[i] === ch && sql[i + 1] !== ch)) i += sql[i] === ch ? 2 : 1;
+      while (i < sql.length) {
+        if (mysql && ch !== '`' && sql[i] === '\\') i += 2;
+        else if (sql[i] === ch && sql[i + 1] === ch) i += 2;
+        else if (sql[i] === ch) break;
+        else i++;
+      }
       i++;
-    } else if (ch === '-' && next === '-') {
+    } else if (engine === 'sqlserver' && ch === '[') {
+      const close = sql.indexOf(']', i + 1);
+      i = close < 0 ? sql.length : close + 1;
+    } else if (ch === '-' && next === '-' && (!mysql || /^\s?$/.test(sql[i + 2] ?? ''))) {
+      while (i < sql.length && sql[i] !== '\n') i++;
+    } else if (mysql && ch === '#') {
       while (i < sql.length && sql[i] !== '\n') i++;
     } else if (ch === '/' && next === '*') {
       const close = sql.indexOf('*/', i + 2);
       i = close < 0 ? sql.length : close + 2;
-    } else if (ch === ';') {
+    } else if (engine === 'postgres' && ch === '$' && /^\$(?:[A-Za-z_]\w*)?\$/.test(sql.slice(i))) {
+      // Corpo de função ($$ ... $$ ou $tag$ ... $tag$): ";" lá dentro não separa.
+      const tag = /^\$(?:[A-Za-z_]\w*)?\$/.exec(sql.slice(i))?.[0] as string;
+      const close = sql.indexOf(tag, i + tag.length);
+      i = close < 0 ? sql.length : close + tag.length;
+    } else if (mysql && atLineStart(i) && /^DELIMITER[ \t]+\S+/i.test(sql.slice(i, i + 40))) {
+      // DELIMITER vale até o fim da linha (não termina com o separador atual).
       push(i);
-      start = i + 1;
+      const lineEnd = sql.indexOf('\n', i);
+      const end = lineEnd < 0 ? sql.length : lineEnd;
+      terminator = (/^DELIMITER[ \t]+(\S+)/i.exec(sql.slice(i, end))?.[1] as string) ?? ';';
+      start = end;
+      i = end;
+    } else if (engine === 'sqlserver' && atLineStart(i) && /^GO[ \t]*(\r?\n|$)/i.test(sql.slice(i, i + 6))) {
+      // GO separa lotes no SSMS/sqlcmd; não é comando do servidor.
+      push(i);
+      const lineEnd = sql.indexOf('\n', i);
+      start = i = lineEnd < 0 ? sql.length : lineEnd;
+    } else if (terminator === ';' && ch === ';' && insideRoutineBody(sql.slice(start, i), engine)) {
       i++;
+    } else if (sql.startsWith(terminator, i)) {
+      const current = terminator;
+      const changed = directive(sql.slice(start, i));
+      if (changed) terminator = changed;
+      else push(i);
+      i += current.length;
+      start = i;
     } else i++;
   }
-  push(sql.length);
+  const changed = directive(sql.slice(start));
+  if (!changed) push(sql.length);
   return result;
 }
 
 /** Comando onde o cursor está (ou o último antes dele, se o cursor estiver depois de um ";"). */
-export function statementAt(sql: string, offset: number): SqlStatement | undefined {
-  const statements = splitSqlStatements(sql);
+export function statementAt(sql: string, offset: number, engine?: DbEngine): SqlStatement | undefined {
+  const statements = splitSqlStatements(sql, engine);
   return (
     statements.find((s) => offset >= s.start && offset <= s.end) ??
     [...statements].reverse().find((s) => s.end <= offset) ??
@@ -185,12 +262,17 @@ const WRITE_WORDS =
  * Camada extra além da transação READ ONLY do banco, e a única proteção do
  * lado do Rota no SQL Server, que não tem transação somente leitura.
  */
-export function readOnlyViolation(sql: string): string | null {
+export function readOnlyViolation(sql: string, engine?: DbEngine): string | null {
   // Lido como SQL padrão e como MySQL: o que um trata como texto ou comentário
-  // o outro pode executar (ex.: '\'' ou #), então os dois precisam passar.
-  for (const text of [stripSqlLiterals(sql), stripSqlLiterals(sql, true)]) {
-    if (!READ_START.test(text))
-      return 'Esta conexão é somente leitura: só consultas (SELECT, WITH, SHOW, EXPLAIN) são permitidas.';
+  // o outro pode executar (ex.: '\'' ou #), então nenhuma das leituras pode ter
+  // palavra de escrita. Já o "começa com SELECT" vale na leitura do próprio
+  // banco: no MySQL, "# nota\nSELECT ..." é consulta (o # é comentário lá).
+  const standard = stripSqlLiterals(sql);
+  const mysql = stripSqlLiterals(sql, true);
+  const native = engine === 'mysql' ? [mysql] : engine ? [standard] : [standard, mysql];
+  if (native.some((text) => !READ_START.test(text)))
+    return 'Esta conexão é somente leitura: só consultas (SELECT, WITH, SHOW, EXPLAIN) são permitidas.';
+  for (const text of [standard, mysql]) {
     const word = WRITE_WORDS.exec(text)?.[0];
     if (word)
       return `Esta conexão é somente leitura: "${word.toUpperCase()}" não é permitido aqui (pode alterar o banco).`;
@@ -199,8 +281,8 @@ export function readOnlyViolation(sql: string): string | null {
 }
 
 /** O comando é uma consulta (não altera dados nem estrutura)? */
-export function isReadQuery(sql: string): boolean {
-  return readOnlyViolation(sql) === null;
+export function isReadQuery(sql: string, engine?: DbEngine): boolean {
+  return readOnlyViolation(sql, engine) === null;
 }
 
 export const SQL_KEYWORDS = [

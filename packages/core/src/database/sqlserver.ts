@@ -225,7 +225,7 @@ export class SqlServerSession implements DbSession {
     const started = Date.now();
     const limit = options.limit ?? DEFAULT_ROW_LIMIT;
     if (options.readOnly) {
-      const violation = readOnlyViolation(text);
+      const violation = readOnlyViolation(text, 'sqlserver');
       if (violation) throw new DatabaseError(violation);
     }
     const tx = new sql.Transaction(this.pool);

@@ -33,7 +33,7 @@ function registerSqlCompletion(): void {
       };
       const text = model.getValue();
       const offset = model.getOffsetAt(position);
-      const statement = statementAt(text, offset)?.text ?? text;
+      const statement = statementAt(text, offset, engine)?.text ?? text;
       const tableNames = schema?.tables.map((t) => t.name) ?? [];
       const before = model.getValueInRange({
         startLineNumber: position.lineNumber,

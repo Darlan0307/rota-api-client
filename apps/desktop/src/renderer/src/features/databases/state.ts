@@ -6,6 +6,7 @@ import type {
   DbQueryResult,
   DbSchema,
 } from '@rota/core/shared';
+import { stripSqlLiterals } from '@rota/core/shared';
 import { create } from 'zustand';
 import { api, errorMessage } from '../../lib/api';
 import { useTabs } from '../../state/tabs';
@@ -15,13 +16,25 @@ import { closeProfile } from './profile-state';
 
 export type ConnectionInput = Partial<DbConnectionConfig>;
 
+/** Um comando de uma execução em sequência. */
+export interface QueryStep {
+  sql: string;
+  status: 'pending' | 'running' | 'ok' | 'error' | 'skipped';
+  result?: DbQueryResult;
+  error?: string;
+}
+
 /** Consulta de uma aba: o texto sobrevive ao fechar o app (localStorage); o resultado não. */
 export interface QueryState {
   sql: string;
+  /** Resultado exibido (o do comando escolhido, numa sequência). */
   result: DbQueryResult | null;
   error: string | null;
   /** Comando executado (para o título do resultado). */
   ranSql: string | null;
+  /** Vários comandos executados em sequência (null quando foi um só). */
+  steps: QueryStep[] | null;
+  stepIndex: number;
 }
 
 interface DatabaseStore {
@@ -162,7 +175,7 @@ export function queryOf(id: string): QueryState {
   } catch {
     // Sem localStorage: começa vazio.
   }
-  return { sql, result: null, error: null, ranSql: null };
+  return { sql, result: null, error: null, ranSql: null, steps: null, stepIndex: 0 };
 }
 
 export function updateQuery(id: string, patch: Partial<QueryState>): void {
@@ -176,16 +189,63 @@ export function updateQuery(id: string, patch: Partial<QueryState>): void {
   }
 }
 
+const changesStructure = (sql: string, result: DbQueryResult) =>
+  result.affected !== undefined &&
+  /^\s*(create|alter|drop|recreate)\b/i.test(stripSqlLiterals(sql).trimStart());
+
 export async function runQuery(id: string, sql: string, limit: number): Promise<void> {
-  updateQuery(id, { error: null });
+  updateQuery(id, { error: null, steps: null, stepIndex: 0 });
   try {
     const result = await api.invoke('db:run', id, sql, limit);
     updateQuery(id, { result, ranSql: sql, error: null });
     // Comando que altera a estrutura: a árvore pode ter mudado.
-    if (result.affected !== undefined && /^\s*(create|alter|drop|recreate)\b/i.test(sql)) void loadSchema(id);
+    if (changesStructure(sql, result)) void loadSchema(id);
   } catch (error) {
     updateQuery(id, { error: errorMessage(error), ranSql: sql });
   }
+}
+
+/**
+ * Executa os comandos um por um, na ordem, e para no primeiro erro (os
+ * seguintes ficam como "não executado"). Cada comando é uma chamada própria:
+ * nenhum driver aceita vários num envio só (o SQL Server até aceita, mas
+ * junta os resultados numa grade).
+ */
+export async function runQueries(id: string, statements: string[], limit: number): Promise<void> {
+  const steps: QueryStep[] = statements.map((sql) => ({ sql, status: 'pending' }));
+  const publish = (stepIndex: number) =>
+    updateQuery(id, { steps: [...steps], stepIndex, ...stepView(steps[stepIndex]) });
+  let structure = false;
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i] as QueryStep;
+    steps[i] = { ...step, status: 'running' };
+    publish(i);
+    try {
+      const result = await api.invoke('db:run', id, step.sql, limit);
+      steps[i] = { ...step, status: 'ok', result };
+      structure ||= changesStructure(step.sql, result);
+    } catch (error) {
+      steps[i] = { ...step, status: 'error', error: errorMessage(error) };
+      for (let j = i + 1; j < steps.length; j++) steps[j] = { ...(steps[j] as QueryStep), status: 'skipped' };
+      break;
+    }
+  }
+  if (structure) void loadSchema(id);
+  // Mostra o erro, se houve; senão o último comando que trouxe linhas (o SELECT de conferência no fim).
+  const failed = steps.findIndex((s) => s.status === 'error');
+  const lastRows = steps.findLastIndex((s) => s.result && s.result.affected === undefined);
+  publish(failed >= 0 ? failed : lastRows >= 0 ? lastRows : steps.length - 1);
+}
+
+function stepView(step: QueryStep | undefined): Pick<QueryState, 'result' | 'error' | 'ranSql'> {
+  return { result: step?.result ?? null, error: step?.error ?? null, ranSql: step?.sql ?? null };
+}
+
+/** Mostra o resultado de um dos comandos da sequência. */
+export function showStep(id: string, index: number): void {
+  const steps = queryOf(id).steps;
+  if (!steps?.[index]) return;
+  updateQuery(id, { stepIndex: index, ...stepView(steps[index]) });
 }
 
 export async function cancelQuery(id: string): Promise<void> {
