@@ -7,6 +7,13 @@ import { statusTone } from '../../lib/format';
 import { ItemIcon } from '../../lib/item-icons';
 import { openItemById } from '../request/open';
 
+const TONE_CLASS = {
+  success: 'text-success',
+  warning: 'text-warning',
+  danger: 'text-danger',
+  muted: 'text-fg-muted',
+} as const;
+
 function countRequests(children: readonly ChildNode[]): number {
   return children.reduce((n, c) => n + (c.kind === 'request' ? 1 : countRequests(c.children)), 0);
 }
@@ -36,7 +43,10 @@ function RequestCard({ node }: { node: RequestNode }) {
             <p className="my-2 flex flex-wrap items-center gap-1.5 text-2xs text-fg-subtle">
               Exemplos salvos:
               {statuses.map((s) => (
-                <span key={s} className={cn('rounded bg-surface-2 px-1.5 py-px font-mono', statusTone(s))}>
+                <span
+                  key={s}
+                  className={cn('rounded bg-surface-2 px-1.5 py-px font-mono', TONE_CLASS[statusTone(s)])}
+                >
                   {s}
                 </span>
               ))}

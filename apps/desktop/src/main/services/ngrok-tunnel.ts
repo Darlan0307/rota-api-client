@@ -24,46 +24,52 @@ export class NgrokTunnel {
 
   async start(options: NgrokStartOptions): Promise<string> {
     const log = (line: string) => options.onLog?.(line);
-    const timeout = new Promise<never>((_, reject) =>
-      setTimeout(
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
         () =>
           reject(new Error('O ngrok demorou demais para responder. Verifique a internet e tente de novo.')),
         options.timeoutMs ?? 30_000,
-      ).unref(),
-    );
+      );
+    });
+    let connecting: Promise<Session> | undefined;
+    let listening: Promise<Listener> | undefined;
     try {
       const ngrok = await import('@ngrok/ngrok');
       log('Conectando ao ngrok…');
-      const session = await Promise.race([
-        new ngrok.SessionBuilder()
-          .authtoken(options.authtoken)
-          .clientInfo('rota', options.appVersion)
-          .handleDisconnection((_addr, error) => {
-            log(`Conexão com o ngrok caiu (${error}); reconectando…`);
-            // true = o SDK tenta de novo; a URL continua a mesma.
-            return !this.stopped;
-          })
-          .connect(),
-        timeout,
-      ]);
+      connecting = new ngrok.SessionBuilder()
+        .authtoken(options.authtoken)
+        .clientInfo('rota', options.appVersion)
+        .handleDisconnection((_addr, error) => {
+          log(`Conexão com o ngrok caiu (${error}); reconectando…`);
+          // true = o SDK tenta de novo; a URL continua a mesma.
+          return !this.stopped;
+        })
+        .connect();
+      const session = await Promise.race([connecting, timeout]);
       this.session = session;
       if (this.stopped) throw new Error('Túnel parado.');
       const builder = session.httpEndpoint();
       if (options.domain) builder.domain(options.domain);
-      const listener = await Promise.race([
-        builder.listenAndForward(`http://127.0.0.1:${options.localPort}`),
-        timeout,
-      ]);
+      listening = builder.listenAndForward(`http://127.0.0.1:${options.localPort}`);
+      const listener = await Promise.race([listening, timeout]);
       this.listener = listener;
+      if (this.stopped) throw new Error('Túnel parado.');
       const url = listener.url();
       if (!url) throw new Error('O ngrok não informou a URL do túnel.');
       log(`Túnel ativo: ${url}`);
       return url;
     } catch (error) {
       await this.stop();
+      // Tempo esgotado ou desligado no meio: o que chegar depois também é fechado,
+      // senão a sessão fica presa na conta (o plano grátis aceita uma por vez, ERR_NGROK_108).
+      void listening?.then((late) => late.close()).catch(() => undefined);
+      void connecting?.then((late) => late.close()).catch(() => undefined);
       const message = error instanceof Error ? error.message : String(error);
       if (message === 'Túnel parado.' || message.startsWith('O ngrok demorou')) throw error;
       throw new Error(describeNgrokError(message));
+    } finally {
+      clearTimeout(timer);
     }
   }
 

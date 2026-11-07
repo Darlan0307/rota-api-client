@@ -248,9 +248,11 @@ export async function closeUnpinnedTabs(keepId?: string): Promise<void> {
     toast.error(
       `Não foi possível salvar ${names(failed)}: ${failed.length === 1 ? 'a aba ficou aberta' : 'as abas ficaram abertas'}.`,
     );
-  const first = kept[0];
+  // Uma requisição nova abre o "Salvar como" (as que só falharam ficam abertas, com o aviso).
+  const unsavedLeft = kept.find((t) => t.kind === 'request' && !t.itemId);
+  const first = unsavedLeft ?? kept[0];
   if (first) {
     useTabs.getState().setActive(first.id);
-    if (first.kind === 'request' && !first.itemId) useUiStore.getState().setSaveAsTabId(first.id);
+    if (unsavedLeft) useUiStore.getState().setSaveAsTabId(unsavedLeft.id);
   }
 }

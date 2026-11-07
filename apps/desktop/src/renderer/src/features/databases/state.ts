@@ -211,13 +211,49 @@ export async function runQuery(id: string, sql: string, limit: number): Promise<
  * nenhum driver aceita vários num envio só (o SQL Server até aceita, mas
  * junta os resultados numa grade).
  */
+/** Sequências em andamento por conexão (Cancelar entre um comando e outro também precisa parar). */
+const sequences = new Map<string, { cancelled: boolean }>();
+
+/** Uma sequência está rodando? (entre dois comandos a conexão fica livre por um instante). */
+export function sequenceRunning(state: QueryState | undefined): boolean {
+  return state?.steps?.some((s) => s.status === 'running' || s.status === 'pending') ?? false;
+}
+
 export async function runQueries(id: string, statements: string[], limit: number): Promise<void> {
+  if (sequences.has(id)) return;
+  const control = { cancelled: false };
+  sequences.set(id, control);
+  try {
+    await runSequence(id, statements, limit, control);
+  } finally {
+    sequences.delete(id);
+    // Erro inesperado no meio: nada pode ficar "executando" para sempre (travaria o botão Executar).
+    const steps = queryOf(id).steps;
+    if (sequenceRunning(queryOf(id)) && steps)
+      updateQuery(id, {
+        steps: steps.map((s) =>
+          s.status === 'running' || s.status === 'pending' ? { ...s, status: 'skipped' } : s,
+        ),
+      });
+  }
+}
+
+async function runSequence(
+  id: string,
+  statements: string[],
+  limit: number,
+  control: { cancelled: boolean },
+): Promise<void> {
   const steps: QueryStep[] = statements.map((sql) => ({ sql, status: 'pending' }));
   const publish = (stepIndex: number) =>
     updateQuery(id, { steps: [...steps], stepIndex, ...stepView(steps[stepIndex]) });
   let structure = false;
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i] as QueryStep;
+    if (control.cancelled) {
+      for (let j = i; j < steps.length; j++) steps[j] = { ...(steps[j] as QueryStep), status: 'skipped' };
+      break;
+    }
     steps[i] = { ...step, status: 'running' };
     publish(i);
     try {
@@ -234,7 +270,15 @@ export async function runQueries(id: string, statements: string[], limit: number
   // Mostra o erro, se houve; senão o último comando que trouxe linhas (o SELECT de conferência no fim).
   const failed = steps.findIndex((s) => s.status === 'error');
   const lastRows = steps.findLastIndex((s) => s.result && s.result.affected === undefined);
-  publish(failed >= 0 ? failed : lastRows >= 0 ? lastRows : steps.length - 1);
+  const lastDone = steps.findLastIndex((s) => s.status === 'ok');
+  publish(failed >= 0 ? failed : lastRows >= 0 ? lastRows : Math.max(lastDone, 0));
+}
+
+/** Cancela a consulta da vez e, numa sequência, os comandos que ainda não rodaram. */
+export async function cancelQueries(id: string): Promise<void> {
+  const control = sequences.get(id);
+  if (control) control.cancelled = true;
+  await cancelQuery(id);
 }
 
 function stepView(step: QueryStep | undefined): Pick<QueryState, 'result' | 'error' | 'ranSql'> {

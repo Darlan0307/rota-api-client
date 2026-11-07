@@ -105,6 +105,16 @@ describe('comandos SQL no editor', () => {
     expect(splitSqlStatements('BEGIN TRANSACTION; UPDATE t SET a = 1; COMMIT;', 'sqlserver')).toHaveLength(3);
   });
 
+  it('separa scripts grandes rápido (o autocomplete chama a cada sugestão)', () => {
+    const line = "INSERT INTO pedidos (id, obs, preco) VALUES (1, 'it''s; ok', 9.9); -- nota\n";
+    const script = line.repeat(20_000); // ~1,5 MB
+    for (const engine of ['mysql', 'sqlserver', 'postgres', 'firebird'] as const) {
+      const started = performance.now();
+      expect(splitSqlStatements(script, engine)).toHaveLength(20_000);
+      expect(performance.now() - started).toBeLessThan(1500);
+    }
+  });
+
   it('resolve aliases de FROM e JOIN', () => {
     const sql = 'SELECT p. FROM PEDIDOS p JOIN CLIENTES AS c ON c.ID = p.CLIENTE_ID';
     const tables = ['PEDIDOS', 'CLIENTES'];

@@ -204,7 +204,7 @@ export function isDirty(tab: Tab): boolean {
   switch (tab.kind) {
     case 'request':
       // Requisição rápida intocada (igual à padrão) fecha sem perguntar.
-      return tab.base === null ? !deepEqual(tab.draft, newRequestData()) : !deepEqual(tab.draft, tab.base);
+      return tab.base === null ? !deepEqual(tab.draft, emptyRequest()) : !deepEqual(tab.draft, tab.base);
     case 'environment':
     case 'globals':
       return variablesDirty(tab.draft, tab.base);
@@ -403,6 +403,13 @@ const EMPTY_SCRIPTS: Scripts = { preRequest: '', postResponse: '' };
 
 export function newRequestData(partial: Partial<RequestData> = {}): RequestData {
   return RequestDataSchema.parse(partial);
+}
+
+// isDirty roda a cada desenho da barra de abas: a requisição padrão é montada uma vez só.
+let emptyRequestCache: RequestData | undefined;
+function emptyRequest(): RequestData {
+  emptyRequestCache ??= newRequestData();
+  return emptyRequestCache;
 }
 
 function createTab(

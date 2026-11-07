@@ -11,6 +11,9 @@ export interface SqlStatement {
   end: number;
 }
 
+/** Abertura de corpo do Postgres: $$ ou $tag$ (tag de até 64 caracteres). */
+const DOLLAR_TAG = /^\$(?:[A-Za-z_]\w{0,63})?\$/;
+
 const ROUTINE_START =
   /^\s*(?:(?:CREATE(?:\s+OR\s+(?:ALTER|REPLACE))?|ALTER|RECREATE)\s+(?:DEFINER\s*=\s*\S+\s+)?(?:PROCEDURE|PROC|FUNCTION|TRIGGER|PACKAGE(?:\s+BODY)?)\b|EXECUTE\s+BLOCK\b)/i;
 
@@ -89,12 +92,18 @@ export function splitSqlStatements(sql: string, engine?: DbEngine): SqlStatement
     } else if (ch === '/' && next === '*') {
       const close = sql.indexOf('*/', i + 2);
       i = close < 0 ? sql.length : close + 2;
-    } else if (engine === 'postgres' && ch === '$' && /^\$(?:[A-Za-z_]\w*)?\$/.test(sql.slice(i))) {
+    } else if (engine === 'postgres' && ch === '$' && DOLLAR_TAG.test(sql.slice(i, i + 66))) {
       // Corpo de função ($$ ... $$ ou $tag$ ... $tag$): ";" lá dentro não separa.
-      const tag = /^\$(?:[A-Za-z_]\w*)?\$/.exec(sql.slice(i))?.[0] as string;
+      const tag = DOLLAR_TAG.exec(sql.slice(i, i + 66))?.[0] as string;
       const close = sql.indexOf(tag, i + tag.length);
       i = close < 0 ? sql.length : close + tag.length;
-    } else if (mysql && atLineStart(i) && /^DELIMITER[ \t]+\S+/i.test(sql.slice(i, i + 40))) {
+    } else if (
+      // Letra testada antes: atLineStart olha para trás e custaria caro a cada caractere.
+      mysql &&
+      (ch === 'D' || ch === 'd') &&
+      atLineStart(i) &&
+      /^DELIMITER[ \t]+\S+/i.test(sql.slice(i, i + 40))
+    ) {
       // DELIMITER vale até o fim da linha (não termina com o separador atual).
       push(i);
       const lineEnd = sql.indexOf('\n', i);
@@ -102,7 +111,12 @@ export function splitSqlStatements(sql: string, engine?: DbEngine): SqlStatement
       terminator = (/^DELIMITER[ \t]+(\S+)/i.exec(sql.slice(i, end))?.[1] as string) ?? ';';
       start = end;
       i = end;
-    } else if (engine === 'sqlserver' && atLineStart(i) && /^GO[ \t]*(\r?\n|$)/i.test(sql.slice(i, i + 6))) {
+    } else if (
+      engine === 'sqlserver' &&
+      (ch === 'G' || ch === 'g') &&
+      atLineStart(i) &&
+      /^GO[ \t]*(\r?\n|$)/i.test(sql.slice(i, i + 6))
+    ) {
       // GO separa lotes no SSMS/sqlcmd; não é comando do servidor.
       push(i);
       const lineEnd = sql.indexOf('\n', i);

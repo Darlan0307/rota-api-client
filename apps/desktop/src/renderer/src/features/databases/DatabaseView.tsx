@@ -4,7 +4,6 @@ import {
   type DbTable,
   type DbValue,
   editableTableFor,
-  isBlankSql,
   isReadQuery,
   previewSql,
   quoteIdentifier,
@@ -70,7 +69,7 @@ import { openSqlExamples } from './SqlExamplesDialog';
 import { bindSqlEditor } from './sql-completion';
 import { registerSqlEditor } from './sql-editors';
 import {
-  cancelQuery,
+  cancelQueries,
   disconnect,
   loadSchema,
   openConnectionDialog,
@@ -78,6 +77,7 @@ import {
   queryOf,
   runQueries,
   runQuery,
+  sequenceRunning,
   showStep,
   updateQuery,
   useConnection,
@@ -558,7 +558,9 @@ function SqlEditor({
   const view = useConnection(id);
   const sql = useDatabases((s) => s.queries[id]?.sql) ?? queryOf(id).sql;
   const [limit, setLimit] = useState(savedLimit);
-  const running = view?.running ?? false;
+  const inSequence = useDatabases((s) => sequenceRunning(s.queries[id]));
+  // Entre dois comandos da sequência a conexão fica livre por um instante: o botão não pode voltar a "Executar".
+  const running = (view?.running ?? false) || inSequence;
 
   const engine = view?.config.engine ?? 'firebird';
 
@@ -621,7 +623,7 @@ function SqlEditor({
             onClick={() => {
               // Com o perfil rodando, cancela a análise inteira (não só a consulta da vez).
               if (useProfiles.getState().byConnection[id]?.status === 'running') cancelProfile(id);
-              else void cancelQuery(id);
+              else void cancelQueries(id);
             }}
           >
             <Square className="size-3.5" /> Cancelar
@@ -651,8 +653,12 @@ function SqlEditor({
           onPick={(text) => updateQuery(id, { sql: text })}
           onRun={(text) => {
             updateQuery(id, { sql: text });
-            // Cada entrada do histórico é um comando só (um corpo de procedure tem ";" dentro).
-            void runStatements(isBlankSql(text, engine) ? [] : [text.trim()]);
+            // Cada entrada do histórico é um comando só; o separador só tira o ";" do fim
+            // (e entende corpo de procedure). Se ainda assim achar vários, vai inteiro como antes.
+            const parts = splitSqlStatements(text, engine);
+            void runStatements(
+              parts.length === 1 ? [(parts[0] as { text: string }).text] : parts.length ? [text.trim()] : [],
+            );
           }}
         />
         <Button
