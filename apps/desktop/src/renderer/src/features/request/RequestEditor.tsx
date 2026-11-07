@@ -1,14 +1,15 @@
 import * as Dropdown from '@radix-ui/react-dropdown-menu';
 import { ancestorsOf, applyUrlText, composeUrl, HTTP_METHODS, type RequestData } from '@rota/core/shared';
-import { ChevronDown, ChevronRight, Construction, LoaderCircle, Save, Send, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Construction, LoaderCircle, Save, Send, X, Zap } from 'lucide-react';
 import { type ClipboardEvent, type ReactNode, useRef } from 'react';
 import { Group, Panel, useDefaultLayout } from 'react-resizable-panels';
 import { type MenuEntry, MoreActions } from '../../components/ActionMenu';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
-import { Field, Switch, TextArea, TextInput } from '../../components/form';
+import { Field, Switch, TextInput } from '../../components/form';
 import { Kbd } from '../../components/Kbd';
 import { KeyValueTable } from '../../components/KeyValueTable';
+import { MethodBadge } from '../../components/MethodBadge';
 import { TabStrip } from '../../components/TabStrip';
 import { ToolbarLabel } from '../../components/ToolbarLabel';
 import { Tooltip } from '../../components/Tooltip';
@@ -24,6 +25,7 @@ import { isDirty, type RequestSection, type RequestTab, useTabs } from '../../st
 import { useUiStore } from '../../state/ui';
 import { useSnapshot } from '../../state/workspace';
 import { ConflictBanner } from '../conflict/ConflictBanner';
+import { DocPanel } from '../docs/DocPanel';
 import { type ResponseExtraSection, ResponsePane } from '../response/ResponsePane';
 import { AuthEditor } from './AuthEditor';
 import { AutoHeaders } from './AutoHeaders';
@@ -124,7 +126,11 @@ function RequestHeader({ tab }: { tab: RequestTab }) {
         ))}
         <span className="truncate font-medium text-fg">{tab.title}</span>
         {!tab.itemId && (
-          <span className="ml-1 rounded bg-surface-2 px-1.5 text-2xs text-fg-muted">não salva</span>
+          <Tooltip label="Fora de qualquer coleção: use à vontade. Para guardar, Salvar (Ctrl+S) escolhe a coleção.">
+            <span className="ml-1 flex shrink-0 items-center gap-1 rounded bg-surface-2 px-1.5 text-2xs text-fg-muted">
+              <Zap className="size-3 text-primary" /> rápida, não salva
+            </span>
+          </Tooltip>
         )}
       </nav>
       <div className="flex shrink-0 items-center gap-0.5">{extensions.headerActions?.(tab)}</div>
@@ -266,6 +272,7 @@ function RequestSections({
     { id: 'headers', label: 'Headers' },
     { id: 'body', label: 'Body', dot: data.body.mode !== 'none' },
     { id: 'scripts', label: 'Scripts', dot: hasScripts },
+    { id: 'docs', label: 'Docs', dot: Boolean(data.description?.trim()) },
     { id: 'settings', label: 'Configurações' },
   ];
 
@@ -298,7 +305,25 @@ function RequestSections({
         ))}
       </TabStrip>
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className={cn('min-h-0 flex-1', section === 'docs' ? 'overflow-hidden' : 'overflow-auto')}>
+        {section === 'docs' && (
+          <DocPanel
+            value={data.description ?? ''}
+            onChange={(description) => onChange({ ...data, description: description || undefined })}
+            onSave={() => onShortcut('save')}
+            dirty={(data.description ?? '') !== (tab.base?.description ?? '')}
+            target={tab.itemId ? { kind: 'request', id: tab.itemId, name: tab.title } : null}
+            placeholder={
+              'Para que serve esta requisição.\n\n## Parâmetros\n\n| Nome | Obrigatório | Descrição |\n|---|---|---|\n| id | sim | ... |\n\n## Respostas\n\n- **200**: ...\n- **404**: ...'
+            }
+            header={
+              <h1 className="flex min-w-0 items-center gap-2 text-lg font-semibold text-fg">
+                <MethodBadge method={data.method} />
+                <span className="truncate">{tab.title}</span>
+              </h1>
+            }
+          />
+        )}
         {section === 'params' && (
           <div className="p-4">
             <KeyValueTable
@@ -411,14 +436,6 @@ function RequestSettingsSection({
         checked={s.verifySsl}
         onChange={(verifySsl) => set({ verifySsl })}
       />
-      <Field label="Descrição">
-        <TextArea
-          rows={4}
-          value={data.description ?? ''}
-          onChange={(e) => onChange({ ...data, description: e.target.value || undefined })}
-          placeholder="Notas sobre esta requisição"
-        />
-      </Field>
       <p className="flex items-center gap-1 text-xs text-fg-subtle">
         Proxy é configurado globalmente em Configurações → Rede. <Kbd keys="Ctrl+," />
       </p>

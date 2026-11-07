@@ -1,5 +1,5 @@
 import * as Dropdown from '@radix-ui/react-dropdown-menu';
-import { Check, ChevronDown, FolderOpen, Search } from 'lucide-react';
+import { Check, ChevronDown, FolderOpen, Search, Zap } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { APP_NAME, TITLE_BAR_HEIGHT } from '../../../shared/constants';
 import { Kbd } from '../components/Kbd';
@@ -37,7 +37,17 @@ export function TitleBar() {
         {workspaceMenu ? workspaceMenu() : <WorkspaceName />}
       </div>
 
-      <div className="flex flex-1 justify-center">
+      <div className="flex flex-1 items-center justify-center gap-2">
+        <Tooltip label="Requisição rápida, sem coleção (salve depois, se quiser)" shortcut="Ctrl+T">
+          <button
+            type="button"
+            onClick={() => useTabs.getState().openNewRequest()}
+            className="no-drag flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-xs text-fg-muted transition-colors hover:border-primary/60 hover:text-fg"
+          >
+            <Zap className="size-3.5 text-primary" strokeWidth={1.75} />
+            <span className="hidden md:inline">Requisição rápida</span>
+          </button>
+        </Tooltip>
         <button
           type="button"
           onClick={() => setSearchOpen(true)}

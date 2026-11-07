@@ -25,7 +25,7 @@ import { draftsFromViews, emptyDraft, type VariableDraft, variablesDirty } from 
 // ---------------------------------------------------------------------------
 // Tipos
 
-export type RequestSection = 'params' | 'auth' | 'headers' | 'body' | 'scripts' | 'settings';
+export type RequestSection = 'params' | 'auth' | 'headers' | 'body' | 'scripts' | 'docs' | 'settings';
 export type ResponseSection =
   | 'body'
   | 'headers'
@@ -203,7 +203,8 @@ function readIncoming(
 export function isDirty(tab: Tab): boolean {
   switch (tab.kind) {
     case 'request':
-      return tab.base === null ? true : !deepEqual(tab.draft, tab.base);
+      // Requisição rápida intocada (igual à padrão) fecha sem perguntar.
+      return tab.base === null ? !deepEqual(tab.draft, newRequestData()) : !deepEqual(tab.draft, tab.base);
     case 'environment':
     case 'globals':
       return variablesDirty(tab.draft, tab.base);
@@ -435,7 +436,7 @@ function createTab(
           kind,
           draft: { auth: { type: 'none' }, description: '', variables: [], scripts: EMPTY_SCRIPTS },
           base: { auth: { type: 'none' }, description: '', variables: [], scripts: EMPTY_SCRIPTS },
-          section: 'variables',
+          section: 'description',
         },
         incoming.value,
       );
@@ -446,7 +447,7 @@ function createTab(
           kind,
           draft: { auth: { type: 'inherit' }, description: '', scripts: EMPTY_SCRIPTS },
           base: { auth: { type: 'inherit' }, description: '', scripts: EMPTY_SCRIPTS },
-          section: 'auth',
+          section: 'description',
         },
         incoming.value,
       );
@@ -537,7 +538,7 @@ export const useTabs = create<TabsState>()((set, get) => ({
       kind: 'request',
       itemId: null,
       parentId: options.parentId ?? null,
-      title: options.title ?? 'Nova requisição',
+      title: options.title ?? 'Requisição rápida',
       conflict: null,
       draft: data,
       base: null,

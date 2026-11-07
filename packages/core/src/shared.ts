@@ -38,6 +38,7 @@ export type { ImportFileKind, ImportPreview, ImportReport, ImportResultItem } fr
 export type { ImportCounts, ImportWarning, PostmanFileKind } from './import/postman';
 export * from './loadtest/config';
 export * from './model/appearance-catalog';
+export * from './model/docs';
 export * from './model/schemas';
 export * from './model/tree';
 export type {

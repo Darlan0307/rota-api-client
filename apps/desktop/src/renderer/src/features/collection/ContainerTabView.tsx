@@ -2,7 +2,6 @@ import { findNode } from '@rota/core/shared';
 import { Save } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button } from '../../components/Button';
-import { TextArea } from '../../components/form';
 import { TabStrip } from '../../components/TabStrip';
 import { Tooltip } from '../../components/Tooltip';
 import { useInheritedAuth } from '../../lib/auth';
@@ -14,6 +13,8 @@ import { type CollectionTab, type FolderTab, isDirty, useTabs } from '../../stat
 import { useSnapshot } from '../../state/workspace';
 import { openAppearanceDialog } from '../appearance/AppearanceDialog';
 import { ConflictBanner } from '../conflict/ConflictBanner';
+import { DocPanel } from '../docs/DocPanel';
+import { EndpointsIndex } from '../docs/EndpointsIndex';
 import { AuthEditor } from '../request/AuthEditor';
 import { openItemById } from '../request/open';
 import { ScriptsEditor } from '../scripts/ScriptsEditor';
@@ -29,17 +30,18 @@ export function ContainerTabView({ tab }: { tab: CollectionTab | FolderTab }) {
   const found = tab.itemId ? findNode(snapshot, tab.itemId) : undefined;
   const node = found && found.kind !== 'request' ? found : undefined;
 
+  // A documentação abre primeiro: é a "página" da coleção/pasta (texto + índice dos endpoints).
   const sections: { id: string; label: string }[] = isCollection
     ? [
+        { id: 'description', label: 'Documentação' },
         { id: 'variables', label: 'Variáveis' },
         { id: 'auth', label: 'Autenticação' },
         { id: 'scripts', label: 'Scripts' },
-        { id: 'description', label: 'Descrição' },
       ]
     : [
+        { id: 'description', label: 'Documentação' },
         { id: 'auth', label: 'Autenticação' },
         { id: 'scripts', label: 'Scripts' },
-        { id: 'description', label: 'Descrição' },
       ];
 
   const setSection = (section: string) =>
@@ -86,14 +88,31 @@ export function ContainerTabView({ tab }: { tab: CollectionTab | FolderTab }) {
     );
   } else {
     content = (
-      <div className="max-w-2xl p-6">
-        <TextArea
-          rows={12}
-          value={tab.draft.description}
-          onChange={(e) => setDraft({ description: e.target.value })}
-          placeholder="Documente esta coleção/pasta: objetivo, como autenticar, observações…"
-        />
-      </div>
+      <DocPanel
+        value={tab.draft.description}
+        onChange={(description) => setDraft({ description })}
+        onSave={() => void saveTab(tab.id)}
+        dirty={tab.draft.description !== tab.base.description}
+        target={tab.itemId ? { kind: tab.kind, id: tab.itemId, name: tab.title } : null}
+        placeholder={
+          isCollection
+            ? '# Visão geral\n\nPara que serve a API, como autenticar, variáveis necessárias e o fluxo típico.'
+            : '# Sobre esta pasta\n\nO que os endpoints daqui fazem e o que precisam.'
+        }
+        header={
+          <>
+            <p className="text-2xs font-medium uppercase tracking-wide text-fg-subtle">
+              {isCollection ? 'Coleção' : 'Pasta'}
+            </p>
+            <h1 className="flex items-center gap-2 text-2xl font-semibold text-fg">
+              <ItemIcon kind={tab.kind} appearance={node?.appearance} className="size-5" />
+              <span className="truncate">{tab.title}</span>
+            </h1>
+          </>
+        }
+      >
+        {node && <EndpointsIndex node={node} />}
+      </DocPanel>
     );
   }
 
@@ -161,7 +180,14 @@ export function ContainerTabView({ tab }: { tab: CollectionTab | FolderTab }) {
             </button>
           ))}
         </TabStrip>
-        <div className="min-h-0 flex-1 overflow-auto">{content}</div>
+        <div
+          className={cn(
+            'min-h-0 flex-1',
+            tab.section === 'description' ? 'overflow-hidden' : 'overflow-auto',
+          )}
+        >
+          {content}
+        </div>
       </div>
     </VariableContextProvider>
   );

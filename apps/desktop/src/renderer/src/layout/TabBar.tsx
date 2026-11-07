@@ -163,7 +163,7 @@ export function TabBar() {
         <div className="flex items-center px-1.5">
           <IconButton
             icon={Plus}
-            label="Nova requisição"
+            label="Requisição rápida"
             shortcut="Ctrl+T"
             size="sm"
             onClick={() => openNewRequest()}

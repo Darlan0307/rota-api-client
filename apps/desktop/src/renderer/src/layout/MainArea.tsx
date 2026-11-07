@@ -65,7 +65,7 @@ function WelcomeScreen() {
         <div className="space-y-1">
           <WelcomeAction
             icon={<Plus className="size-4" />}
-            label="Nova requisição"
+            label="Requisição rápida (sem coleção)"
             shortcut="Ctrl+T"
             onClick={() => openNewRequest()}
           />
@@ -107,7 +107,7 @@ function WelcomeScreen() {
           <Shortcut label="Salvar" keys="Ctrl+S" />
           <Shortcut label="Buscar" keys="Ctrl+P" />
           <Shortcut label="Fechar aba" keys="Ctrl+W" />
-          <Shortcut label="Nova aba" keys="Ctrl+T" />
+          <Shortcut label="Requisição rápida" keys="Ctrl+T" />
           <Shortcut label="Recolher sidebar" keys="Ctrl+B" />
           <Shortcut label="Renomear item" keys="Ctrl+E" />
           <Shortcut label="Duplicar item" keys="Ctrl+D" />

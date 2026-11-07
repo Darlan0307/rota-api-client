@@ -13,6 +13,8 @@ Cliente de API para desktop (Windows), no estilo do Postman, que roda offline e 
 - **Resposta** formatada, em texto puro ou em **tabela** (ordenar, filtrar e exportar CSV no formato do Excel em português). Clique num campo para salvar o valor numa variável.
 - **O que foi enviado de verdade**: a aba "Enviado" mostra URL, headers e corpo como saíram na conexão, já com as variáveis resolvidas. A aba Headers lista os headers que o Rota acrescenta sozinho (e deixa desligar cada um).
 - **Envios anteriores** de cada requisição a um clique: ver a resposta, restaurar o que foi enviado ou comparar com a atual.
+- **Requisição rápida** (⚡ ou Ctrl+T): testa um endpoint sem criar coleção e salva numa coleção só se quiser.
+- **Documentação como página**: coleções, pastas e requisições têm documentação em Markdown (tabelas, código, listas), com índice dos endpoints montado sozinho e edição com prévia. O Claude pode escrevê-la pelo MCP.
 
 ![Resposta em tabela](docs/screenshots/resposta-em-tabela.png)
 

@@ -254,6 +254,12 @@ function truncate(text: string): string {
 // Esquemas reutilizados
 
 const id = z.string().describe('Id do item (obtido em listar_colecoes, buscar ou obter_item)');
+
+/** O app mostra as descrições como página em Markdown; o Claude precisa saber o que vai em cada nível. */
+export const DOC_REQUEST =
+  'Documentação da requisição em Markdown (o Rota mostra como página: títulos, listas, tabelas e blocos de código). Sugestão: objetivo, parâmetros, corpo de exemplo, respostas e erros comuns. Use {{variaveis}} como no editor.';
+export const DOC_CONTAINER =
+  'Documentação em Markdown da coleção/pasta, mostrada como página no Rota: visão geral, autenticação, variáveis necessárias e fluxo típico (ex.: login → consulta). O Rota já lista os endpoints com a documentação de cada requisição abaixo deste texto: não repita a lista aqui; documente cada endpoint na descrição da própria requisição.';
 export const variableInput = z.object({
   chave: z.string(),
   valor: z.string().optional().describe('Para variáveis secretas, o valor vai cifrado para o cofre local'),
@@ -282,7 +288,7 @@ export const requestFields = {
   body: BodySchema.optional().describe('Ex.: {"mode":"json","text":"{...}"}'),
   scripts: ScriptsSchema.optional().describe('Scripts pm.* de pré-requisição e pós-resposta'),
   configuracoes: RequestSettingsSchema.optional(),
-  descricao: z.string().optional(),
+  descricao: z.string().optional().describe(DOC_REQUEST),
 };
 
 export function requestPatch(args: Partial<Record<keyof typeof requestFields, unknown>>) {
@@ -436,7 +442,7 @@ export function registerTools(server: McpServer, session: McpSession): void {
     'Cria uma coleção. Variáveis "secreta: true" têm o valor cifrado localmente e não vão para os arquivos.',
     {
       nome: z.string(),
-      descricao: z.string().optional(),
+      descricao: z.string().optional().describe(DOC_CONTAINER),
       auth: AuthSchema.optional().describe('Auth padrão herdada pelas requisições'),
       variaveis: z.array(variableInput).optional(),
     },
@@ -520,8 +526,13 @@ export function registerTools(server: McpServer, session: McpSession): void {
 
   tool(
     'atualizar_pasta_ou_colecao',
-    'Altera auth, scripts ou descrição de uma pasta ou coleção. Pode pedir confirmação no app.',
-    { id, auth: AuthSchema.optional(), scripts: ScriptsSchema.optional(), descricao: z.string().optional() },
+    'Altera auth, scripts ou descrição (documentação em Markdown) de uma pasta ou coleção. Pode pedir confirmação no app.',
+    {
+      id,
+      auth: AuthSchema.optional(),
+      scripts: ScriptsSchema.optional(),
+      descricao: z.string().optional().describe(DOC_CONTAINER),
+    },
     async ({ id, auth, scripts, descricao }) => {
       const store = await session.store();
       const node = getNode(store, id);

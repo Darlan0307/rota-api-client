@@ -8,6 +8,7 @@ import {
 } from '@rota/core/shared';
 import {
   Bookmark,
+  BookOpen,
   BookText,
   ChevronRight,
   Copy,
@@ -48,6 +49,7 @@ import {
   newCollection,
   newFolder,
   newRequest,
+  openContainerDocs,
   openContainerSettings,
   removeItem,
   renameItem,
@@ -264,6 +266,7 @@ function TreeRow({
       ? ([
           { label: 'Nova requisição', icon: FilePlus2, onSelect: () => void newRequest(node.id) },
           { label: 'Nova pasta', icon: FolderPlus, onSelect: () => void newFolder(node.id) },
+          { label: 'Documentação', icon: BookOpen, onSelect: () => openContainerDocs(node.id) },
           { label: 'Configurações', icon: Settings2, onSelect: () => openContainerSettings(node.id) },
           {
             label: 'Ícone e cor',

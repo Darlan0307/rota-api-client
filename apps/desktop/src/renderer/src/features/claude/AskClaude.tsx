@@ -1,4 +1,4 @@
-import { collectionOf, findNode } from '@rota/core/shared';
+import { collectionOf, documentationPrompt, findNode } from '@rota/core/shared';
 import { BookText, FlaskConical, Sparkles, Stethoscope } from 'lucide-react';
 import { DropdownActions, type MenuEntry } from '../../components/ActionMenu';
 import { Button } from '../../components/Button';
@@ -18,8 +18,7 @@ export const claudePrompts = {
     `Use o MCP do Rota. Leia a requisição "${name}" (id ${id}) com obter_item e, se houver, os exemplos salvos e o envio mais recente (listar_historico / obter_historico). Escreva testes pm.test para o script de pós-resposta cobrindo: status esperado, tempo de resposta razoável, campos obrigatórios e seus tipos e regras de negócio que dê para inferir. Mantenha o que já existir no script, explique o que cada teste verifica e grave com atualizar_requisicao.`,
   explain: (name: string, id: string | null) =>
     `Use o MCP do Rota. Pegue o envio mais recente da requisição "${name}"${id ? ` (id ${id})` : ''} com listar_historico e obter_historico. Explique em português o que deu errado (status, mensagem, headers, corpo), as causas mais prováveis e como corrigir — na requisição (URL, headers, auth, corpo, variáveis do ambiente) ou no servidor. Não altere nada sem me perguntar.`,
-  document: (name: string, id: string) =>
-    `Use o MCP do Rota. Leia a coleção "${name}" (id ${id}) com listar_colecoes e obter_item em cada requisição, incluindo os exemplos. Escreva uma documentação em Markdown, em português: visão geral, autenticação, variáveis necessárias e, para cada endpoint, objetivo, parâmetros, corpo, respostas de exemplo e erros comuns. Grave na descrição da coleção com atualizar_pasta_ou_colecao e me mostre um resumo.`,
+  document: (name: string, id: string) => documentationPrompt({ kind: 'collection', id, name }),
 };
 
 export async function copyPrompt(text: string): Promise<void> {

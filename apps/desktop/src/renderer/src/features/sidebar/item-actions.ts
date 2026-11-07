@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import type { WorkspaceCommand } from '../../../../shared/ipc';
 import { api, errorMessage, runCommand } from '../../lib/api';
 import { confirmDialog, promptDialog } from '../../state/dialogs';
-import { useTabs } from '../../state/tabs';
+import { type CollectionTab, type FolderTab, useTabs } from '../../state/tabs';
 import { toast } from '../../state/toasts';
 import { useUiStore } from '../../state/ui';
 import { offerUndo } from '../../state/undo';
@@ -329,4 +329,12 @@ export function openContainerSettings(id: string): void {
   const snap = snapshot();
   const node = snap ? findNode(snap, id) : undefined;
   if (snap && node && node.kind !== 'request') useTabs.getState().openItem(node.kind, id, snap);
+}
+
+/** Abre a coleção/pasta direto na página de documentação (mesmo se a aba já estava em outra seção). */
+export function openContainerDocs(id: string): void {
+  openContainerSettings(id);
+  const tabs = useTabs.getState();
+  const tab = tabs.tabs.find((t) => (t.kind === 'collection' || t.kind === 'folder') && t.itemId === id);
+  if (tab) tabs.update<CollectionTab | FolderTab>(tab.id, (t) => ({ ...t, section: 'description' }));
 }

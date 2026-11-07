@@ -4,6 +4,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
   AuthSchema,
   collectionToMarkdown,
+  documentationPrompt,
   type ExampleFile,
   findNode,
   type ImportedChild,
@@ -325,9 +326,8 @@ export function registerDocumentationTools(server: McpServer, session: McpSessio
   prompt(
     'documentar_colecao',
     'Documentar uma coleção',
-    'Escreve a documentação Markdown de uma coleção e grava na descrição dela.',
+    'Escreve a documentação Markdown de uma coleção: visão geral na coleção e cada endpoint na própria requisição.',
     { colecaoId: z.string() },
-    ({ colecaoId }) =>
-      `Use o Rota. Gere a base com gerar_documentacao para a coleção ${colecaoId}, complete com o objetivo de cada endpoint, autenticação, variáveis necessárias e erros comuns, e grave na descrição da coleção com atualizar_pasta_ou_colecao.`,
+    ({ colecaoId }) => documentationPrompt({ kind: 'collection', id: colecaoId ?? '' }),
   );
 }

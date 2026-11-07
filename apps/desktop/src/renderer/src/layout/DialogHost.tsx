@@ -149,7 +149,7 @@ function SaveAsForm({
 }) {
   const setTabId = useUiStore((s) => s.setSaveAsTabId);
   const snapshot = useSnapshot();
-  const [name, setName] = useState(title === 'Nova requisição' ? '' : title);
+  const [name, setName] = useState(title === 'Nova requisição' || title === 'Requisição rápida' ? '' : title);
   const [parentId, setParentId] = useState<string | null>(
     initialParent ?? snapshot.collections[0]?.id ?? null,
   );

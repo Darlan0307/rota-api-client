@@ -6,7 +6,15 @@ import { monaco, ROTA_THEME } from '../lib/monaco';
 import { DYNAMIC_SUGGESTIONS, useVariableNames, useVariableResolver } from '../lib/variables';
 import { useVariableHover, VariablePopover } from './VariablePopover';
 
-export type EditorLanguage = 'json' | 'javascript' | 'xml' | 'html' | 'plaintext' | 'css' | 'sql';
+export type EditorLanguage =
+  | 'json'
+  | 'javascript'
+  | 'xml'
+  | 'html'
+  | 'plaintext'
+  | 'css'
+  | 'sql'
+  | 'markdown';
 
 // ---------------------------------------------------------------------------
 // Autocompletar {{variáveis}} nos editores com `variables` (body)
