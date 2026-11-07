@@ -73,6 +73,7 @@ export interface WebhookProvider {
 const json = (value: unknown) => JSON.stringify(value, null, 2);
 
 /** Valores que não são string no JSON (números gerados por {{$...}}). */
+// Número montado juntando {{$randomInt}} (0 a 1000) começa com "1": "0123" é JSON inválido.
 const raw = (template: string) => `@@${template}@@`;
 const template = (value: unknown) => json(value).replace(/"@@(.*?)@@"/g, '$1');
 
@@ -115,7 +116,7 @@ function mercadoPagoEvent(action: string): WebhookEventTemplate {
       api_version: 'v1',
       data: { id: '{{$randomInt}}{{$randomInt}}{{$randomInt}}' },
       date_created: '{{$isoTimestamp}}',
-      id: raw('{{$randomInt}}{{$randomInt}}{{$randomInt}}'),
+      id: raw('1{{$randomInt}}{{$randomInt}}{{$randomInt}}'),
       live_mode: false,
       type: 'payment',
       user_id: '{{$randomInt}}{{$randomInt}}',
@@ -150,7 +151,7 @@ function asaasEvent(event: string, status: string, billingType = 'PIX'): Webhook
 }
 
 const shopifyOrder = (financialStatus: string) => ({
-  id: raw('{{$randomInt}}{{$randomInt}}{{$randomInt}}'),
+  id: raw('1{{$randomInt}}{{$randomInt}}{{$randomInt}}'),
   name: '#{{$randomInt}}',
   email: '{{$email}}',
   created_at: '{{$isoTimestamp}}',
@@ -242,9 +243,9 @@ export const WEBHOOK_PROVIDERS: readonly WebhookProvider[] = [
         headers: { 'X-GitHub-Event': 'ping' },
         body: template({
           zen: 'Keep it logically awesome.',
-          hook_id: raw('{{$randomInt}}{{$randomInt}}'),
+          hook_id: raw('1{{$randomInt}}{{$randomInt}}'),
           hook: { type: 'Repository', active: true, events: ['push', 'pull_request'] },
-          repository: { id: raw('{{$randomInt}}{{$randomInt}}'), full_name: 'exemplo/loja-api' },
+          repository: { id: raw('1{{$randomInt}}{{$randomInt}}'), full_name: 'exemplo/loja-api' },
         }),
       },
       {

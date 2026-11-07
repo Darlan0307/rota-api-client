@@ -129,13 +129,15 @@ describe('assinatura de webhooks', () => {
 
   it('todos os eventos de exemplo viram JSON válido com dados novos', () => {
     const scope = new VariableScope([]);
-    for (const provider of WEBHOOK_PROVIDERS) {
-      for (const event of provider.events) {
-        const text = resolveTemplate(event.body, scope);
-        expect(text, `${provider.id} ${event.id}`).not.toContain('{{');
-        expect(() => JSON.parse(text), `${provider.id} ${event.id}`).not.toThrow();
+    // Valores aleatórios: várias rodadas pegam o caso raro (ex.: {{$randomInt}} = 0 no início de um número).
+    for (let round = 0; round < 300; round++)
+      for (const provider of WEBHOOK_PROVIDERS) {
+        for (const event of provider.events) {
+          const text = resolveTemplate(event.body, scope);
+          expect(text, `${provider.id} ${event.id}`).not.toContain('{{');
+          expect(() => JSON.parse(text), `${provider.id} ${event.id}: ${text}`).not.toThrow();
+        }
       }
-    }
   });
 });
 
