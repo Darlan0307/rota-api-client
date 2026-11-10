@@ -1,12 +1,25 @@
 import * as Dropdown from '@radix-ui/react-dropdown-menu';
 import { ancestorsOf, applyUrlText, composeUrl, HTTP_METHODS, type RequestData } from '@rota/core/shared';
-import { ChevronDown, ChevronRight, Construction, LoaderCircle, Save, Send, X, Zap } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Construction,
+  LoaderCircle,
+  Maximize2,
+  Minimize2,
+  Save,
+  Send,
+  X,
+  Zap,
+} from 'lucide-react';
 import { type ClipboardEvent, type ReactNode, useRef } from 'react';
 import { Group, Panel, useDefaultLayout } from 'react-resizable-panels';
 import { type MenuEntry, MoreActions } from '../../components/ActionMenu';
 import { Button } from '../../components/Button';
+import { CollapsedStrip } from '../../components/CollapsedStrip';
 import { EmptyState } from '../../components/EmptyState';
 import { Field, Switch, TextInput } from '../../components/form';
+import { IconButton } from '../../components/IconButton';
 import { Kbd } from '../../components/Kbd';
 import { KeyValueTable } from '../../components/KeyValueTable';
 import { MethodBadge } from '../../components/MethodBadge';
@@ -18,6 +31,7 @@ import { ResizeHandle } from '../../layout/ResizeHandle';
 import { useInheritedAuth } from '../../lib/auth';
 import { cn } from '../../lib/cn';
 import { methodTextClass } from '../../lib/http-method';
+import { useCollapsiblePanel } from '../../lib/use-collapsible-panel';
 import { useElementWidth } from '../../lib/use-element-width';
 import { VariableContextProvider } from '../../lib/variables';
 import { cancelRequest, saveTab, sendRequest } from '../../state/actions';
@@ -52,6 +66,8 @@ export function registerRequestEditorExtensions(ext: RequestEditorExtensions): v
 
 /** Abaixo desta largura, requisição e resposta ficam empilhadas mesmo no modo lado a lado. */
 const SIDE_BY_SIDE_MIN_WIDTH = 900;
+/** Faixa que sobra da requisição quando a resposta está maximizada. */
+const COLLAPSED_PX = 32;
 
 export function RequestEditor({ tab }: { tab: RequestTab }) {
   const preferredLayout = useUiStore((s) => s.paneLayout);
@@ -62,6 +78,7 @@ export function RequestEditor({ tab }: { tab: RequestTab }) {
       ? 'vertical'
       : preferredLayout;
   const layout = useDefaultLayout({ id: `request-response-${paneLayout}`, storage: localStorage });
+  const requestPane = useCollapsiblePanel({ collapsedPx: COLLAPSED_PX, fallbackSize: '50%' });
   const update = useTabs((s) => s.update);
 
   const setData = (data: RequestData) => update<RequestTab>(tab.id, (t) => ({ ...t, draft: data }));
@@ -82,15 +99,43 @@ export function RequestEditor({ tab }: { tab: RequestTab }) {
             onLayoutChanged={layout.onLayoutChanged}
             className="h-full"
           >
-            <Panel id="request" minSize="25%" defaultSize="50%">
-              <RequestSections tab={tab} onChange={setData} onShortcut={shortcut} />
+            <Panel
+              id="request"
+              collapsible
+              collapsedSize={COLLAPSED_PX}
+              minSize="25%"
+              defaultSize="50%"
+              {...requestPane.panelProps}
+            >
+              {requestPane.collapsed && (
+                <CollapsedStrip
+                  label="Requisição"
+                  vertical={paneLayout === 'horizontal'}
+                  onExpand={requestPane.expand}
+                />
+              )}
+              {/* Continua montada recolhida: editores mantêm cursor e desfazer. */}
+              <div className={cn('h-full', requestPane.collapsed && 'hidden')}>
+                <RequestSections tab={tab} onChange={setData} onShortcut={shortcut} />
+              </div>
             </Panel>
             <ResizeHandle vertical={paneLayout === 'vertical'} />
             <Panel id="response" minSize="20%" defaultSize="50%">
               <ResponsePane
                 tab={tab}
                 extraSections={extensions.responseSections?.(tab) ?? []}
-                actions={extensions.responseActions?.(tab)}
+                actions={
+                  <>
+                    {extensions.responseActions?.(tab)}
+                    <IconButton
+                      icon={requestPane.collapsed ? Minimize2 : Maximize2}
+                      label={requestPane.collapsed ? 'Mostrar a requisição' : 'Maximizar a resposta'}
+                      active={requestPane.collapsed}
+                      size="sm"
+                      onClick={requestPane.toggle}
+                    />
+                  </>
+                }
                 banner={extensions.responseBanner?.(tab)}
               />
             </Panel>

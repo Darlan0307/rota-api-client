@@ -17,6 +17,7 @@ import {
 import {
   ArrowRight,
   BookmarkPlus,
+  ChevronDown,
   CircleAlert,
   CircleCheck,
   CircleHelp,
@@ -24,6 +25,8 @@ import {
   Download,
   ExternalLink,
   LoaderCircle,
+  Maximize2,
+  Minimize2,
   PackagePlus,
   PenLine,
   Play,
@@ -35,7 +38,8 @@ import {
   Unplug,
   Zap,
 } from 'lucide-react';
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { Group, Panel, useDefaultLayout } from 'react-resizable-panels';
 import { Button } from '../../components/Button';
 import { CodeEditor } from '../../components/CodeEditor';
 import { EmptyState } from '../../components/EmptyState';
@@ -43,13 +47,17 @@ import { Checkbox, TextInput } from '../../components/form';
 import { IconButton } from '../../components/IconButton';
 import { MethodBadge } from '../../components/MethodBadge';
 import { Tooltip } from '../../components/Tooltip';
+import { ResizeHandle } from '../../layout/ResizeHandle';
 import { api, errorMessage } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import { formatBytes, formatDuration, statusTone } from '../../lib/format';
 import type { HttpMethod } from '../../lib/http-method';
+import { useCollapsiblePanel } from '../../lib/use-collapsible-panel';
+import { useElementWidth } from '../../lib/use-element-width';
 import { confirmDialog } from '../../state/dialogs';
 import { type TunnelTab, useTabs } from '../../state/tabs';
 import { toast } from '../../state/toasts';
+import { useUiStore } from '../../state/ui';
 import { addToPack } from '../context-pack/state';
 import {
   clearExchanges,
@@ -94,14 +102,104 @@ export function TunnelTabView({ tab }: { tab: TunnelTab }) {
       <EmptyState icon={Unplug} title="Túnel não encontrado" description="Ele pode ter sido excluído." />
     );
 
+  return <TunnelLayout view={view} />;
+}
+
+/** Altura da faixa-resumo quando a configuração está recolhida. */
+const SUMMARY_PX = 44;
+
+function TunnelLayout({ view }: { view: TunnelViewData }) {
+  const layout = useDefaultLayout({ id: 'tunnel-config', storage: localStorage });
+  const config = useCollapsiblePanel({ collapsedPx: SUMMARY_PX, fallbackSize: '45%' });
+  const focusOnStart = useUiStore((s) => s.tunnelFocusOnStart);
+
+  // Preferência: ao ligar (não ao abrir uma aba de túnel já ligado), foca nas chamadas.
+  const status = view.status;
+  const previous = useRef(status);
+  useEffect(() => {
+    if (focusOnStart && status === 'running' && previous.current === 'starting') config.collapse();
+    previous.current = status;
+  }, [status, focusOnStart, config.collapse]);
+
   return (
-    <div className="@container flex h-full min-h-0 flex-col overflow-y-auto bg-bg">
+    <div className="@container flex h-full min-h-0 flex-col bg-bg">
       <Header view={view} />
-      <div className="grid shrink-0 gap-4 px-5 pb-5 @4xl:grid-cols-2">
-        <TargetCard config={view.config} />
-        <PublicUrlCard view={view} />
+      <div className="min-h-0 flex-1 border-t border-border">
+        <Group
+          orientation="vertical"
+          defaultLayout={layout.defaultLayout}
+          onLayoutChanged={layout.onLayoutChanged}
+          className="h-full"
+        >
+          <Panel
+            id="config"
+            collapsible
+            collapsedSize={SUMMARY_PX}
+            minSize={160}
+            defaultSize="45%"
+            {...config.panelProps}
+          >
+            {config.collapsed && <ConfigSummary view={view} onExpand={config.expand} />}
+            {/* Fica montado quando recolhido: campos em edição não perdem o texto. */}
+            <div className={cn('h-full overflow-y-auto', config.collapsed && 'hidden')}>
+              <div className="grid gap-4 px-5 py-4 @4xl:grid-cols-2">
+                <TargetCard config={view.config} />
+                <PublicUrlCard view={view} />
+              </div>
+            </div>
+          </Panel>
+          <ResizeHandle vertical />
+          <Panel id="calls" minSize={200}>
+            <Inspector view={view} focused={config.collapsed} onToggleFocus={config.toggle} />
+          </Panel>
+        </Group>
       </div>
-      <Inspector view={view} />
+    </div>
+  );
+}
+
+/** Configuração recolhida: o essencial numa linha (destino, URL e teste). */
+function ConfigSummary({ view, onExpand }: { view: TunnelViewData; onExpand: () => void }) {
+  const { config, status, publicUrl } = view;
+  const ngrok = config.provider === 'ngrok';
+  const baseUrl = publicUrl ?? (ngrok && config.ngrokDomain ? `https://${config.ngrokDomain}` : null);
+  const fullUrl = baseUrl ? joinUrl(baseUrl, config.webhookPath) : null;
+  const running = status === 'running';
+
+  return (
+    <div className="flex h-full min-w-0 items-center gap-2 px-5 text-xs">
+      {fullUrl ? (
+        <>
+          <code className="min-w-0 truncate select-text font-mono text-fg" title={fullUrl}>
+            {fullUrl}
+          </code>
+          <IconButton
+            icon={Copy}
+            label="Copiar a URL do webhook"
+            size="sm"
+            onClick={() => copy(fullUrl, 'URL do webhook copiada.')}
+          />
+        </>
+      ) : (
+        <span className="min-w-0 truncate text-fg-subtle">
+          {status === 'starting' ? 'Criando a URL pública…' : 'Ligue o túnel para gerar a URL pública.'}
+        </span>
+      )}
+      <span className="hidden min-w-0 shrink items-center gap-1.5 text-fg-subtle @2xl:flex">
+        <ArrowRight className="size-3 shrink-0" />
+        <span className="truncate font-mono">
+          {config.mode === 'forward' ? config.target.replace(/^https?:\/\//, '') : 'só capturar'}
+        </span>
+      </span>
+      <div className="flex-1" />
+      {running && (
+        <Button size="sm" variant="ghost" onClick={() => void testTunnel(config.id, config.webhookPath)}>
+          <Send className="size-3.5" /> Testar agora
+        </Button>
+      )}
+      <Button size="sm" variant="ghost" onClick={onExpand} title="Mostra o destino e o endereço público">
+        <ChevronDown className="size-3.5" /> Configuração
+      </Button>
     </div>
   );
 }
@@ -649,14 +747,52 @@ function asMethod(method: string): HttpMethod {
   return (HTTP_METHODS as readonly string[]).includes(method) ? (method as HttpMethod) : 'POST';
 }
 
-function Inspector({ view }: { view: TunnelViewData }) {
+/** Largura a partir da qual lista e detalhe ficam lado a lado (48rem, como o @3xl). */
+const SIDE_BY_SIDE_PX = 768;
+
+function Inspector({
+  view,
+  focused,
+  onToggleFocus,
+}: {
+  view: TunnelViewData;
+  focused: boolean;
+  onToggleFocus: () => void;
+}) {
   const { config, exchanges } = view;
   const selectedId = useTunnels((s) => s.selected[config.id]);
   const setSelectedId = (id: string) => selectExchange(config.id, id);
   const selected = exchanges.find((e) => e.id === selectedId) ?? exchanges[0] ?? null;
+  const containerRef = useRef<HTMLElement>(null);
+  const width = useElementWidth(containerRef);
+  const sideBySide = width >= SIDE_BY_SIDE_PX;
+  const listLayout = useDefaultLayout({ id: 'tunnel-calls', storage: localStorage });
+
+  const list = (
+    <ul className={cn('overflow-y-auto', sideBySide ? 'h-full' : 'max-h-60 shrink-0 border-b border-border')}>
+      {exchanges.map((e) => (
+        <ExchangeRow
+          key={e.id}
+          exchange={e}
+          selected={selected?.id === e.id}
+          onSelect={() => setSelectedId(e.id)}
+        />
+      ))}
+    </ul>
+  );
+  const detail = selected && (
+    <ExchangeDetail
+      key={selected.id}
+      tunnelId={config.id}
+      target={config.target}
+      provider={config.webhook.provider}
+      summary={selected}
+      onReplayed={(id) => setSelectedId(id)}
+    />
+  );
 
   return (
-    <section className="flex min-h-[340px] flex-1 flex-col border-t border-border">
+    <section ref={containerRef} className="flex h-full min-h-0 flex-col">
       <div className="flex h-10 shrink-0 items-center gap-2 px-5">
         <h3 className="flex items-center gap-2 text-[13px] font-semibold text-fg">
           <span className="flex size-5 items-center justify-center rounded-full bg-primary-soft font-mono text-2xs text-primary">
@@ -682,6 +818,13 @@ function Inspector({ view }: { view: TunnelViewData }) {
         >
           <Zap className="size-3.5" /> Simular webhook
         </Button>
+        <IconButton
+          icon={focused ? Minimize2 : Maximize2}
+          label={focused ? 'Mostrar a configuração' : 'Focar nas chamadas (recolhe a configuração)'}
+          active={focused}
+          size="sm"
+          onClick={onToggleFocus}
+        />
       </div>
 
       {exchanges.length === 0 ? (
@@ -696,28 +839,27 @@ function Inspector({ view }: { view: TunnelViewData }) {
             </p>
           </div>
         </div>
+      ) : sideBySide ? (
+        <div className="min-h-0 flex-1 border-t border-border">
+          <Group
+            orientation="horizontal"
+            defaultLayout={listLayout.defaultLayout}
+            onLayoutChanged={listLayout.onLayoutChanged}
+            className="h-full"
+          >
+            <Panel id="list" minSize={200} maxSize="60%" defaultSize={300}>
+              {list}
+            </Panel>
+            <ResizeHandle />
+            <Panel id="detail" minSize={360}>
+              {detail}
+            </Panel>
+          </Group>
+        </div>
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 border-t border-border @3xl:grid-cols-[minmax(240px,320px)_minmax(0,1fr)]">
-          <ul className="max-h-60 overflow-y-auto border-b border-border @3xl:max-h-none @3xl:border-b-0 @3xl:border-r">
-            {exchanges.map((e) => (
-              <ExchangeRow
-                key={e.id}
-                exchange={e}
-                selected={selected?.id === e.id}
-                onSelect={() => setSelectedId(e.id)}
-              />
-            ))}
-          </ul>
-          {selected && (
-            <ExchangeDetail
-              key={selected.id}
-              tunnelId={config.id}
-              target={config.target}
-              provider={config.webhook.provider}
-              summary={selected}
-              onReplayed={(id) => setSelectedId(id)}
-            />
-          )}
+        <div className="flex min-h-0 flex-1 flex-col border-t border-border">
+          {list}
+          {detail}
         </div>
       )}
     </section>
@@ -877,7 +1019,7 @@ function ExchangeDetail({
   }
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-col">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex shrink-0 flex-wrap items-center gap-2 px-4 py-2.5">
         <MethodBadge method={asMethod(exchange.method)} short={false} />
         <code className="min-w-0 flex-1 truncate font-mono text-xs text-fg" title={exchange.path}>
@@ -994,8 +1136,12 @@ function ExchangeDetail({
         )}
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(160px,1fr)] border-t border-border">
-        <details className="border-b border-border px-4 py-2 text-xs" open={headers.length <= 6}>
+      {/* Headers rolam dentro do limite; o corpo fica com o resto da altura. */}
+      <div className="flex min-h-0 flex-1 flex-col border-t border-border">
+        <details
+          className="max-h-[40%] shrink-0 overflow-y-auto border-b border-border px-4 py-2 text-xs"
+          open={headers.length <= 6}
+        >
           <summary className="cursor-pointer select-none text-fg-muted hover:text-fg">
             Headers <span className="font-mono text-2xs">({headers.length})</span>
           </summary>
@@ -1018,7 +1164,7 @@ function ExchangeDetail({
             {side === 'response' && !exchange.responseBody ? 'A API não respondeu.' : 'Sem corpo.'}
           </p>
         ) : (
-          <div className="flex min-h-0 flex-col">
+          <div className="flex min-h-[120px] flex-1 flex-col">
             {rawBody?.truncated && (
               <p className="shrink-0 px-4 py-1 text-2xs text-warning">
                 Mostrando o primeiro 1 MB de {formatBytes(rawBody.size)}.

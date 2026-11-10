@@ -26,8 +26,12 @@ import {
   ListOrdered,
   LoaderCircle,
   Lock,
+  Maximize2,
+  Minimize2,
   MoreHorizontal,
   PackagePlus,
+  PanelLeftClose,
+  PanelLeftOpen,
   Pencil,
   Play,
   Plus,
@@ -54,6 +58,7 @@ import { ResizeHandle } from '../../layout/ResizeHandle';
 import { errorMessage } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import { monaco } from '../../lib/monaco';
+import { useCollapsiblePanel } from '../../lib/use-collapsible-panel';
 import { confirmDialog } from '../../state/dialogs';
 import { type DatabaseTab, useTabs } from '../../state/tabs';
 import { toast } from '../../state/toasts';
@@ -107,6 +112,8 @@ export function DatabaseTabView({ tab }: { tab: DatabaseTab }) {
   const update = useTabs((s) => s.update);
   const layout = useDefaultLayout({ id: 'database-schema', storage: localStorage });
   const editorLayout = useDefaultLayout({ id: 'database-editor', storage: localStorage });
+  const schemaPane = useCollapsiblePanel({ collapsedPx: 0, fallbackSize: '24%' });
+  const editorPane = useCollapsiblePanel({ collapsedPx: EDITOR_TOOLBAR_PX, fallbackSize: '38%' });
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
   const name = view?.config.name;
@@ -162,7 +169,14 @@ export function DatabaseTabView({ tab }: { tab: DatabaseTab }) {
             onLayoutChanged={layout.onLayoutChanged}
             className="h-full"
           >
-            <Panel id="schema" minSize="14%" defaultSize="24%">
+            <Panel
+              id="schema"
+              collapsible
+              collapsedSize={0}
+              minSize="14%"
+              defaultSize="24%"
+              {...schemaPane.panelProps}
+            >
               <SchemaTree
                 connectionId={id}
                 engine={view.config.engine}
@@ -180,8 +194,22 @@ export function DatabaseTabView({ tab }: { tab: DatabaseTab }) {
                 onLayoutChanged={editorLayout.onLayoutChanged}
                 className="h-full"
               >
-                <Panel id="editor" minSize="15%" defaultSize="38%">
-                  <SqlEditor id={id} editorRef={editorRef} />
+                <Panel
+                  id="editor"
+                  collapsible
+                  collapsedSize={EDITOR_TOOLBAR_PX}
+                  minSize="15%"
+                  defaultSize="38%"
+                  {...editorPane.panelProps}
+                >
+                  <SqlEditor
+                    id={id}
+                    editorRef={editorRef}
+                    schemaHidden={schemaPane.collapsed}
+                    onToggleSchema={schemaPane.toggle}
+                    resultMaximized={editorPane.collapsed}
+                    onToggleResult={editorPane.toggle}
+                  />
                 </Panel>
                 <ResizeHandle vertical />
                 <Panel id="result" minSize="20%" defaultSize="62%">
@@ -548,12 +576,23 @@ function SchemaTree({
 // ---------------------------------------------------------------------------
 // Editor
 
+/** Altura da barra do editor SQL: é o que sobra dele com o resultado maximizado. */
+const EDITOR_TOOLBAR_PX = 40;
+
 function SqlEditor({
   id,
   editorRef,
+  schemaHidden,
+  onToggleSchema,
+  resultMaximized,
+  onToggleResult,
 }: {
   id: string;
   editorRef: React.RefObject<monaco.editor.IStandaloneCodeEditor | null>;
+  schemaHidden: boolean;
+  onToggleSchema: () => void;
+  resultMaximized: boolean;
+  onToggleResult: () => void;
 }) {
   const view = useConnection(id);
   const sql = useDatabases((s) => s.queries[id]?.sql) ?? queryOf(id).sql;
@@ -617,6 +656,12 @@ function SqlEditor({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3">
+        <IconButton
+          icon={schemaHidden ? PanelLeftOpen : PanelLeftClose}
+          label={schemaHidden ? 'Mostrar a estrutura do banco' : 'Esconder a estrutura do banco'}
+          size="sm"
+          onClick={onToggleSchema}
+        />
         {running ? (
           <Button
             size="sm"
@@ -697,8 +742,16 @@ function SqlEditor({
           ariaLabel="Limite de linhas"
           align="end"
         />
+        <IconButton
+          icon={resultMaximized ? Minimize2 : Maximize2}
+          label={resultMaximized ? 'Mostrar o editor' : 'Maximizar o resultado (recolhe o editor)'}
+          active={resultMaximized}
+          size="sm"
+          onClick={onToggleResult}
+        />
       </div>
-      <div className="min-h-0 flex-1">
+      {/* Recolhido, o editor continua montado: Executar e o histórico seguem funcionando. */}
+      <div className={cn('min-h-0 flex-1', resultMaximized && 'hidden')}>
         <CodeEditor
           value={sql}
           onChange={(value) => updateQuery(id, { sql: value })}

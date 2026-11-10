@@ -119,7 +119,7 @@ export function registerFeatures(): void {
   registerOverlay(FillTestDataDialog);
   registerOverlay(SaveToVariableDialog);
 
-  // Túneis (cloudflared) para receber webhooks.
+  // Túneis (Cloudflare ou ngrok) para receber webhooks.
   registerSidebarExtensions({
     tunnels: (filter) => createElement(TunnelsPanel, { filter }),
     tunnelsActions: () => createElement(TunnelsActions),
@@ -128,7 +128,7 @@ export function registerFeatures(): void {
   registerOverlay(WebhookSimulatorDialog);
   subscribeTunnelEvents();
 
-  // Bancos de dados (Firebird).
+  // Bancos de dados (Firebird, PostgreSQL, MySQL e SQL Server).
   registerSidebarExtensions({
     databases: (filter) => createElement(DatabasesPanel, { filter }),
     databasesActions: () => createElement(DatabasesActions),
@@ -145,7 +145,7 @@ export function registerFeatures(): void {
   // Backup completo no formato do Postman.
   registerOverlay(BackupDialog);
 
-  // Ícone e cor de coleções e pastas.
+  // Ícone e cor de coleções, pastas, ambientes e túneis.
   registerOverlay(AppearanceDialog);
   registerSidebarExtensions({ onBackup: openBackupDialog });
   registerWelcomeExtensions({ onBackup: openBackupDialog });

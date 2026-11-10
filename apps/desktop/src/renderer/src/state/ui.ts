@@ -24,6 +24,8 @@ interface UiState {
   paneLayout: PaneLayout;
   /** Pastas/coleções expandidas na árvore. */
   expanded: Record<string, boolean>;
+  /** Ao ligar um túnel, recolhe a configuração e deixa só as chamadas recebidas. */
+  tunnelFocusOnStart: boolean;
 
   searchOpen: boolean;
   settingsOpen: boolean;
@@ -40,6 +42,7 @@ interface UiState {
   selectSection(section: SidebarSection): void;
   showSection(section: SidebarSection): void;
   togglePaneLayout(): void;
+  setTunnelFocusOnStart(value: boolean): void;
   setExpanded(id: string, expanded: boolean): void;
   expandMany(ids: string[]): void;
 
@@ -60,6 +63,7 @@ export const useUiStore = create<UiState>()(
       sidebarSection: 'collections',
       paneLayout: 'horizontal',
       expanded: {},
+      tunnelFocusOnStart: false,
       searchOpen: false,
       settingsOpen: false,
       settingsSection: 'appearance',
@@ -79,6 +83,7 @@ export const useUiStore = create<UiState>()(
       showSection: (section) => set({ sidebarSection: section, sidebarCollapsed: false }),
       togglePaneLayout: () =>
         set((s) => ({ paneLayout: s.paneLayout === 'horizontal' ? 'vertical' : 'horizontal' })),
+      setTunnelFocusOnStart: (tunnelFocusOnStart) => set({ tunnelFocusOnStart }),
       setExpanded: (id, expanded) => set((s) => ({ expanded: { ...s.expanded, [id]: expanded } })),
       expandMany: (ids) =>
         set((s) => ({ expanded: { ...s.expanded, ...Object.fromEntries(ids.map((id) => [id, true])) } })),
@@ -102,6 +107,7 @@ export const useUiStore = create<UiState>()(
         editorFontSize: s.editorFontSize,
         paneLayout: s.paneLayout,
         expanded: s.expanded,
+        tunnelFocusOnStart: s.tunnelFocusOnStart,
       }),
       migrate: (persisted) => persisted as UiState,
       merge: (persisted, current) => {
@@ -116,6 +122,8 @@ export const useUiStore = create<UiState>()(
           density: isDensity(p.density) ? p.density : current.density,
           editorFont: isEditorFont(p.editorFont) ? p.editorFont : current.editorFont,
           editorFontSize: isEditorFontSize(p.editorFontSize) ? p.editorFontSize : current.editorFontSize,
+          tunnelFocusOnStart:
+            typeof p.tunnelFocusOnStart === 'boolean' ? p.tunnelFocusOnStart : current.tunnelFocusOnStart,
         };
       },
     },

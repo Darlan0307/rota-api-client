@@ -186,6 +186,8 @@ function AppearanceSettings() {
   const editorFontSize = useUiStore((s) => s.editorFontSize);
   const setEditorFontSize = useUiStore((s) => s.setEditorFontSize);
   const fontPreview = useEditorFont();
+  const tunnelFocusOnStart = useUiStore((s) => s.tunnelFocusOnStart);
+  const setTunnelFocusOnStart = useUiStore((s) => s.setTunnelFocusOnStart);
 
   return (
     <div className="space-y-8">
@@ -224,6 +226,20 @@ function AppearanceSettings() {
           value={density}
           onChange={setDensity}
         />
+      </section>
+
+      <section>
+        <Header
+          title="Painéis"
+          description="Arraste as divisórias para mudar o tamanho de cada parte; o Rota lembra do jeito que você deixou. O botão de maximizar (na resposta, no resultado do banco e nas chamadas do túnel) recolhe a parte de cima numa faixa, e arrastar a divisória até o fim faz o mesmo."
+        />
+        <div className="mt-4">
+          <Switch
+            label="Ao ligar um túnel, mostrar só as chamadas recebidas (a configuração fica recolhida numa linha com a URL)"
+            checked={tunnelFocusOnStart}
+            onChange={setTunnelFocusOnStart}
+          />
+        </div>
       </section>
 
       <section>
